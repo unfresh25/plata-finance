@@ -1,0 +1,38 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_i_14_2630)">
+<rect width="100" height="100" rx="50" fill="white"/>
+<g clip-path="url(#clip0_14_2630)">
+<path d="M63.6364 22.6953H74.5454V33.6044H63.6364V22.6953Z" fill="black"/>
+<path d="M69.0909 22.6953H80V33.6044H69.0909V22.6953Z" fill="#F7D046"/>
+<path d="M20 22.6953H30.9091V33.6044H20V22.6953ZM20 33.6044H30.9091V44.5135H20V33.6044ZM20 44.5135H30.9091V55.4226H20V44.5135ZM20 55.4226H30.9091V66.3317H20V55.4226ZM20 66.3317H30.9091V77.2408H20V66.3317Z" fill="black"/>
+<path d="M25.4546 22.6953H36.3637V33.6044H25.4546V22.6953Z" fill="#F7D046"/>
+<path d="M69.091 33.6035H80V44.5126H69.091V33.6035ZM25.4546 33.6035H36.3637V44.5126H25.4546V33.6035Z" fill="#F2A73B"/>
+<path d="M52.7273 33.6035H63.6364V44.5126H52.7273V33.6035Z" fill="black"/>
+<path d="M58.1818 33.6035H69.0909V44.5126H58.1818V33.6035ZM36.3636 33.6035H47.2727V44.5126H36.3636V33.6035Z" fill="#F2A73B"/>
+<path d="M47.2727 44.5137H58.1818V55.4228H47.2727V44.5137ZM58.1818 44.5137H69.0909V55.4228H58.1818V44.5137ZM36.3636 44.5137H47.2727V55.4228H36.3636V44.5137Z" fill="#EE792F"/>
+<path d="M41.8182 55.4219H52.7273V66.331H41.8182V55.4219Z" fill="black"/>
+<path d="M47.2727 55.4219H58.1818V66.331H47.2727V55.4219Z" fill="#EB5829"/>
+<path d="M69.091 44.5137H80V55.4228H69.091V44.5137ZM25.4546 44.5137H36.3637V55.4228H25.4546V44.5137Z" fill="#EE792F"/>
+<path d="M63.6364 55.4219H74.5454V66.331H63.6364V55.4219Z" fill="black"/>
+<path d="M69.0909 55.4219H80V66.331H69.0909V55.4219Z" fill="#EB5829"/>
+<path d="M63.6364 66.332H74.5454V77.2411H63.6364V66.332Z" fill="black"/>
+<path d="M25.4546 55.4219H36.3637V66.331H25.4546V55.4219Z" fill="#EB5829"/>
+<path d="M69.091 66.332H80V77.2411H69.091V66.332ZM25.4546 66.332H36.3637V77.2411H25.4546V66.332Z" fill="#EA3326"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_i_14_2630" x="0" y="0" width="100" height="102" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="2"/>
+<feGaussianBlur stdDeviation="5"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_14_2630"/>
+</filter>
+<clipPath id="clip0_14_2630">
+<rect width="60" height="54.6094" fill="white" transform="translate(20 22.6953)"/>
+</clipPath>
+</defs>
+</svg>

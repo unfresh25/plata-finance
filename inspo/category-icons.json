@@ -1,0 +1,354 @@
+{
+    "categories": [
+        {
+            "group": "Comida y Bebida",
+            "emoji": "🍽️",
+            "items": [
+                {
+                    "label": "Restaurante",
+                    "icon": "hamburger-01"
+                },
+                {
+                    "label": "Café",
+                    "icon": "coffee-01"
+                },
+                {
+                    "label": "Mercado / Supermercado",
+                    "icon": "natural-food"
+                },
+                {
+                    "label": "Domicilios",
+                    "icon": "pizza-01"
+                },
+                {
+                    "label": "Bebidas",
+                    "icon": "drink"
+                },
+                {
+                    "label": "Panadería",
+                    "icon": "croissant"
+                },
+                {
+                    "label": "Snacks / Dulces",
+                    "icon": "candy"
+                }
+            ]
+        },
+        {
+            "group": "Transporte",
+            "emoji": "🚗",
+            "items": [
+                {
+                    "label": "Taxi / Uber",
+                    "icon": "taxi"
+                },
+                {
+                    "label": "Gasolina",
+                    "icon": "fuel-station"
+                },
+                {
+                    "label": "Bus / Metro",
+                    "icon": "bus-01"
+                },
+                {
+                    "label": "Vuelos",
+                    "icon": "airplane-01"
+                },
+                {
+                    "label": "Carro",
+                    "icon": "car-01"
+                },
+                {
+                    "label": "Moto",
+                    "icon": "motorbike-02"
+                },
+                {
+                    "label": "Bicicleta",
+                    "icon": "bicycle"
+                },
+                {
+                    "label": "Estacionamiento",
+                    "icon": "parking-meter"
+                }
+            ]
+        },
+        {
+            "group": "Hogar",
+            "emoji": "🏠",
+            "items": [
+                {
+                    "label": "Arriendo",
+                    "icon": "home-01"
+                },
+                {
+                    "label": "Servicios (agua, luz, gas)",
+                    "icon": "invoice-01"
+                },
+                {
+                    "label": "Internet",
+                    "icon": "wifi-02"
+                },
+                {
+                    "label": "Reparaciones",
+                    "icon": "wrench-01"
+                },
+                {
+                    "label": "Muebles",
+                    "icon": "sofa-01"
+                },
+                {
+                    "label": "Electrodomésticos",
+                    "icon": "washing-machine"
+                },
+                {
+                    "label": "Decoración",
+                    "icon": "paint-brush-02"
+                }
+            ]
+        },
+        {
+            "group": "Salud y Bienestar",
+            "emoji": "🏥",
+            "items": [
+                {
+                    "label": "Médico / Clínica",
+                    "icon": "hospital-01"
+                },
+                {
+                    "label": "Medicamentos",
+                    "icon": "medicine-02"
+                },
+                {
+                    "label": "Gimnasio",
+                    "icon": "dumbbell-01"
+                },
+                {
+                    "label": "Psicología / Terapia",
+                    "icon": "mentoring"
+                },
+                {
+                    "label": "Odontología",
+                    "icon": "dental-tooth"
+                },
+                {
+                    "label": "Óptica",
+                    "icon": "glasses"
+                },
+                {
+                    "label": "Farmacia",
+                    "icon": "first-aid-kit"
+                }
+            ]
+        },
+        {
+            "group": "Entretenimiento",
+            "emoji": "🎮",
+            "items": [
+                {
+                    "label": "Streaming (Netflix, etc.)",
+                    "icon": "tv-01"
+                },
+                {
+                    "label": "Juegos",
+                    "icon": "game-controller-01"
+                },
+                {
+                    "label": "Cine",
+                    "icon": "theater"
+                },
+                {
+                    "label": "Música",
+                    "icon": "music-note-01"
+                },
+                {
+                    "label": "Libros",
+                    "icon": "book-01"
+                },
+                {
+                    "label": "Deportes",
+                    "icon": "volleyball"
+                },
+                {
+                    "label": "Conciertos / Eventos",
+                    "icon": "ticket-01"
+                }
+            ]
+        },
+        {
+            "group": "Compras y Ropa",
+            "emoji": "🛍️",
+            "items": [
+                {
+                    "label": "Ropa",
+                    "icon": "t-shirt"
+                },
+                {
+                    "label": "Zapatos",
+                    "icon": "running-shoes"
+                },
+                {
+                    "label": "Accesorios",
+                    "icon": "watch-01"
+                },
+                {
+                    "label": "Tecnología / Gadgets",
+                    "icon": "smartphone-01"
+                },
+                {
+                    "label": "Belleza / Cuidado personal",
+                    "icon": "hair-dryer"
+                },
+                {
+                    "label": "Mascotas",
+                    "icon": "bird"
+                },
+                {
+                    "label": "Juguetes / Bebé",
+                    "icon": "baby-01"
+                }
+            ]
+        },
+        {
+            "group": "Educación",
+            "emoji": "📚",
+            "items": [
+                {
+                    "label": "Cursos online",
+                    "icon": "laptop"
+                },
+                {
+                    "label": "Universidad",
+                    "icon": "mortarboard-01"
+                },
+                {
+                    "label": "Libros / Material",
+                    "icon": "notebook-01"
+                },
+                {
+                    "label": "Idiomas",
+                    "icon": "translate"
+                },
+                {
+                    "label": "Suscripciones educativas",
+                    "icon": "diploma"
+                }
+            ]
+        },
+        {
+            "group": "Trabajo e Ingresos",
+            "emoji": "💼",
+            "items": [
+                {
+                    "label": "Salario",
+                    "icon": "money-bag-02"
+                },
+                {
+                    "label": "Freelance",
+                    "icon": "computer"
+                },
+                {
+                    "label": "Inversiones",
+                    "icon": "chart-increase"
+                },
+                {
+                    "label": "Arriendo cobrado",
+                    "icon": "building-02"
+                },
+                {
+                    "label": "Bonos / Comisiones",
+                    "icon": "star"
+                },
+                {
+                    "label": "Reembolsos",
+                    "icon": "exchange-01"
+                }
+            ]
+        },
+        {
+            "group": "Finanzas",
+            "emoji": "💳",
+            "items": [
+                {
+                    "label": "Transferencia",
+                    "icon": "transfer-horizontal"
+                },
+                {
+                    "label": "Crédito / Deuda",
+                    "icon": "credit-card"
+                },
+                {
+                    "label": "Ahorros",
+                    "icon": "piggy-bank"
+                },
+                {
+                    "label": "Impuestos",
+                    "icon": "invoice-02"
+                },
+                {
+                    "label": "Seguros",
+                    "icon": "shield-01"
+                },
+                {
+                    "label": "Comisiones bancarias",
+                    "icon": "bank"
+                },
+                {
+                    "label": "Cashback",
+                    "icon": "coins-01"
+                }
+            ]
+        },
+        {
+            "group": "Viajes",
+            "emoji": "✈️",
+            "items": [
+                {
+                    "label": "Hotel",
+                    "icon": "hotel-02"
+                },
+                {
+                    "label": "Vuelos",
+                    "icon": "airplane-01"
+                },
+                {
+                    "label": "Maleta",
+                    "icon": "luggage-01"
+                },
+                {
+                    "label": "Tours / Actividades",
+                    "icon": "compass"
+                },
+                {
+                    "label": "Visa / Documentos",
+                    "icon": "passport-01"
+                }
+            ]
+        },
+        {
+            "group": "Otros",
+            "emoji": "🌱",
+            "items": [
+                {
+                    "label": "Regalo",
+                    "icon": "gift"
+                },
+                {
+                    "label": "Donación / Caridad",
+                    "icon": "favourite"
+                },
+                {
+                    "label": "Suscripciones generales",
+                    "icon": "repeat"
+                },
+                {
+                    "label": "Multas / Penalidades",
+                    "icon": "alert-02"
+                },
+                {
+                    "label": "Otros gastos",
+                    "icon": "more-horizontal"
+                }
+            ]
+        }
+    ]
+}

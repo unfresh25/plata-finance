@@ -1,0 +1,49 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_i_14_2427)">
+<g clip-path="url(#clip0_14_2427)">
+<rect width="100" height="100" rx="50" fill="url(#paint0_radial_14_2427)"/>
+<g filter="url(#filter1_f_14_2427)">
+<circle cx="50" cy="50" r="50" fill="#66CCFF" fill-opacity="0.1"/>
+</g>
+<g filter="url(#filter2_f_14_2427)">
+<circle cx="50" cy="50" r="50" fill="#0099FF" fill-opacity="0.2"/>
+</g>
+<g clip-path="url(#clip1_14_2427)">
+<path d="M70 20V40H50L30 20H70ZM30 40H50L70 60H50V80L30 60V40Z" fill="white"/>
+</g>
+</g>
+</g>
+<defs>
+<filter id="filter0_i_14_2427" x="0" y="0" width="100" height="102" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="2"/>
+<feGaussianBlur stdDeviation="5"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_14_2427"/>
+</filter>
+<filter id="filter1_f_14_2427" x="-100" y="-100" width="300" height="300" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="50" result="effect1_foregroundBlur_14_2427"/>
+</filter>
+<filter id="filter2_f_14_2427" x="-200" y="-200" width="500" height="500" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="100" result="effect1_foregroundBlur_14_2427"/>
+</filter>
+<radialGradient id="paint0_radial_14_2427" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(50 13.5) rotate(90) scale(86.5)">
+<stop stop-color="#0099FF"/>
+<stop offset="0.6" stop-color="#0077FF"/>
+<stop offset="1" stop-color="#0055FF"/>
+</radialGradient>
+<clipPath id="clip0_14_2427">
+<rect width="100" height="100" rx="50" fill="white"/>
+</clipPath>
+<clipPath id="clip1_14_2427">
+<rect width="40" height="60" fill="white" transform="translate(30 20)"/>
+</clipPath>
+</defs>
+</svg>

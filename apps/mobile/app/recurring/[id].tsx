@@ -1,0 +1,349 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, Animated, PanResponder, Dimensions, Image, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { supabase } from '../../src/lib/supabase';
+import { formatCurrency, formatShortDate } from '@jojos/core';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { Cancel01Icon, Calendar01Icon, Folder01Icon, Wallet01Icon, MoreHorizontalIcon, Edit02Icon, Delete01Icon, Alert01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
+import { useAuth } from '../../src/context/AuthContext';
+import { SUBSCRIPTION_LOGOS } from '../../src/data/SubscriptionLogos';
+import DynamicIcon from '../../src/components/DynamicIcon';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
+const SHEET_MIN_HEIGHT = SCREEN_HEIGHT * 0.5;
+
+export default function RecurringDetailScreen() {
+  const { id } = useLocalSearchParams();
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [event, setEvent] = useState<any>(null);
+  const [currency, setCurrency] = useState('USD');
+  const [showMenu, setShowMenu] = useState(false);
+
+  // Animation values
+  const [isExpanded, setIsExpanded] = useState(false);
+  const START_OFFSET = SHEET_MAX_HEIGHT - SHEET_MIN_HEIGHT;
+  const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  let lastPanY = START_OFFSET;
+  panY.addListener(({ value }) => { lastPanY = value; });
+
+  useEffect(() => {
+    // Mount animation
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(panY, {
+        toValue: START_OFFSET,
+        useNativeDriver: true,
+        bounciness: 0,
+      })
+    ]).start();
+
+    const fetchDetail = async () => {
+      if (!id || !user) return;
+      try {
+        const { data: pData } = await supabase.from('profiles').select('currency').eq('id', user.id).single();
+        if (pData?.currency) setCurrency(pData.currency);
+
+        const { data, error } = await supabase
+          .from('recurring_events')
+          .select(`*, categories (name, icon, color)`)
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+        setEvent(data);
+      } catch (err) {
+        Alert.alert('Error', 'No se pudo cargar el evento recurrente');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDetail();
+  }, [id, user]);
+
+  const closeSheet = () => {
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(panY, {
+        toValue: SCREEN_HEIGHT,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      router.back();
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (e, gs) => Math.abs(gs.dy) > 10,
+      onPanResponderGrant: () => {
+        panY.setOffset(lastPanY);
+        panY.setValue(0);
+      },
+      onPanResponderMove: (e, gs) => {
+        if (lastPanY + gs.dy < 0) {
+          panY.setValue(-lastPanY);
+        } else {
+          panY.setValue(gs.dy);
+        }
+      },
+      onPanResponderRelease: (e, gs) => {
+        panY.flattenOffset();
+        const velocity = gs.vy;
+
+        if (velocity > 1.5 || lastPanY > START_OFFSET + 100) {
+          closeSheet();
+          return;
+        }
+
+        let snapPoint = START_OFFSET;
+        if (velocity < -0.5 || lastPanY < START_OFFSET / 2) {
+          snapPoint = 0;
+          setIsExpanded(true);
+        } else {
+          setIsExpanded(false);
+        }
+
+        Animated.spring(panY, {
+          toValue: snapPoint,
+          useNativeDriver: true,
+          bounciness: 0,
+        }).start();
+      },
+    })
+  ).current;
+
+  const handleEdit = () => {
+    setShowMenu(false);
+    router.back();
+    setTimeout(() => router.push(`/edit-recurring?id=${event.id}` as any), 100);
+  };
+
+  const handleDelete = () => {
+    setShowMenu(false);
+    Alert.alert('Eliminar Evento', '¿Estás seguro de eliminar este evento recurrente?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive', onPress: async () => {
+          try {
+            setLoading(true);
+            await supabase.from('recurring_events').delete().eq('id', event.id);
+            closeSheet();
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+            setLoading(false);
+          }
+        }
+      }
+    ]);
+  };
+
+  const handleConfirmPayment = async () => {
+    try {
+      setConfirming(true);
+      const { data: accounts } = await supabase.from('accounts').select('id, balance').eq('household_id', event.household_id).limit(1);
+      if (!accounts || accounts.length === 0) {
+        Alert.alert('Error', 'No tienes cuentas creadas.');
+        return;
+      }
+      
+      const account = accounts[0];
+      const amount = event.amount;
+      const type = event.type; 
+
+      await supabase.from('transactions').insert({
+        household_id: event.household_id,
+        account_id: account.id,
+        category_id: event.category_id, 
+        recurring_id: event.id,
+        amount: amount,
+        type: type,
+        description: `${event.name}`,
+        date: new Date().toISOString().split('T')[0],
+        created_by: user?.id
+      });
+      
+      const balanceChange = type === 'income' ? amount : -amount;
+      await supabase.from('accounts').update({ balance: account.balance + balanceChange }).eq('id', account.id);
+
+      const [y, m, d] = event.next_date.split('T')[0].split('-');
+      const current = new Date(Number(y), Number(m) - 1, Number(d));
+      if (event.frequency === 'monthly') current.setMonth(current.getMonth() + 1);
+      else if (event.frequency === 'yearly') current.setFullYear(current.getFullYear() + 1);
+      else if (event.frequency === 'weekly') current.setDate(current.getDate() + 7);
+      else if (event.frequency === 'biweekly') current.setDate(current.getDate() + 14);
+      
+      const ny = current.getFullYear();
+      const nm = String(current.getMonth() + 1).padStart(2, '0');
+      const ndd = String(current.getDate()).padStart(2, '0');
+      const newNextDate = `${ny}-${nm}-${ndd}T12:00:00`;
+
+      await supabase.from('recurring_events').update({ next_date: newNextDate }).eq('id', event.id);
+
+      Alert.alert('Éxito', 'Pago confirmado correctamente.');
+      closeSheet();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      if (confirming) setConfirming(false);
+    }
+  };
+
+  if (!event && !loading) {
+    return (
+      <View style={styles.modalBg}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]} />
+        <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}>
+          <View style={styles.center}><Text style={{ color: '#FAFAFA' }}>Evento no encontrado</Text></View>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  const isIncome = event?.type === 'income';
+  const logoMatch = event ? SUBSCRIPTION_LOGOS.find(l => l.id !== 'none' && (l.id === event.logo_id || l.name.toLowerCase() === event.name.toLowerCase())) : null;
+
+  let frequencyLabel = 'una vez al mes';
+  if (event?.frequency === 'weekly') frequencyLabel = 'cada semana';
+  if (event?.frequency === 'yearly') frequencyLabel = 'una vez al año';
+
+  return (
+    <View style={styles.modalBg}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={closeSheet} />
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.handleArea}>
+          <View style={styles.sheetHandle} />
+        </View>
+
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          </TouchableOpacity>
+          <View>
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            </TouchableOpacity>
+            {showMenu && (
+              <>
+                <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
+                <View style={[styles.dropdown, { top: 40 }]}>
+                  <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
+                    <Text style={styles.dropdownText}>Editar</Text>
+                  </TouchableOpacity>
+                  <View style={styles.dropdownDivider} />
+                  <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
+                    <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
+                    <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        {event && (
+          <View style={styles.content}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.avatar, { backgroundColor: event?.categories?.color || '#18181B' }]}>
+                {logoMatch ? (
+                  <Image source={logoMatch.logo} style={{ width: 32, height: 32 }} resizeMode="contain" />
+                ) : event?.categories ? (
+                  <DynamicIcon name={event.categories.icon} size={16} color="#FAFAFA" />
+                ) : (
+                  <HugeiconsIcon icon={Calendar01Icon} size={24} color="#FAFAFA" />
+                )}
+              </View>
+              <View>
+                <Text style={styles.cardTitle}>{logoMatch ? logoMatch.name : 'Servicio'}</Text>
+                <Text style={styles.cardSubtitle}>{event.name}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sentence}>
+              <Text style={styles.grayText}>Tú {isIncome ? 'recibes ' : 'gastas '}</Text>
+              <Text style={[styles.boldText, isIncome ? { color: '#22C55E' } : { color: '#FAFAFA' }]}>{formatCurrency(event.amount || 0, currency)} </Text>
+              <Text style={styles.grayText}>{frequencyLabel} en esta suscripción.</Text>
+            </Text>
+
+            <View style={styles.pillsContainer}>
+              <View style={styles.pill}>
+                <HugeiconsIcon icon={Calendar01Icon} size={15} color="#A1A1AA" />
+                <Text style={styles.pillText}>{event.next_date ? `Próximo pago: ${formatShortDate(event.next_date)}` : '...'}</Text>
+              </View>
+              <View style={styles.pill}>
+                <HugeiconsIcon icon={event.is_active ? Tick02Icon : Alert01Icon} size={15} color={event.is_active ? "#22C55E" : "#A1A1AA"} />
+                <Text style={styles.pillText}>{event.is_active ? 'Activa' : 'Pausada'}</Text>
+              </View>
+              {event.categories && (
+                <View style={styles.pill}>
+                  <DynamicIcon name={event.categories.icon} size={15} color={event.categories.color} />
+                  <Text style={styles.pillText}>{event.categories.name}</Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity 
+              style={{ marginTop: 32, backgroundColor: '#22C55E', paddingVertical: 16, borderRadius: 24, alignItems: 'center' }}
+              onPress={handleConfirmPayment}
+              disabled={confirming}
+            >
+               {confirming ? <ActivityIndicator color="#000" /> : <Text style={{ color: '#000', fontWeight: 'bold', fontSize: 16 }}>Confirmar Pago</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
+      </Animated.View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
+  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
+  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
+  dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
+  dropdown: { position: 'absolute', right: 20, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
+  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
+  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
+
+  content: { padding: 24, paddingTop: 32 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 32 },
+  avatar: { width: 24, height: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#27272A' },
+  cardTitle: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
+  cardSubtitle: { fontSize: 15, color: '#A1A1AA', marginTop: 2, fontWeight: '500' },
+
+  sentence: { fontSize: 32, lineHeight: 42, letterSpacing: -0.5, marginBottom: 40 },
+  grayText: { color: '#A1A1AA' },
+  boldText: { fontWeight: '700', color: '#FAFAFA' },
+
+  pillsContainer: { flexDirection: 'column', flexWrap: 'wrap', gap: 12 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  pillText: { color: '#E4E4E7', fontSize: 15, fontWeight: '500' },
+});

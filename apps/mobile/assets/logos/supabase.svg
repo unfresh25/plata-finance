@@ -1,0 +1,33 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_i_15_3169)">
+<rect width="100" height="100" rx="50" fill="black"/>
+<g clip-path="url(#clip0_15_3169)">
+<path d="M54.889 78.5571C53.3707 80.4692 50.2921 79.4216 50.2555 76.9801L49.7206 41.2715H73.731C78.08 41.2715 80.5055 46.2945 77.8012 49.7005L54.889 78.5571Z" fill="url(#paint0_linear_15_3169)"/>
+<path d="M54.889 78.5571C53.3707 80.4692 50.2921 79.4216 50.2555 76.9801L49.7206 41.2715H73.731C78.08 41.2715 80.5055 46.2945 77.8012 49.7005L54.889 78.5571Z" fill="url(#paint1_linear_15_3169)" fill-opacity="0.2"/>
+<path d="M45.1241 21.0989C46.6424 19.1866 49.721 20.2344 49.7576 22.6758L49.992 58.3844H26.282C21.933 58.3844 19.5074 53.3614 22.2118 49.9554L45.1241 21.0989Z" fill="#3ECF8E"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_i_15_3169" x="0" y="0" width="100" height="102" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="2"/>
+<feGaussianBlur stdDeviation="5"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_15_3169"/>
+</filter>
+<linearGradient id="paint0_linear_15_3169" x1="49.7206" y1="49.189" x2="71.0602" y2="58.1388" gradientUnits="userSpaceOnUse">
+<stop stop-color="#249361"/>
+<stop offset="1" stop-color="#3ECF8E"/>
+</linearGradient>
+<linearGradient id="paint1_linear_15_3169" x1="40.2597" y1="36.2354" x2="49.9917" y2="54.5553" gradientUnits="userSpaceOnUse">
+<stop/>
+<stop offset="1" stop-opacity="0"/>
+</linearGradient>
+<clipPath id="clip0_15_3169">
+<rect width="57.8761" height="60" fill="white" transform="translate(21.0619 20)"/>
+</clipPath>
+</defs>
+</svg>
