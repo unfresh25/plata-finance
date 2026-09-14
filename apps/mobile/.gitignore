@@ -5,3 +5,7 @@
 expo-env.d.ts
 # @end expo-cli
 .env.local
+
+# Proyectos nativos generados por expo prebuild
+/ios
+/android
