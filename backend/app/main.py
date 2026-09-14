@@ -1,17 +1,24 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import predictions, insights, ocr
 
 app = FastAPI(
-    title="Jojo's Finance API",
-    description="AI predictions and insights for Jojo's Finance",
+    title="Plata Finance API",
+    description="OCR, predicciones e insights para Plata Finance",
     version="1.0.0",
 )
 
+# La app móvil (React Native) no aplica CORS; esto solo afecta llamadas desde
+# la web. Orígenes configurables por ALLOWED_ORIGINS (separados por coma).
+_default_origins = "http://localhost:3000"
+_allowed = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://jojos-finance.vercel.app"],
+    allow_origins=_allowed,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,4 +31,4 @@ app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "jojos-finance-ai"}
+    return {"status": "ok", "service": "plata-finance-api"}
