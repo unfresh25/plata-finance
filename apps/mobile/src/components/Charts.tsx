@@ -1,12 +1,112 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { PieChart, LineChart } from 'react-native-gifted-charts';
+import { PieChart, LineChart, BarChart } from 'react-native-gifted-charts';
 import DynamicIcon from './DynamicIcon';
+import { useTheme } from '../context/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// Monochromatic white-opacity steps for dark mode
+const PALETTE_DARK = [
+  'rgba(250,250,250,0.95)',
+  'rgba(250,250,250,0.70)',
+  'rgba(250,250,250,0.50)',
+  'rgba(250,250,250,0.35)',
+  'rgba(250,250,250,0.24)',
+  'rgba(250,250,250,0.16)',
+  'rgba(250,250,250,0.10)',
+  'rgba(250,250,250,0.06)',
+];
+
+// Monochromatic dark-opacity steps for light mode
+const PALETTE_LIGHT = [
+  'rgba(24,24,27,0.95)',
+  'rgba(24,24,27,0.70)',
+  'rgba(24,24,27,0.50)',
+  'rgba(24,24,27,0.35)',
+  'rgba(24,24,27,0.24)',
+  'rgba(24,24,27,0.16)',
+  'rgba(24,24,27,0.10)',
+  'rgba(24,24,27,0.06)',
+];
+
+export function getColor(index: number, isDark: boolean = true) {
+  const pal = isDark ? PALETTE_DARK : PALETTE_LIGHT;
+  return pal[index % pal.length];
+}
+
 // ──────────────────────────────────────────────────────────
-// FintechDonut – Thin ring style
+// ComparisonBars – Income vs Expense grouped bar chart
+// ──────────────────────────────────────────────────────────
+
+interface ComparePoint {
+  label: string;
+  income: number;
+  expense: number;
+}
+
+export function ComparisonBars({ data }: { data: ComparePoint[] }) {
+  const { theme, isDark } = useTheme();
+  const maxY = data.reduce((m, d) => Math.max(m, Math.abs(d.income), Math.abs(d.expense)), 1);
+  const barWidth = 12;
+  const groupGap = 16;
+  const innerGap = 3;
+  const spacing = Math.floor((SCREEN_WIDTH - 48 - (data.length * (barWidth * 2 + innerGap))) / Math.max(data.length - 1, 1));
+
+  const barData = data.flatMap((d, i) => [
+    {
+      value: Math.abs(d.income),
+      frontColor: isDark ? 'rgba(250,250,250,0.75)' : 'rgba(24,24,27,0.75)',
+      label: d.label,
+      labelWidth: barWidth * 2 + innerGap,
+      labelTextStyle: { color: theme.textMuted, fontSize: 9, textAlign: 'center' as const, width: barWidth * 2 + innerGap },
+      spacing: innerGap,
+      topLabelComponent: undefined,
+    },
+    {
+      value: Math.abs(d.expense),
+      frontColor: 'rgba(239,68,68,0.75)',
+      spacing: i < data.length - 1 ? groupGap : innerGap,
+    },
+  ]);
+
+  return (
+    <View>
+      <View style={{ marginLeft: -10 }}>
+        <BarChart
+          data={barData}
+          barWidth={barWidth}
+          noOfSections={3}
+          maxValue={maxY * 1.15}
+          yAxisColor="transparent"
+          xAxisColor="transparent"
+          yAxisTextStyle={{ color: theme.textMuted, fontSize: 8 }}
+          xAxisLabelTextStyle={{ color: theme.textMuted, fontSize: 9 }}
+          rulesColor={isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}
+          height={140}
+          initialSpacing={12}
+          barBorderRadius={2}
+          disablePress
+          hideRules={false}
+        />
+      </View>
+      {/* Legend */}
+      <View style={{ flexDirection: 'row', gap: 20, marginTop: 12, paddingLeft: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 10, height: 3, borderRadius: 1.5, backgroundColor: isDark ? 'rgba(250,250,250,0.75)' : 'rgba(24,24,27,0.75)' }} />
+          <Text style={{ color: theme.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 0.5 }}>INGRESOS</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 10, height: 3, borderRadius: 1.5, backgroundColor: 'rgba(239,68,68,0.75)' }} />
+          <Text style={{ color: theme.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 0.5 }}>GASTOS</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// FintechDonut – Thin ring, percentage in center
 // ──────────────────────────────────────────────────────────
 
 interface DonutSlice {
@@ -24,133 +124,76 @@ interface FintechDonutProps {
   size?: number;
 }
 
-export function FintechDonut({ data, totalLabel = 'Total', totalValue = '$0', size = 240 }: FintechDonutProps) {
-  const chartData = data.map(d => ({ value: d.value || 0.1, color: d.color }));
+export function FintechDonut({ data, totalLabel = 'Total', totalValue = '$0', size = 160 }: FintechDonutProps) {
+  const { theme } = useTheme();
+  const chartData = data.map(d => ({ value: Math.max(d.value, 0.1), color: d.color }));
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const topPct = total > 0 && data.length > 0 ? Math.round((data[0].value / total) * 100) : 0;
 
   return (
     <View style={donutStyles.container}>
-      <View style={donutStyles.chartWrapper}>
-        <PieChart
-          donut
-          innerRadius={size * 0.48}
-          radius={size / 2}
-          data={chartData}
-          innerCircleColor="#000000" // Force the hole color same as background
-          centerLabelComponent={() => (
-            <View style={{ justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={donutStyles.totalLabel}>{totalLabel}</Text>
-              <Text style={donutStyles.totalValue}>{totalValue}</Text>
-            </View>
-          )}
-          backgroundColor="transparent"
-        />
-      </View>
-      <View style={donutStyles.legendGrid}>
-        {data.map((slice, i) => (
-          <View key={i} style={[donutStyles.legendPill, { backgroundColor: slice.color + '15' }]}>
-            {slice.icon && <DynamicIcon name={slice.icon} size={14} color={slice.color} />}
-            <View style={{ gap: 2 }}>
-                <Text style={[donutStyles.legendLabel, { color: slice.color }]} numberOfLines={1}>{slice.label}</Text>
-                <Text style={[donutStyles.legendAmount, { color: slice.color }]}>{slice.displayValue || slice.value}</Text>
-            </View>
+      <PieChart
+        donut
+        innerRadius={size * 0.36}
+        radius={size / 2}
+        data={chartData}
+        innerCircleColor={theme.background}
+        centerLabelComponent={() => (
+          <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={[donutStyles.pctValue, { color: theme.text }]}>{topPct}%</Text>
+            <Text style={[donutStyles.pctLabel, { color: theme.textMuted }]} numberOfLines={1}>{data[0]?.label ?? ''}</Text>
           </View>
-        ))}
-      </View>
+        )}
+        backgroundColor="transparent"
+      />
     </View>
   );
 }
-
-// ──────────────────────────────────────────────────────────
-// BudgetArch – Semi-circle Gauge style (Image 3)
-// ──────────────────────────────────────────────────────────
-
-interface BudgetArchProps {
-  spent: number;
-  limit: number;
-  currency?: string;
-  title?: string;
-}
-
-export function BudgetArch({ spent, limit, currency = '$', title = 'Gasto Total' }: BudgetArchProps) {
-  const pct = limit > 0 ? (spent / limit) : 0;
-  const clampedPct = Math.min(pct, 1);
-  
-  // Create segments for the arch effect
-  // We'll use 20 segments to simulate the "dashed" look in the image
-  const totalSegments = 20;
-  const segments = Array.from({ length: totalSegments }, (_, i) => {
-    const isActive = (i / totalSegments) < clampedPct;
-    return {
-      value: 1,
-      color: isActive ? getGradientColor(i / totalSegments) : 'rgba(255,255,255,0.05)'
-    };
-  });
-
-  function getGradientColor(p: number) {
-    if (p < 0.3) return '#60A5FA'; // Blueish
-    if (p < 0.6) return '#34D399'; // Greenish
-    if (p < 0.8) return '#FBBF24'; // Yellowish
-    return '#F87171'; // Reddish
-  }
-
-  return (
-    <View style={archStyles.container}>
-      <View style={archStyles.chartWrapper}>
-        <PieChart
-          semiCircle
-          radius={120}
-          innerRadius={100}
-          data={segments}
-          backgroundColor="transparent"
-          centerLabelComponent={() => (
-            <View style={{ justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
-              <Text style={archStyles.title}>{title}</Text>
-              <Text style={archStyles.value}>{currency}{spent.toLocaleString()}</Text>
-            </View>
-          )}
-        />
-      </View>
-      <View style={archStyles.footer}>
-         <View style={archStyles.limitBadge}>
-            <Text style={archStyles.limitText}>Límite: {currency}{limit.toLocaleString()}</Text>
-         </View>
-         <Text style={archStyles.pctText}>{(clampedPct * 100).toFixed(0)}% consumido</Text>
-      </View>
-    </View>
-  );
-}
-
-const archStyles = StyleSheet.create({
-  container: { alignItems: 'center', paddingVertical: 10 },
-  chartWrapper: { height: 160, justifyContent: 'flex-start' },
-  title: { fontSize: 13, color: '#A1A1AA', fontWeight: '500' },
-  value: { fontSize: 32, fontWeight: '800', color: '#FAFAFA', marginTop: 4 },
-  footer: { alignItems: 'center', marginTop: -10 },
-  limitBadge: { backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 4 },
-  limitText: { color: '#71717A', fontSize: 12, fontWeight: '600' },
-  pctText: { color: '#A1A1AA', fontSize: 13, fontWeight: '500' },
-});
-
-const PALETTE = [
-  '#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#A855F7',
-  '#EC4899', '#14B8A6', '#F97316', '#06B6D4', '#84CC16',
-];
-
-export function getColor(index: number) { return PALETTE[index % PALETTE.length]; }
 
 const donutStyles = StyleSheet.create({
-  container: { alignItems: 'center', width: '100%' },
-  chartWrapper: { alignItems: 'center', justifyContent: 'center', marginVertical: 16 },
-  totalLabel: { fontSize: 13, color: '#A1A1AA', textTransform: 'uppercase', letterSpacing: 1 },
-  totalValue: { fontSize: 28, fontWeight: '800', color: '#FAFAFA', marginTop: 4 },
-  legendGrid: { flexDirection: 'row', flexWrap: 'wrap', width: '100%', justifyContent: 'center', gap: 10, marginTop: 12 },
-  legendPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, gap: 10 },
-  legendLabel: { fontSize: 14, fontWeight: '600', maxWidth: 120 },
-  legendAmount: { fontSize: 13, fontWeight: '700', opacity: 0.9 },
+  container: { alignItems: 'center', justifyContent: 'center' },
+  pctValue: { fontSize: 24, fontWeight: '800', color: '#FAFAFA', letterSpacing: -0.5 },
+  pctLabel: { fontSize: 10, color: '#A1A1AA', fontWeight: '500', marginTop: 2, maxWidth: 70, textAlign: 'center' },
 });
 
 // ──────────────────────────────────────────────────────────
-// TrendLine
+// SidePieChart – kept for compatibility
+// ──────────────────────────────────────────────────────────
+
+interface SidePieProps {
+  income: number;
+  expense: number;
+  size?: number;
+}
+
+export function SidePieChart({ income, expense, size = 130 }: SidePieProps) {
+  const total = income + expense;
+  const incomePct = total > 0 ? Math.round((income / total) * 100) : 50;
+  const expensePct = 100 - incomePct;
+  const chartData = [
+    { value: Math.max(income, 0.1), color: '#22C55E' },
+    { value: Math.max(expense, 0.1), color: '#EF4444' },
+    { value: 1, color: '#1c1c1e' },
+  ];
+  return (
+    <View style={{ alignItems: 'center', gap: 10 }}>
+      <PieChart radius={size / 2} data={chartData} backgroundColor="transparent" focusOnPress={false} />
+      <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' }} />
+          <Text style={{ fontSize: 11, color: '#A1A1AA', fontWeight: '500' }}>Ingresos {incomePct}%</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />
+          <Text style={{ fontSize: 11, color: '#A1A1AA', fontWeight: '500' }}>Gastos {expensePct}%</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// TrendLine – Smooth area chart, always starts from 0
 // ──────────────────────────────────────────────────────────
 
 interface TrendPoint {
@@ -164,64 +207,122 @@ interface TrendLineProps {
 }
 
 export function TrendLine({ data, color = '#22C55E' }: TrendLineProps) {
-  // Use absolute value to ensure expenses (often negative in DB) show correctly as positive trends
-  const chartData = data.map(d => ({ value: Math.abs(d.value || 0), label: d.label }));
+  const { isDark } = useTheme();
+  // Always use absolute value; ensure non-negative
+  const chartData = data.map(d => ({ value: Math.max(Math.abs(d.value || 0), 0), label: d.label }));
   if (chartData.length === 0) return null;
+  const maxVal = chartData.reduce((m, d) => Math.max(m, d.value), 0);
 
   return (
-    <View style={{ marginLeft: -10, marginTop: 10 }}>
+    <View style={{ marginLeft: -8, marginTop: 8 }}>
       <LineChart
         areaChart
         data={chartData}
         hideDataPoints
-        spacing={Math.max((SCREEN_WIDTH - 80) / Math.max(chartData.length - 1, 1), 30)}
+        spacing={Math.max((SCREEN_WIDTH - 100) / Math.max(chartData.length - 1, 1), 30)}
         color={color}
-        thickness={3}
+        thickness={2.5}
         startFillColor={color}
         endFillColor={color}
-        startOpacity={0.3}
+        startOpacity={0.2}
         endOpacity={0.0}
-        initialSpacing={10}
-        noOfSections={4}
+        initialSpacing={16}
+        noOfSections={3}
+        // force Y axis to start at 0 — yAxisOffset not available in this version
+        // ensure maxValue is always >= 0 so no negative scale appears
+        maxValue={maxVal > 0 ? maxVal * 1.2 : 100}
+        yAxisOffset={0}
         yAxisColor="transparent"
-        yAxisTextStyle={{ color: '#71717A', fontSize: 10 }}
+        yAxisTextStyle={{ color: '#3F3F46', fontSize: 9 }}
         xAxisColor="transparent"
-        xAxisLabelTextStyle={{ color: '#71717A', fontSize: 10, textAlign: 'center', marginLeft: -10 }}
-        rulesColor="rgba(255,255,255,0.05)"
-        height={160}
-        curved
+        xAxisLabelTextStyle={{ color: '#52525B', fontSize: 10, textAlign: 'center' }}
+        rulesColor={isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}
+        height={140}
       />
     </View>
   );
 }
 
 // ──────────────────────────────────────────────────────────
-// HeatmapTracker
+// BudgetArch – Clean progress display (replaces clipped semi-circle)
+// ──────────────────────────────────────────────────────────
+
+interface BudgetArchProps {
+  spent: number;
+  limit: number;
+  currency?: string;
+  title?: string;
+}
+
+export function BudgetArch({ spent, limit, currency = '$', title = 'Gasto Total' }: BudgetArchProps) {
+  const { theme } = useTheme();
+  const pct = limit > 0 ? Math.min((spent / limit), 1) : 0;
+  const barColor = pct >= 0.9 ? theme.danger : pct >= 0.7 ? theme.textMuted : theme.text;
+
+  return (
+    <View style={archStyles.container}>
+      {/* Title + numbers row */}
+      <View style={archStyles.row}>
+        <View>
+          <Text style={archStyles.title}>{title}</Text>
+          <Text style={[archStyles.value, { color: theme.text }]}>{currency}{spent.toLocaleString()}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={archStyles.limitLabel}>Límite</Text>
+          <Text style={archStyles.limitValue}>{currency}{limit.toLocaleString()}</Text>
+        </View>
+      </View>
+
+      {/* Wide progress bar */}
+      <View style={[archStyles.track, { backgroundColor: theme.pillBg }]}>
+        <View style={[archStyles.fill, { width: `${pct * 100}%`, backgroundColor: barColor }]} />
+      </View>
+
+      {/* Percentage */}
+      <Text style={[archStyles.pctText, { color: barColor }]}>
+        {(pct * 100).toFixed(0)}% consumido
+      </Text>
+    </View>
+  );
+}
+
+const archStyles = StyleSheet.create({
+  container: { paddingVertical: 8 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 },
+  title: { fontSize: 10, color: '#71717A', fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 },
+  value: { fontSize: 28, fontWeight: '800', letterSpacing: -1 },
+  limitLabel: { fontSize: 10, color: '#71717A', fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 },
+  limitValue: { fontSize: 16, fontWeight: '600', color: '#A1A1AA' },
+  track: { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
+  fill: { height: 4, borderRadius: 2 },
+  pctText: { fontSize: 11, fontWeight: '600' },
+});
+
+// ──────────────────────────────────────────────────────────
+// HeatmapTracker (kept for compatibility)
 // ──────────────────────────────────────────────────────────
 
 interface HeatmapProps {
-  data: { date: string; count: number }[]; // YYYY-MM-DD
+  data: { date: string; count: number }[];
 }
 
 export function HeatmapTracker({ data }: HeatmapProps) {
+  const { isDark } = useTheme();
   const cols = 18;
   const rows = 7;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const grid = Array.from({ length: cols }, () => Array(rows).fill(0));
-  
+
   data.forEach(d => {
     const dDate = new Date(d.date + 'T12:00:00');
-    dDate.setHours(0,0,0,0);
+    dDate.setHours(0, 0, 0, 0);
     const diffTime = today.getTime() - dDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
     if (diffDays >= 0 && diffDays < cols * rows) {
       const c = cols - 1 - Math.floor(diffDays / 7);
       const r = (today.getDay() - (diffDays % 7) + 7) % 7;
-      if (c >= 0 && c < cols && r >= 0 && r < rows) {
-        grid[c][r] += d.count;
-      }
+      if (c >= 0 && c < cols && r >= 0 && r < rows) grid[c][r] += d.count;
     }
   });
 
@@ -230,10 +331,9 @@ export function HeatmapTracker({ data }: HeatmapProps) {
       {grid.map((col, cIdx) => (
         <View key={cIdx} style={heatmapStyles.col}>
           {col.map((val, rIdx) => {
-             const opacity = val === 0 ? 0.05 : Math.min(val * 0.3 + 0.3, 1);
-             return (
-               <View key={rIdx} style={[heatmapStyles.cell, { backgroundColor: `rgba(34, 197, 94, ${opacity})` }]} />
-             );
+            const opacity = val === 0 ? 0.05 : Math.min(val * 0.3 + 0.3, 1);
+            const baseColor = isDark ? '250,250,250' : '24,24,27';
+            return <View key={rIdx} style={[heatmapStyles.cell, { backgroundColor: `rgba(${baseColor},${opacity})` }]} />;
           })}
         </View>
       ))}
@@ -248,7 +348,7 @@ const heatmapStyles = StyleSheet.create({
 });
 
 // ──────────────────────────────────────────────────────────
-// BudgetProgress (Kept for compatibility)
+// BudgetProgress – with DynamicIcon for category icons
 // ──────────────────────────────────────────────────────────
 
 interface BudgetProgressProps {
@@ -259,17 +359,25 @@ interface BudgetProgressProps {
   color?: string;
 }
 
-export function BudgetProgress({ name, icon, spent, limit, color = '#2563EB' }: BudgetProgressProps) {
+export function BudgetProgress({ name, icon, spent, limit }: BudgetProgressProps) {
+  const { theme } = useTheme();
   const pct = limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
-  const barColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#22C55E';
+  const barColor = pct >= 90 ? theme.danger : pct >= 70 ? theme.textMuted : theme.text;
 
   return (
     <View style={budgetStyles.container}>
       <View style={budgetStyles.top}>
-        <Text style={budgetStyles.name}>{icon ? `${icon} ` : ''}{name}</Text>
-        <Text style={budgetStyles.amounts}>${spent.toFixed(0)} / ${limit.toFixed(0)}</Text>
+        <View style={budgetStyles.nameRow}>
+          {icon ? (
+            <DynamicIcon name={icon} size={14} color="#A1A1AA" />
+          ) : (
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.textMuted }} />
+          )}
+          <Text style={[budgetStyles.name, { color: theme.text }]} numberOfLines={1}>{name}</Text>
+        </View>
+        <Text style={budgetStyles.amounts}>{spent.toFixed(0)} / {limit.toFixed(0)}</Text>
       </View>
-      <View style={budgetStyles.track}>
+      <View style={[budgetStyles.track, { backgroundColor: theme.pillBg }]}>
         <View style={[budgetStyles.fill, { width: `${pct}%`, backgroundColor: barColor }]} />
       </View>
       <Text style={[budgetStyles.pctLabel, { color: barColor }]}>{pct.toFixed(0)}% usado</Text>
@@ -279,10 +387,11 @@ export function BudgetProgress({ name, icon, spent, limit, color = '#2563EB' }: 
 
 const budgetStyles = StyleSheet.create({
   container: { marginBottom: 20 },
-  top: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  name: { fontSize: 15, color: '#FAFAFA', fontWeight: '500', flex: 1 },
-  amounts: { fontSize: 14, color: '#A1A1AA', fontWeight: '600' },
-  track: { height: 8, backgroundColor: '#27272A', borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
-  fill: { height: 8, borderRadius: 4 },
-  pctLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  name: { fontSize: 13, fontWeight: '500', flex: 1 },
+  amounts: { fontSize: 12, color: '#71717A', fontWeight: '600' },
+  track: { height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
+  fill: { height: 3, borderRadius: 2 },
+  pctLabel: { fontSize: 10, fontWeight: '600' },
 });

@@ -6,6 +6,7 @@ import { formatCurrency, formatShortDate } from '@jojos/core';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { Cancel01Icon, Calendar01Icon, Folder01Icon, Wallet01Icon, MoreHorizontalIcon, Edit02Icon, Delete01Icon } from '@hugeicons/core-free-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
@@ -15,6 +16,7 @@ export default function TransactionDetailScreen() {
   const { id, txData } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [tx, setTx] = useState<any>(null);
@@ -231,33 +233,33 @@ export default function TransactionDetailScreen() {
       </Animated.View>
 
       <Animated.View
-        style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}
+        style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.handleArea}>
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
         </View>
 
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
-            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          <TouchableOpacity onPress={closeSheet} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
           </TouchableOpacity>
           <View>
-            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
-              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color={theme.text} />
             </TouchableOpacity>
             {showMenu && (
               <>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
-                <View style={[styles.dropdown, { top: 40 }]}>
+                <View style={[styles.dropdown, { top: 40, backgroundColor: theme.card, borderColor: theme.border }]}>
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
-                    <Text style={styles.dropdownText}>Editar</Text>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color={theme.text} />
+                    <Text style={[styles.dropdownText, { color: theme.text }]}>Editar</Text>
                   </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
+                  <View style={[styles.dropdownDivider, { backgroundColor: theme.border }]} />
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
-                    <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
-                    <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
+                    <HugeiconsIcon icon={Delete01Icon} size={18} color={theme.danger} />
+                    <Text style={[styles.dropdownText, { color: theme.danger }]}>Eliminar</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -267,43 +269,43 @@ export default function TransactionDetailScreen() {
 
         {(!activeTx.id && !loading) ? (
           <View style={styles.center}>
-            <Text style={{ color: '#FAFAFA' }}>Transacción no encontrada</Text>
+            <Text style={{ color: theme.text }}>Transacción no encontrada</Text>
           </View>
         ) : (
           <View style={styles.content}>
             <View style={styles.cardHeader}>
-              <View style={[styles.avatar, { backgroundColor: activeTx.categories?.color || '#3F3F46' }]}>
-                <Text style={styles.avatarText}>{initial}</Text>
+              <View style={[styles.avatar, { backgroundColor: activeTx.categories?.color || theme.border }]}>
+                <Text style={[styles.avatarText, { color: theme.background }]}>{initial}</Text>
               </View>
               <View>
-                <Text style={styles.cardTitle}>{creatorName}</Text>
-                <Text style={styles.cardSubtitle}>Miembro del hogar</Text>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>{creatorName}</Text>
+                <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>Miembro del hogar</Text>
               </View>
             </View>
 
             <Text style={styles.sentence}>
-              <Text style={styles.grayText}>{creatorName} {isIncome ? 'recibió ' : 'gastó '}</Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{creatorName} {isIncome ? 'recibió ' : 'gastó '}</Text>
               <Text style={[styles.boldText, isIncome ? { color: '#22C55E' } : { color: '#EF4444' }]}>{formatCurrency(activeTx.amount || 0, currency)} </Text>
-              <Text style={styles.grayText}>{activeTx.date ? formatSentenceDate(activeTx.date, activeTx.created_at) : '...'} por concepto de </Text>
-              <Text style={styles.boldText}>{(activeTx.description || activeTx.categories?.name || 'movimiento').toLowerCase()} </Text>
-              {!isIncome && <Text style={styles.grayText}>"{activeTx.categories?.name || 'General'}" </Text>}
-              <Text style={styles.grayText}>{isIncome ? 'en ' : 'desde '}</Text>
-              <Text style={styles.boldText}>{activeTx.accounts?.name || '...'}</Text>
-              <Text style={styles.grayText}>.</Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{activeTx.date ? formatSentenceDate(activeTx.date, activeTx.created_at) : '...'} por concepto de </Text>
+              <Text style={[styles.boldText, { color: theme.text }]}>{(activeTx.description || activeTx.categories?.name || 'movimiento').toLowerCase()} </Text>
+              {!isIncome && <Text style={[styles.grayText, { color: theme.textMuted }]}>&#34;{activeTx.categories?.name || 'General'}&#34; </Text>}
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{isIncome ? 'en ' : 'desde '}</Text>
+              <Text style={[styles.boldText, { color: theme.text }]}>{activeTx.accounts?.name || '...'}</Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>.</Text>
             </Text>
 
             <View style={styles.pillsContainer}>
-              <View style={styles.pill}>
-                <HugeiconsIcon icon={Calendar01Icon} size={15} color="#A1A1AA" />
-                <Text style={styles.pillText}>{activeTx.date ? formatShortDate(activeTx.date) : '...'}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <HugeiconsIcon icon={Calendar01Icon} size={15} color={theme.textMuted} />
+                <Text style={[styles.pillText, { color: theme.text }]}>{activeTx.date ? formatShortDate(activeTx.date) : '...'}</Text>
               </View>
-              <View style={styles.pill}>
-                <HugeiconsIcon icon={Wallet01Icon} size={15} color="#A1A1AA" />
-                <Text style={styles.pillText}>{isIncome ? 'Ingreso' : 'Gasto'}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <HugeiconsIcon icon={Wallet01Icon} size={15} color={theme.textMuted} />
+                <Text style={[styles.pillText, { color: theme.text }]}>{isIncome ? 'Ingreso' : 'Gasto'}</Text>
               </View>
-              <View style={styles.pill}>
-                <HugeiconsIcon icon={Folder01Icon} size={15} color="#A1A1AA" />
-                <Text style={styles.pillText}>{activeTx.categories?.name || 'General'}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <HugeiconsIcon icon={Folder01Icon} size={15} color={theme.textMuted} />
+                <Text style={[styles.pillText, { color: theme.text }]}>{activeTx.categories?.name || 'General'}</Text>
               </View>
             </View>
           </View>
@@ -315,27 +317,27 @@ export default function TransactionDetailScreen() {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetContainer: { height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, marginBottom: 10 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
-  dropdown: { position: 'absolute', right: 0, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdown: { position: 'absolute', right: 0, borderRadius: 14, borderWidth: 1, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
+  dropdownText: { fontSize: 16, fontWeight: '600' },
+  dropdownDivider: { height: 1 },
   content: { paddingHorizontal: 20, paddingTop: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 12 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 18, fontWeight: '700', color: '#FAFAFA' },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#FAFAFA' },
-  cardSubtitle: { fontSize: 13, color: '#A1A1AA', fontWeight: '500', marginTop: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '700' },
+  cardSubtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   sentence: { fontSize: 26, lineHeight: 38, letterSpacing: -0.5 },
-  grayText: { color: '#A1A1AA', fontWeight: '500' },
-  boldText: { color: '#FAFAFA', fontWeight: '800' },
+  grayText: { fontWeight: '500' },
+  boldText: { fontWeight: '800' },
   pillsContainer: { marginTop: 32, gap: 8 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#18181B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#27272A' },
-  pillText: { fontSize: 14, color: '#FAFAFA', fontWeight: '600' }
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, alignSelf: 'flex-start', borderWidth: 1 },
+  pillText: { fontSize: 14, fontWeight: '600' }
 });

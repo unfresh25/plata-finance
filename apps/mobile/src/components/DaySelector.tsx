@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Platform, Modal, TouchableOpacity, Text } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useTheme } from '../context/ThemeContext';
 
 interface DaySelectorProps {
   selectedDay: string;
@@ -9,6 +10,7 @@ interface DaySelectorProps {
 }
 
 export default function DaySelector({ selectedDay, onSelectDay, color = '#2563EB' }: DaySelectorProps) {
+  const { theme, isDark } = useTheme();
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const [showModal, setShowModal] = useState(false);
 
@@ -34,8 +36,8 @@ export default function DaySelector({ selectedDay, onSelectDay, color = '#2563EB
         >
           <View style={styles.modalOverlay}>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowModal(false)} />
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
+            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Text style={{ color: '#2563EB', fontSize: 16, fontWeight: '600' }}>Listo</Text>
                 </TouchableOpacity>
@@ -43,7 +45,7 @@ export default function DaySelector({ selectedDay, onSelectDay, color = '#2563EB
               <Picker
                 selectedValue={selectedDay}
                 onValueChange={(itemValue) => onSelectDay(itemValue)}
-                itemStyle={{ color: '#FAFAFA', fontSize: 22 }}
+                itemStyle={{ color: theme.text, fontSize: 22 }}
                 style={{ height: 216 }}
               >
                 {days.map((d) => (
@@ -64,8 +66,8 @@ export default function DaySelector({ selectedDay, onSelectDay, color = '#2563EB
         selectedValue={selectedDay}
         mode="dialog"
         onValueChange={(itemValue) => onSelectDay(itemValue)}
-        style={{ color: '#FAFAFA' }}
-        dropdownIconColor="#FAFAFA"
+        style={{ color: theme.text }}
+        dropdownIconColor={theme.text}
       >
         {days.map((d) => (
           <Picker.Item key={d} label={d} value={d} />
@@ -97,7 +99,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#18181B',
     paddingBottom: 40,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,

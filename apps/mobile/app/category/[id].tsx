@@ -258,8 +258,8 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
   modalBackdropClose: { ...StyleSheet.absoluteFillObject },
-  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '70%', backgroundColor: '#121212' },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '70%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: '700' },
   modalCloseBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },

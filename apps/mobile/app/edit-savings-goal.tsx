@@ -26,7 +26,7 @@ export default function EditSavingsGoalScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
@@ -121,7 +121,7 @@ export default function EditSavingsGoalScreen() {
   };
 
   if (loading) {
-    return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator color={theme.primary} /></View>;
+    return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator color={theme.text} /></View>;
   }
 
   const formatDateText = (d: Date | null) => {
@@ -137,13 +137,13 @@ export default function EditSavingsGoalScreen() {
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 10), paddingBottom: insets.bottom }]}>
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-          <Text style={styles.iconText}>✕</Text>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.pillBg }]} onPress={() => router.back()}>
+          <Text style={[styles.iconText, { color: theme.text }]}>✕</Text>
         </TouchableOpacity>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerPill} onPress={() => setShowDatePicker(true)}>
-            <Text style={styles.headerPillText}>{formatDateText(dueDate)}</Text>
+          <TouchableOpacity style={[styles.headerPill, { backgroundColor: theme.pillBg }]} onPress={() => setShowDatePicker(true)}>
+            <Text style={[styles.headerPillText, { color: theme.text }]}>{formatDateText(dueDate)}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.iconBtn, { width: 44, backgroundColor: '#EF444420', borderWidth: 1, borderColor: '#EF444440' }]} onPress={handleDelete}>
              <HugeiconsIcon icon={Delete01Icon} size={20} color="#EF4444" />
@@ -181,23 +181,23 @@ export default function EditSavingsGoalScreen() {
 
         {/* DETAILS SECTION */}
         <View style={styles.detailsSection}>
-          <Text style={styles.sectionLabel}>¿Qué quieres lograr?</Text>
-          <View style={styles.inputContainer}>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>¿Qué quieres lograr?</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.pillBg }]}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: theme.text }]}
               placeholder="Ej. Viaje a Japón, Auto nuevo..."
-              placeholderTextColor="#71717A"
+              placeholderTextColor={theme.textMuted}
               value={name}
               onChangeText={setName}
             />
           </View>
 
-          <Text style={[styles.sectionLabel, { marginTop: 12 }]}>¿Dónde reservas este dinero?</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 12, color: theme.textMuted }]}>¿Dónde reservas este dinero?</Text>
           <TouchableOpacity 
-            style={[styles.inputContainer, { paddingVertical: 18 }]} 
+            style={[styles.inputContainer, { paddingVertical: 18, backgroundColor: theme.pillBg }]} 
             onPress={() => setShowAccountModal(true)}
           >
-            <Text style={[styles.textInput, !selectedAccount && { color: '#71717A' }]}>
+            <Text style={[styles.textInput, { color: selectedAccount ? theme.text : theme.textMuted }]}>
                 {selectedAccount ? selectedAccount.name : 'Ninguna (Opcional)'}
             </Text>
           </TouchableOpacity>
@@ -211,17 +211,17 @@ export default function EditSavingsGoalScreen() {
           onPress={() => setShowIconModal(true)}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <DynamicIcon name={selectedIcon.icon} size={20} color="#FAFAFA" />
+              <DynamicIcon name={selectedIcon.icon} size={20} color={isDark ? '#FAFAFA' : '#FFFFFF'} />
               <Text style={styles.categoryPillBtnText}>{selectedIcon.name}</Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.saveBtn}
+          style={[styles.saveBtn, { backgroundColor: theme.text }]}
           onPress={handleSave}
           disabled={saving || !amount || amount === '0' || !name.trim()}
         >
-          {saving ? <ActivityIndicator color="#09090B" /> : <Text style={styles.saveBtnText}>Guardar Cambios</Text>}
+          {saving ? <ActivityIndicator color={theme.background} /> : <Text style={[styles.saveBtnText, { color: theme.background }]}>Guardar Cambios</Text>}
         </TouchableOpacity>
       </View>
 
@@ -229,14 +229,14 @@ export default function EditSavingsGoalScreen() {
       <Modal visible={showIconModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropClose} activeOpacity={1} onPress={() => setShowIconModal(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Elige un icono visual</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <Text style={[styles.modalTitle, { color: theme.textMuted }]}>Elige un icono visual</Text>
             <ScrollView contentContainerStyle={styles.categoryGrid}>
               {GOAL_ICONS.map(cat => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.modalCatPill, { borderColor: cat.color, borderWidth: selectedIcon.id === cat.id ? 2 : 1 }]}
+                  style={[styles.modalCatPill, { backgroundColor: theme.pillBg, borderColor: cat.color, borderWidth: selectedIcon.id === cat.id ? 2 : 1 }]}
                   onPress={() => { setSelectedIcon(cat); setShowIconModal(false); }}
                 >
                   <DynamicIcon name={cat.icon} size={20} color={cat.color} />
@@ -252,23 +252,23 @@ export default function EditSavingsGoalScreen() {
       <Modal visible={showAccountModal} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropClose} activeOpacity={1} onPress={() => setShowAccountModal(false)} />
-          <View style={[styles.modalContent, { height: 'auto', maxHeight: '60%' }]}>
-            <Text style={styles.modalTitle}>Cuenta Vinculada</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card, height: 'auto', maxHeight: '60%' }]}>
+            <Text style={[styles.modalTitle, { color: theme.textMuted }]}>Cuenta Vinculada</Text>
             <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
               <TouchableOpacity
-                 style={[styles.modalCatPill, { marginBottom: 10, borderColor: '#3F3F46', borderWidth: accountId === null ? 2 : 1 }]}
+                 style={[styles.modalCatPill, { backgroundColor: theme.pillBg, marginBottom: 10, borderColor: theme.border, borderWidth: accountId === null ? 2 : 1 }]}
                  onPress={() => { setAccountId(null); setShowAccountModal(false); }}
               >
-                  <Text style={[styles.modalCatText, { color: '#A1A1AA' }]}>Ninguna (Solo referencial)</Text>
+                  <Text style={[styles.modalCatText, { color: theme.textMuted }]}>Ninguna (Solo referencial)</Text>
               </TouchableOpacity>
               {accounts.map(acc => (
                 <TouchableOpacity
                   key={acc.id}
-                  style={[styles.modalCatPill, { marginBottom: 10, borderColor: acc.color, borderWidth: accountId === acc.id ? 2 : 1 }]}
+                  style={[styles.modalCatPill, { backgroundColor: theme.pillBg, marginBottom: 10, borderColor: acc.color, borderWidth: accountId === acc.id ? 2 : 1 }]}
                   onPress={() => { setAccountId(acc.id); setShowAccountModal(false); }}
                 >
                   <DynamicIcon name={acc.icon} size={20} color={acc.color} />
-                  <Text style={[styles.modalCatText, { color: '#FAFAFA', marginLeft: 8 }]}>{acc.name}</Text>
+                  <Text style={[styles.modalCatText, { color: theme.text, marginLeft: 8 }]}>{acc.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -285,35 +285,35 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  iconBtn: { height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', width: 44 },
-  iconText: { color: '#FAFAFA', fontSize: 18, fontWeight: '600' },
+  iconBtn: { height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', width: 44 },
+  iconText: { fontSize: 18, fontWeight: '600' },
   headerRight: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  headerPill: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
-  headerPillText: { color: '#FAFAFA', fontWeight: '600', fontSize: 15 },
+  headerPill: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
+  headerPillText: { fontWeight: '600', fontSize: 15 },
 
   contentScroll: { paddingHorizontal: 20, paddingBottom: 20 },
 
   amountContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 140, marginBottom: 20 },
   currencySymbol: { fontSize: 44, fontWeight: '700', marginRight: 4, marginTop: 10 },
-  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], maxWidth: '90%', letterSpacing: -2 },
+  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1, letterSpacing: -2 },
 
   detailsSection: { gap: 12 },
-  sectionLabel: { fontSize: 13, color: '#71717A', fontWeight: '500', marginBottom: 8, marginLeft: 4 },
-  inputContainer: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, alignItems: 'center' },
-  textInput: { flex: 1, color: '#FAFAFA', fontSize: 17, letterSpacing: 0 },
+  sectionLabel: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4 },
+  inputContainer: { flexDirection: 'row', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, alignItems: 'center' },
+  textInput: { flex: 1, fontSize: 17, letterSpacing: 0 },
 
   bottomActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
   categoryPillBtn: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 24, justifyContent: 'center' },
   categoryPillBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-  saveBtn: { backgroundColor: '#FAFAFA', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 24, minWidth: 120, alignItems: 'center' },
-  saveBtnText: { color: '#000000', fontWeight: '800', fontSize: 16 },
+  saveBtn: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 24, minWidth: 120, alignItems: 'center' },
+  saveBtnText: { fontWeight: '800', fontSize: 16 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
   modalBackdropClose: { ...StyleSheet.absoluteFillObject },
-  modalContent: { backgroundColor: '#121212', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '50%' },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalTitle: { color: '#A1A1AA', fontSize: 14, fontWeight: '600', marginBottom: 20, textTransform: 'uppercase' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '50%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 14, fontWeight: '600', marginBottom: 20, textTransform: 'uppercase' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 40 },
-  modalCatPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  modalCatPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
   modalCatText: { fontSize: 15, fontWeight: '600' },
 });

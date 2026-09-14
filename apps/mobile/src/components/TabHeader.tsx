@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -12,6 +12,13 @@ let CACHED_HEADER: any = null;
 let IS_FETCHING_HEADER = false;
 let HEADER_LISTENERS: ((data: any) => void)[] = [];
 
+export const forceHeaderUpdate = (newData: any) => {
+  if (CACHED_HEADER) {
+    CACHED_HEADER = { ...CACHED_HEADER, ...newData };
+    HEADER_LISTENERS.forEach(fn => fn(CACHED_HEADER));
+  }
+};
+
 export default function TabHeader() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -21,6 +28,7 @@ export default function TabHeader() {
   const [householdName, setHouseholdName] = useState(CACHED_HEADER?.householdName || '...');
   const [initial, setInitial] = useState(CACHED_HEADER?.initial || 'U');
   const [members, setMembers] = useState<any[]>(CACHED_HEADER?.members || []);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(CACHED_HEADER?.avatarUrl || null);
 
   useEffect(() => {
     if (!user) return;
@@ -36,6 +44,7 @@ export default function TabHeader() {
       setHouseholdName(data.householdName);
       setInitial(data.initial);
       setMembers(data.members);
+      setAvatarUrl(data.avatarUrl);
     };
     HEADER_LISTENERS.push(onData);
 
@@ -44,11 +53,12 @@ export default function TabHeader() {
 
     const fetchHeaderData = async () => {
       try {
-        const { data: pData } = await supabase.from('profiles').select('name, household_id').eq('id', user.id).single();
+        const { data: pData } = await supabase.from('profiles').select('name, household_id, avatar_url').eq('id', user.id).single();
         
         let first = 'U';
         let hName = 'Hogar Principal';
         let mems: any[] = [];
+        let pAvatar = pData?.avatar_url || null;
 
         if (pData?.name) {
           first = pData.name.charAt(0).toUpperCase();
@@ -62,11 +72,11 @@ export default function TabHeader() {
           const hhRes = await supabase.from('households').select('name').eq('id', pData.household_id).single();
           if (hhRes.data?.name) hName = hhRes.data.name;
 
-          const memsRes = await supabase.from('profiles').select('id, name').eq('household_id', pData.household_id);
+          const memsRes = await supabase.from('profiles').select('id, name, avatar_url').eq('household_id', pData.household_id);
           if (memsRes.data) mems = memsRes.data;
         }
 
-        CACHED_HEADER = { householdName: hName, initial: first, members: mems };
+        CACHED_HEADER = { householdName: hName, initial: first, members: mems, avatarUrl: pAvatar };
         HEADER_LISTENERS.forEach(fn => fn(CACHED_HEADER));
         HEADER_LISTENERS = []; // clear listeners after push
       } catch (err) {
@@ -96,13 +106,17 @@ export default function TabHeader() {
                 {members.slice(0, 4).map((m, i) => {
                   const initialMember = m.name ? m.name.charAt(0).toUpperCase() : 'U';
                   return (
-                    <View key={m.id} style={[styles.microAvatar, { backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length], zIndex: 10 - i, marginLeft: i === 0 ? 0 : -8 }]}>
-                      <Text style={styles.microAvatarText}>{initialMember}</Text>
+                    <View key={m.id} style={[styles.microAvatar, { backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length], zIndex: 10 - i, marginLeft: i === 0 ? 0 : -8, borderColor: theme.background }]}>
+                      {m.avatar_url ? (
+                        <Image source={{ uri: m.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 11 }} />
+                      ) : (
+                        <Text style={styles.microAvatarText}>{initialMember}</Text>
+                      )}
                     </View>
                   );
                 })}
                 {members.length > 4 && (
-                  <View style={[styles.microAvatar, { backgroundColor: '#94A3B8', zIndex: 0, marginLeft: -8 }]}>
+                  <View style={[styles.microAvatar, { backgroundColor: '#94A3B8', zIndex: 0, marginLeft: -8, borderColor: theme.background }]}>
                     <Text style={[styles.microAvatarText, { fontSize: 10 }]}>+{members.length - 4}</Text>
                   </View>
                 )}
@@ -111,7 +125,11 @@ export default function TabHeader() {
           </View>
         </View>
         <TouchableOpacity style={[styles.avatar, { backgroundColor: theme.primary }]} onPress={() => router.push('/settings' as any)}>
-          <Text style={styles.avatarText}>{initial}</Text>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 18 }} />
+          ) : (
+            <Text style={styles.avatarText}>{initial}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -153,7 +171,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#09090B',
   },
   microAvatarText: {
     color: '#09090B',

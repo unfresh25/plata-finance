@@ -8,6 +8,11 @@ import { useTheme, ThemeMode } from '../src/context/ThemeContext';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { DashboardSquare01Icon, Logout01Icon, Home01Icon, Settings01Icon, MonitorDotIcon, PlusSignIcon, Copy01Icon, UserGroupIcon, Edit02Icon, Coins02Icon, Moon02Icon, Sun02Icon } from '@hugeicons/core-free-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
+import { Image } from 'react-native';
+import { forceHeaderUpdate } from '../src/components/TabHeader';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -36,7 +41,7 @@ export default function SettingsScreen() {
           if (hh) {
             setInviteCode(hh.invite_code || null);
             // Fetch household members
-            const { data: mems } = await supabase.from('profiles').select('id, name, email').eq('household_id', hh.id);
+            const { data: mems } = await supabase.from('profiles').select('id, name, email, avatar_url').eq('household_id', hh.id);
             setMembers(mems || []);
           }
         }
@@ -55,7 +60,7 @@ export default function SettingsScreen() {
       {
         text: 'Sí, salir', style: 'destructive', onPress: async () => {
           await supabase.auth.signOut();
-          router.replace('/(auth)/login');
+          setTimeout(() => router.replace('/(auth)/login' as any), 100);
         }
       }
     ]);
@@ -68,13 +73,23 @@ export default function SettingsScreen() {
         text: 'Crear', onPress: async (name?: string) => {
           if (!name || !name.trim()) return;
           try {
-            const { data: hh, error: hhErr } = await supabase.from('households').insert({ name: name.trim() }).select().single();
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const { data: hh, error: hhErr } = await supabase.from('households').insert({ name: name.trim(), invite_code: code }).select().single();
             if (hhErr) throw hhErr;
             if (hh) {
               const { error: upErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user?.id);
               if (upErr) throw upErr;
-              Alert.alert('Éxito', 'Hogar creado y seleccionado correctamente.');
+              // Bootstrap default categories
+              await supabase.from('categories').insert([
+                { household_id: hh.id, name: 'Alimentación', type: 'expense', icon: '', color: '#EF4444' },
+                { household_id: hh.id, name: 'Transporte', type: 'expense', icon: '', color: '#F59E0B' },
+                { household_id: hh.id, name: 'Vivienda', type: 'expense', icon: '', color: '#6366F1' },
+                { household_id: hh.id, name: 'Salario', type: 'income', icon: '', color: '#22C55E' },
+              ]);
+              Alert.alert('Éxito', `Hogar "${hh.name}" creado correctamente.\nCódigo de invitación: ${code}`);
               setHousehold(hh);
+              setInviteCode(code);
+              setMembers([{ id: user?.id, name: profile?.name, email: user?.email, avatar_url: profile?.avatar_url }]);
             }
           } catch (e: any) {
             Alert.alert('Error', e.message);
@@ -95,6 +110,36 @@ export default function SettingsScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
+  };
+
+  const handleJoinHousehold = () => {
+    Alert.prompt('Unirse a Hogar', 'Ingresa el código de invitación:', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Unirse', onPress: async (code?: string) => {
+          if (!code || !code.trim()) return;
+          try {
+            const { data: hh, error: hhErr } = await supabase.from('households').select('*').eq('invite_code', code.trim().toUpperCase()).single();
+            if (hhErr || !hh) throw new Error('Código de invitación inválido o vencido.');
+
+            const { error: upErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user?.id);
+            if (upErr) throw upErr;
+
+            Alert.alert('Éxito', `Te has unido exitosamente a "${hh.name}".`);
+
+            // Refresh settings view
+            setHousehold(hh);
+            setInviteCode(hh.invite_code);
+            forceHeaderUpdate({}); // Force a refetch basically
+            const { data: mems } = await supabase.from('profiles').select('id, name, email, avatar_url').eq('household_id', hh.id);
+            setMembers(mems || []);
+
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          }
+        }
+      }
+    ]);
   };
 
   const handleCurrencySelect = async (selected: string) => {
@@ -134,6 +179,52 @@ export default function SettingsScreen() {
     ], 'plain-text', userName);
   };
 
+  const handleChangeAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        setLoading(true);
+        const { uri } = result.assets[0];
+        const fileExt = uri.substring(uri.lastIndexOf('.'));
+        const fileName = `${user?.id}-${Date.now()}${fileExt}`;
+
+        // Read file in base64 using expo-file-system (avoids fetch().blob() bug on iOS)
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+
+        // Subir a storage 'avatars'
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, decode(base64), {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+
+        if (uploadError) throw new Error(`Error subiendo imagen: ${uploadError.message}. Asegúrate de que el bucket 'avatars' exista y sea público.`);
+
+        // Obtener la URL pública y agregar un cache-buster para forzar actualización visual y en cache
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        const publicUrlWithCacheBust = `${publicUrl}?t=${Date.now()}`;
+
+        // Actualizar la tabla profiles con la url
+        const { error: dbError } = await supabase.from('profiles').update({ avatar_url: publicUrlWithCacheBust }).eq('id', user?.id);
+        if (dbError) throw dbError;
+
+        setProfile({ ...profile, avatar_url: publicUrlWithCacheBust });
+        forceHeaderUpdate({ avatarUrl: publicUrlWithCacheBust, initial });
+
+        Alert.alert('Éxito', 'Tu foto de perfil ha sido actualizada y cacheada en el dispositivo.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12), backgroundColor: theme.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -146,15 +237,21 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
 
         {/* User Card */}
-        <TouchableOpacity style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleEditName}>
-          <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-          <View style={styles.userInfo}>
+        <View style={[styles.userCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <TouchableOpacity onPress={handleChangeAvatar}>
+            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+              {profile?.avatar_url ? (
+                <Image source={{ uri: profile.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 28 }} />
+              ) : (
+                <Text style={styles.avatarText}>{initial}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.userInfo} onPress={handleEditName}>
             <Text style={[styles.userName, { color: theme.text }]}>{userName} <HugeiconsIcon icon={Edit02Icon} size={14} color={theme.textMuted} /></Text>
             <Text style={[styles.userEmail, { color: theme.textMuted }]}>{user?.email}</Text>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
 
         {/* Household Section */}
         <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>TU HOGAR</Text>
@@ -187,8 +284,15 @@ export default function SettingsScreen() {
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <TouchableOpacity style={styles.row} onPress={handleCreateHousehold}>
             <View style={styles.rowLeft}>
-              <HugeiconsIcon icon={PlusSignIcon} size={24} color={theme.primary} />
-              <Text style={[styles.rowTitle, { marginLeft: 12, color: theme.primary }]}>Crear Nuevo Hogar</Text>
+              <HugeiconsIcon icon={PlusSignIcon} size={24} color={theme.text} />
+              <Text style={[styles.rowTitle, { marginLeft: 12, color: theme.text }]}>Crear Nuevo Hogar</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <TouchableOpacity style={styles.row} onPress={handleJoinHousehold}>
+            <View style={styles.rowLeft}>
+              <HugeiconsIcon icon={UserGroupIcon} size={24} color={theme.text} />
+              <Text style={[styles.rowTitle, { marginLeft: 12, color: theme.text }]}>Unirse a un Hogar Existente</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -202,7 +306,11 @@ export default function SettingsScreen() {
                 <View key={m.id} style={[styles.row, i < members.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
                   <View style={styles.rowLeft}>
                     <View style={[styles.memberAvatar, { backgroundColor: theme.pillBg }]}>
-                      <Text style={[styles.memberAvatarText, { color: theme.text }]}>{(m.name || m.email || '?').charAt(0).toUpperCase()}</Text>
+                      {m.avatar_url ? (
+                        <Image source={{ uri: m.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 18 }} />
+                      ) : (
+                        <Text style={[styles.memberAvatarText, { color: theme.text }]}>{(m.name || m.email || '?').charAt(0).toUpperCase()}</Text>
+                      )}
                     </View>
                     <View style={{ marginLeft: 12 }}>
                       <Text style={[styles.rowTitle, { color: theme.text }]}>{m.name || 'Usuario'}</Text>

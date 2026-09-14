@@ -83,7 +83,6 @@ const styles = StyleSheet.create({
   container: {
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(99,158,255,0.2)',
   },
   creatorRow: {
     flexDirection: 'row',
@@ -95,18 +94,15 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#3F3F46',
     alignItems: 'center',
     justifyContent: 'center'
   },
   avatarText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#FAFAFA'
   },
   creatorName: {
     fontSize: 13,
-    color: '#A1A1AA',
     fontWeight: '500'
   },
   mainRow: {
@@ -118,7 +114,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FAFAFA',
     flex: 1,
     marginRight: 10
   },
@@ -134,11 +129,9 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontSize: 14,
-    color: '#A1A1AA',
     marginBottom: 2
   },
   dateText: {
     fontSize: 13,
-    color: '#71717A'
   }
 });

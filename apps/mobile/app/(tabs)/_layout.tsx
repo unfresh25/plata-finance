@@ -1,5 +1,6 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Platform, View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/context/ThemeContext';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import {
@@ -19,6 +20,12 @@ import TabHeader from '../../src/components/TabHeader';
 export default function TabsLayout() {
   const router = useRouter();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // On Android, the bottom inset reflects the system navigation bar height.
+  // We add it to the tab bar so it never gets hidden underneath.
+  const tabBarHeight = Platform.OS === 'ios' ? 88 : 56 + insets.bottom;
+  const tabBarPaddingBottom = Platform.OS === 'ios' ? 24 : insets.bottom + 4;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -29,8 +36,8 @@ export default function TabsLayout() {
           tabBarStyle: {
             backgroundColor: theme.card,
             borderTopColor: theme.border,
-            height: Platform.OS === 'ios' ? 88 : 64,
-            paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+            height: tabBarHeight,
+            paddingBottom: tabBarPaddingBottom,
             paddingTop: 8,
           },
           tabBarActiveTintColor: ACTIVE_COLOR,

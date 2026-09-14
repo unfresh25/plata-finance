@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { supabase } from '../../src/lib/supabase';
-
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { GoogleIcon, AppleIcon } from '@hugeicons/core-free-icons';
+
+WebBrowser.maybeCompleteAuthSession();
 import { useTheme } from '../../src/context/ThemeContext';
 
 export default function LoginScreen() {
@@ -27,6 +32,33 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
+  const handleOAuth = async (provider: 'google' | 'apple') => {
+    setLoading(true);
+    try {
+      const redirectUrl = Linking.createURL('/(tabs)');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        if (res.type === 'success' && res.url) {
+          // Supabase JS takes care of parsing the URL and saving the session
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Error Auth', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView 
       style={[styles.container, { backgroundColor: theme.background }]} 
@@ -34,8 +66,9 @@ export default function LoginScreen() {
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>Jojo's Finance</Text>
-          <Text style={[styles.subtitle, { color: theme.textMuted }]}>Gestiona tus finanzas en pareja</Text>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} />
+          <Text style={[styles.title, { color: theme.text }]}>Plata</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>Gestiona tu dinero sin complicaciones</Text>
         </View>
 
         <View style={styles.form}>
@@ -74,12 +107,40 @@ export default function LoginScreen() {
             {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonTextPrimary}>Iniciar Sesión</Text>}
           </TouchableOpacity>
 
+          {/* === OAUTH DESHABILITADO TEMPORALMENTE ===
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            <Text style={[styles.dividerText, { color: theme.textMuted }]}>O</Text>
+            <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+          </View>
+
           <TouchableOpacity 
-            style={[styles.buttonSecondary, { borderColor: theme.border }]} 
+            style={[styles.providerButton, { backgroundColor: theme.pillBg, borderColor: theme.border }]} 
+            onPress={() => handleOAuth('google')}
+            disabled={loading}
+          >
+            <HugeiconsIcon icon={GoogleIcon} size={20} color={theme.text} />
+            <Text style={[styles.providerText, { color: theme.text }]}>Continuar con Google</Text>
+          </TouchableOpacity>
+
+          {Platform.OS === 'ios' && (
+            <TouchableOpacity 
+              style={[styles.providerButton, { backgroundColor: theme.pillBg, borderColor: theme.border }]} 
+              onPress={() => handleOAuth('apple')}
+              disabled={loading}
+            >
+              <HugeiconsIcon icon={AppleIcon} size={20} color={theme.text} />
+              <Text style={[styles.providerText, { color: theme.text }]}>Continuar con Apple</Text>
+            </TouchableOpacity>
+          )}
+          */}
+
+          <TouchableOpacity 
+            style={[styles.buttonSecondary, { borderColor: 'transparent' }]} 
             onPress={() => router.push('/(auth)/register')}
             disabled={loading}
           >
-            <Text style={[styles.buttonTextSecondary, { color: theme.text }]}>Crear Cuenta</Text>
+            <Text style={[styles.buttonTextSecondary, { color: theme.primary }]}>¿No tienes cuenta? Registrate</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -90,7 +151,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   content: {
     flex: 1,
@@ -98,18 +158,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    marginBottom: 48,
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FAFAFA',
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#A1A1AA',
     marginTop: 8,
+    textAlign: 'center',
   },
   form: {
     gap: 16,
@@ -118,21 +185,17 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#E4E4E7',
     marginBottom: -8,
   },
   inputContainer: {
     height: 52,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#27272A',
     paddingHorizontal: 16,
     justifyContent: 'center',
   },
   input: {
     flex: 1,
-    color: '#FAFAFA',
     fontSize: 15,
   },
   actions: {
@@ -140,7 +203,6 @@ const styles = StyleSheet.create({
   },
   buttonPrimary: {
     height: 52,
-    backgroundColor: '#2563EB',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -155,13 +217,39 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#27272A',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
   },
   buttonTextSecondary: {
-    color: '#E4E4E7',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  providerButton: {
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  providerText: {
+    fontSize: 16,
+    fontWeight: '600',
+  }
 });

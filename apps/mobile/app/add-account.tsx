@@ -21,7 +21,7 @@ const TYPES = [
 export default function AddAccountScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(false);
@@ -81,10 +81,10 @@ export default function AddAccountScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 8) }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Text style={styles.closeBtnText}>✕</Text>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.closeBtn, { backgroundColor: theme.pillBg }]}>
+          <Text style={[styles.closeBtnText, { color: theme.text }]}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Nueva Cuenta</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Nueva Cuenta</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -93,7 +93,7 @@ export default function AddAccountScreen() {
         <View style={styles.cardWrapper}>
           <ImageBackground
             source={require('../assets/images/card-bg.png')}
-            style={styles.cardBg}
+            style={[styles.cardBg, { shadowColor: isDark ? '#000' : theme.text, shadowOpacity: isDark ? 0.1 : 0.05, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 }]}
             imageStyle={{ borderRadius: 24 }}
             resizeMode="cover"
           >
@@ -118,15 +118,15 @@ export default function AddAccountScreen() {
 
         {/* TYPE PILLS */}
         <View style={styles.section}>
-          <Text style={styles.label}>Tipo de Cuenta</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Tipo de Cuenta</Text>
           <View style={styles.pillRow}>
             {TYPES.map(({ val, label }) => (
               <TouchableOpacity
                 key={val}
-                style={[styles.pill, type === val && { backgroundColor: cardColor, borderColor: cardColor }]}
+                style={[styles.pill, { backgroundColor: type === val ? cardColor : theme.pillBg, borderColor: type === val ? cardColor : theme.border }]}
                 onPress={() => setType(val)}
               >
-                <Text style={[styles.pillText, type === val && styles.pillTextActive]}>{label}</Text>
+                <Text style={[styles.pillText, { color: type === val ? '#FFF' : theme.textMuted }]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -134,11 +134,11 @@ export default function AddAccountScreen() {
 
         {/* NAME */}
         <View style={styles.section}>
-          <Text style={styles.label}>Nombre</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Nombre</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.pillBg, borderColor: theme.border, color: theme.text }]}
             placeholder="Ej: Tarjeta Crédito Nu"
-            placeholderTextColor="#71717A"
+            placeholderTextColor={theme.textMuted}
             value={name}
             onChangeText={setName}
           />
@@ -146,18 +146,18 @@ export default function AddAccountScreen() {
 
         {/* BALANCE */}
         <View style={styles.section}>
-          <Text style={styles.label}>Balance Inicial</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Balance Inicial</Text>
           <AmountInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.pillBg, borderColor: theme.border, color: theme.text }]}
             placeholder="0.00"
-            placeholderTextColor="#71717A"
+            placeholderTextColor={theme.textMuted}
             value={balance}
             onChangeText={setBalance}
           />
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: theme.border }]}>
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: cardColor }]} onPress={handleSave} disabled={loading}>
           {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Guardar Cuenta</Text>}
         </TouchableOpacity>
@@ -169,9 +169,9 @@ export default function AddAccountScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
-  closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20 },
-  closeBtnText: { color: '#FAFAFA', fontSize: 18, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '700', color: '#FAFAFA' },
+  closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  closeBtnText: { fontSize: 18, fontWeight: '600' },
+  title: { fontSize: 18, fontWeight: '700' },
   content: { paddingBottom: 40 },
 
   cardWrapper: { marginHorizontal: 20, marginBottom: 28 },
@@ -188,14 +188,13 @@ const styles = StyleSheet.create({
   mcCircle: { width: 32, height: 32, borderRadius: 16, opacity: 0.85 },
 
   section: { marginHorizontal: 20, marginBottom: 20 },
-  label: { fontSize: 13, color: '#71717A', fontWeight: '500', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  label: { fontSize: 13, fontWeight: '500', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  pillText: { color: '#A1A1AA', fontWeight: '600', fontSize: 14 },
-  pillTextActive: { color: '#FFF' },
-  input: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', color: '#FAFAFA', paddingHorizontal: 18, height: 54, fontSize: 18, letterSpacing: 0 },
+  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontWeight: '600', fontSize: 14 },
+  input: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 18, height: 54, fontSize: 18, letterSpacing: 0 },
 
-  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#18181B' },
+  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
   saveBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
 });

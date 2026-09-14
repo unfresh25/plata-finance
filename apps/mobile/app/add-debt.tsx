@@ -20,7 +20,7 @@ const FREQUENCIES = [
 export default function AddDebtScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
@@ -128,7 +128,7 @@ export default function AddDebtScreen() {
   };
 
   if (loading) {
-    return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator color={theme.primary} /></View>;
+    return <View style={[styles.center, { backgroundColor: theme.background }]}><ActivityIndicator color={theme.text} /></View>;
   }
 
   const formatDateText = (d: Date) => {
@@ -146,16 +146,16 @@ export default function AddDebtScreen() {
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 10), paddingBottom: insets.bottom }]}>
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-          <Text style={styles.iconText}>✕</Text>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.pillBg }]} onPress={() => router.back()}>
+          <Text style={[styles.iconText, { color: theme.text }]}>✕</Text>
         </TouchableOpacity>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerPill} onPress={() => setShowDatePicker(true)}>
-            <Text style={styles.headerPillText}>{formatDateText(dueDate)}</Text>
+          <TouchableOpacity style={[styles.headerPill, { backgroundColor: theme.pillBg }]} onPress={() => setShowDatePicker(true)}>
+            <Text style={[styles.headerPillText, { color: theme.text }]}>{formatDateText(dueDate)}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { width: undefined, paddingHorizontal: 16 }]} onPress={() => { setDirection(isOwed ? 'we_owe' : 'owed_to_us'); setCategoryId(null); }}>
-            <Text style={[styles.iconText, { fontSize: 15 }]}>{isOwed ? 'Nos deben ↓' : 'Debemos ↑'}</Text>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.pillBg, width: undefined, paddingHorizontal: 16 }]} onPress={() => { setDirection(isOwed ? 'we_owe' : 'owed_to_us'); setCategoryId(null); }}>
+            <Text style={[styles.iconText, { color: theme.text, fontSize: 15 }]}>{isOwed ? 'Nos deben ↓' : 'Debemos ↑'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -190,71 +190,71 @@ export default function AddDebtScreen() {
 
         {/* DETAILS SECTION */}
         <View style={styles.detailsSection}>
-          <Text style={styles.sectionLabel}>Persona involucrada</Text>
-          <View style={styles.inputContainer}>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Persona involucrada</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.pillBg }]}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: theme.text }]}
               placeholder="Ej. Juan, María, Banco..."
-              placeholderTextColor="#71717A"
+              placeholderTextColor={theme.textMuted}
               value={person}
               onChangeText={setPerson}
             />
           </View>
 
-          <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Descripción / Concepto</Text>
-          <View style={styles.inputContainer}>
+          <Text style={[styles.sectionLabel, { marginTop: 12, color: theme.textMuted }]}>Descripción / Concepto</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.pillBg }]}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: theme.text }]}
               placeholder="Ej. Préstamo para el auto, Cena..."
-              placeholderTextColor="#71717A"
+              placeholderTextColor={theme.textMuted}
               value={description}
               onChangeText={setDescription}
             />
           </View>
 
           {/* RECURRING PLAN */}
-          <View style={styles.recurringSection}>
+          <View style={[styles.recurringSection, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : theme.pillBg, borderColor: theme.border }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View>
-                    <Text style={{ color: '#FAFAFA', fontSize: 17, fontWeight: '600' }}>Plan de Pagos (Automatizado)</Text>
-                    <Text style={{ color: '#A1A1AA', fontSize: 13, marginTop: 4 }}>Crear cuotas periódicas en calendario.</Text>
+                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: '600' }}>Plan de Pagos (Automatizado)</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 4 }}>Crear cuotas periódicas en calendario.</Text>
                 </View>
                 <Switch
                     value={isRecurring}
                     onValueChange={setIsRecurring}
-                    trackColor={{ false: '#3F3F46', true: '#2563EB' }}
-                    thumbColor="#FAFAFA"
+                    trackColor={{ false: theme.border, true: '#2563EB' }}
+                    thumbColor={isDark ? '#FFF' : '#FFF'}
                 />
             </View>
 
             {isRecurring && (
                 <View style={{ marginTop: 20, gap: 16 }}>
-                    <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Frecuencia de las cuotas</Text>
+                    <Text style={[styles.sectionLabel, { marginBottom: 0, color: theme.textMuted }]}>Frecuencia de las cuotas</Text>
                     <View style={styles.freqRings}>
                         {FREQUENCIES.map(f => (
                             <TouchableOpacity 
                                 key={f.value} 
-                                style={[styles.freqPill, frequency === f.value && { backgroundColor: '#3B82F6', borderColor: '#3B82F6' }]}
+                                style={[styles.freqPill, { backgroundColor: frequency === f.value ? '#3B82F6' : theme.card, borderColor: frequency === f.value ? '#3B82F6' : theme.border }]}
                                 onPress={() => setFrequency(f.value)}
                             >
-                                <Text style={{ color: frequency === f.value ? '#FFF' : '#A1A1AA', fontWeight: '500' }}>{f.label}</Text>
+                                <Text style={{ color: frequency === f.value ? '#FFF' : theme.textMuted, fontWeight: '500' }}>{f.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Monto exacto de cada cuota</Text>
-                    <View style={styles.inputContainer}>
-                        <Text style={{ color: '#A1A1AA', fontSize: 20, marginRight: 8 }}>$</Text>
+                    <Text style={[styles.sectionLabel, { marginBottom: 0, color: theme.textMuted }]}>Monto exacto de cada cuota</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: theme.card }]}>
+                        <Text style={{ color: theme.textMuted, fontSize: 20, marginRight: 8 }}>$</Text>
                         <AmountInput
-                            style={styles.textInput}
+                            style={[styles.textInput, { color: theme.text }]}
                             placeholder="0.00"
-                            placeholderTextColor="#71717A"
+                            placeholderTextColor={theme.textMuted}
                             value={installmentAmount}
                             onChangeText={setInstallmentAmount}
                         />
                     </View>
 
-                    <Text style={[styles.sectionLabel, { marginBottom: 0, marginTop: 12 }]}>Día de cobro</Text>
+                    <Text style={[styles.sectionLabel, { marginBottom: 0, marginTop: 12, color: theme.textMuted }]}>Día de cobro</Text>
                     <DaySelector selectedDay={dayOfMonth} onSelectDay={setDayOfMonth} color={'#2563EB'} />
                 </View>
             )}
@@ -266,25 +266,25 @@ export default function AddDebtScreen() {
       {/* FIXED BOTTOM ACTIONS */}
       <View style={styles.bottomActions}>
          <TouchableOpacity
-          style={[styles.categoryPillBtn, currentCategory ? { backgroundColor: currentCategory.color } : undefined]}
+          style={[styles.categoryPillBtn, currentCategory ? { backgroundColor: currentCategory.color } : { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}
           onPress={() => setShowCategoryModal(true)}
         >
           {currentCategory ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <DynamicIcon name={currentCategory.icon} size={20} color="#FAFAFA" />
+                <DynamicIcon name={currentCategory.icon} size={20} color={isDark ? '#FAFAFA' : '#FFFFFF'} />
                 <Text style={styles.categoryPillBtnText}>{currentCategory.name}</Text>
             </View>
           ) : (
-            <Text style={styles.categoryPillBtnText}>Categoría</Text>
+            <Text style={[styles.categoryPillBtnText, { color: theme.text }]}>Categoría</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.saveBtn}
+          style={[styles.saveBtn, { backgroundColor: theme.text }]}
           onPress={handleSave}
           disabled={saving || !amount || amount === '0' || !person.trim()}
         >
-          {saving ? <ActivityIndicator color="#09090B" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
+          {saving ? <ActivityIndicator color={theme.background} /> : <Text style={[styles.saveBtnText, { color: theme.background }]}>Guardar</Text>}
         </TouchableOpacity>
       </View>
 
@@ -292,14 +292,14 @@ export default function AddDebtScreen() {
       <Modal visible={showCategoryModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropClose} activeOpacity={1} onPress={() => setShowCategoryModal(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Filtrado por: {isOwed ? 'Ingresos' : 'Gastos'}</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <Text style={[styles.modalTitle, { color: theme.textMuted }]}>Filtrado por: {isOwed ? 'Ingresos' : 'Gastos'}</Text>
             <ScrollView contentContainerStyle={styles.categoryGrid}>
               {filteredCategories.map(cat => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.modalCatPill, { borderColor: cat.color, borderWidth: categoryId === cat.id ? 2 : 1 }]}
+                  style={[styles.modalCatPill, { backgroundColor: theme.pillBg, borderColor: cat.color, borderWidth: categoryId === cat.id ? 2 : 1 }]}
                   onPress={() => { setCategoryId(cat.id); setShowCategoryModal(false); }}
                 >
                   <DynamicIcon name={cat.icon} size={20} color={cat.color} />
@@ -323,40 +323,40 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  iconBtn: { height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', width: 44 },
-  iconText: { color: '#FAFAFA', fontSize: 18, fontWeight: '600' },
+  iconBtn: { height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', width: 44 },
+  iconText: { fontSize: 18, fontWeight: '600' },
   headerRight: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  headerPill: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
-  headerPillText: { color: '#FAFAFA', fontWeight: '600', fontSize: 15 },
+  headerPill: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
+  headerPillText: { fontWeight: '600', fontSize: 15 },
 
   contentScroll: { paddingHorizontal: 20, paddingBottom: 20 },
 
   amountContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 140, marginBottom: 20 },
   currencySymbol: { fontSize: 44, fontWeight: '700', marginRight: 4, marginTop: 10 },
-  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], maxWidth: '90%', letterSpacing: -2 },
+  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1, letterSpacing: -2 },
 
   detailsSection: { gap: 12 },
-  sectionLabel: { fontSize: 13, color: '#71717A', fontWeight: '500', marginBottom: 8, marginLeft: 4 },
-  inputContainer: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, alignItems: 'center' },
-  textInput: { flex: 1, color: '#FAFAFA', fontSize: 17, letterSpacing: 0 },
+  sectionLabel: { fontSize: 13, fontWeight: '500', marginBottom: 8, marginLeft: 4 },
+  inputContainer: { flexDirection: 'row', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, alignItems: 'center' },
+  textInput: { flex: 1, fontSize: 17, letterSpacing: 0 },
 
-  recurringSection: { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#27272A' },
+  recurringSection: { marginTop: 20, borderRadius: 20, padding: 16, borderWidth: 1 },
   freqRings: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  freqPill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#3F3F46', backgroundColor: '#18181B' },
+  freqPill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
 
   bottomActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  categoryPillBtn: { backgroundColor: '#3F3F46', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 24, justifyContent: 'center' },
+  categoryPillBtn: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 24, justifyContent: 'center' },
   categoryPillBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-  saveBtn: { backgroundColor: '#FAFAFA', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 24, minWidth: 120, alignItems: 'center' },
-  saveBtnText: { color: '#000000', fontWeight: '800', fontSize: 16 },
+  saveBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 24, minWidth: 120, alignItems: 'center' },
+  saveBtnText: { fontWeight: '800', fontSize: 16 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
   modalBackdropClose: { ...StyleSheet.absoluteFillObject },
-  modalContent: { backgroundColor: '#121212', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '50%' },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalTitle: { color: '#A1A1AA', fontSize: 14, fontWeight: '600', marginBottom: 20, textTransform: 'uppercase' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, height: '50%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 14, fontWeight: '600', marginBottom: 20, textTransform: 'uppercase' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 40 },
-  modalCatPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  modalCatPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
   modalCatText: { fontSize: 15, fontWeight: '600' },
   emptyText: { color: '#71717A', fontSize: 15 },
 });

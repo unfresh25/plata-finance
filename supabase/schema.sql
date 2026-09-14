@@ -437,3 +437,29 @@ create index idx_financial_plans_household_status
 --   ('TU_HOUSEHOLD_ID', 'Sueldo',        'money',          '#22C55E', 'income'),
 --   ('TU_HOUSEHOLD_ID', 'Freelance',     'laptop',         '#10B981', 'income'),
 --   ('TU_HOUSEHOLD_ID', 'Inversiones',   'chart',          '#6366F1', 'income');
+
+-- =============================================================================
+-- STORAGE RLS (avatars)
+-- =============================================================================
+
+-- Permitir a cualquier usuario ver los avatars (Public)
+create policy "Avatar Public Access"
+  on storage.objects for select
+  using ( bucket_id = 'avatars' );
+
+-- Permitir a usuarios autenticados subir avatars (insert)
+create policy "Avatar Upload Access"
+  on storage.objects for insert
+  to authenticated
+  with check ( bucket_id = 'avatars' );
+
+-- Permitir a los usuarios actualizar/eliminar solo sus propios avatars
+create policy "Avatar Update Access"
+  on storage.objects for update
+  to authenticated
+  using ( bucket_id = 'avatars' and auth.uid() = owner );
+
+create policy "Avatar Delete Access"
+  on storage.objects for delete
+  to authenticated
+  using ( bucket_id = 'avatars' and auth.uid() = owner );

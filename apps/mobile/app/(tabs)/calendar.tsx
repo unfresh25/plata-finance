@@ -220,7 +220,7 @@ export default function CalendarScreen() {
         ) : matchedLogo ? (
           <Image source={matchedLogo.logo} style={styles.tinyLogo} resizeMode="contain" />
         ) : ev?.categories ? (
-          <DynamicIcon name={ev.categories.icon} size={14} color="#FAFAFA" />
+          <DynamicIcon name={ev.categories.icon} size={14} color={theme.background} />
         ) : (
           <View style={[styles.tinyFallback, { backgroundColor: theme.textMuted }]} />
         )}
@@ -293,7 +293,7 @@ export default function CalendarScreen() {
           {showPlus && items.length === 3 && renderBadge(null, 3, {
             marginLeft: -8,
             zIndex: 0,
-            backgroundColor: '#3F3F46'
+            backgroundColor: theme.border
           }, '+')}
         </View>
       </>
@@ -349,9 +349,9 @@ export default function CalendarScreen() {
                     styles.dayCell, 
                     { backgroundColor: theme.card }, 
                     isToday && { backgroundColor: theme.primary + '30', borderColor: theme.primary, borderWidth: 1 },
-                    isSelected && { borderColor: '#FAFAFA', borderWidth: 1 }
+                    isSelected && { borderColor: theme.text, borderWidth: 1 }
                   ]}>
-                    <Text style={[styles.dayText, { color: isToday ? theme.primary : isSelected ? '#FAFAFA' : theme.text }]}>{dayNum}</Text>
+                    <Text style={[styles.dayText, { color: isToday ? theme.primary : isSelected ? theme.text : theme.text }]}>{dayNum}</Text>
                     {allItems.length > 0 && (
                       <View style={[styles.logosContainer, { gap: 0 }]}>
                         {renderLogos(allItems)}
@@ -393,7 +393,7 @@ export default function CalendarScreen() {
                           {matchedLogo ? (
                             <Image source={matchedLogo.logo} style={styles.listLogoImg} resizeMode="contain" />
                           ) : ev.categories ? (
-                            <DynamicIcon name={ev.categories.icon} size={14} color="#FAFAFA" />
+                            <DynamicIcon name={ev.categories.icon} size={14} color={theme.background} />
                           ) : (
                             <HugeiconsIcon icon={Calendar01Icon} size={22} color={theme.textMuted} />
                           )}
@@ -438,7 +438,7 @@ export default function CalendarScreen() {
                       {matchedLogo ? (
                         <Image source={matchedLogo.logo} style={styles.listLogoImg} resizeMode="contain" />
                       ) : ev.categories ? (
-                        <DynamicIcon name={ev.categories.icon} size={14} color="#FAFAFA" />
+                        <DynamicIcon name={ev.categories.icon} size={14} color={theme.background} />
                       ) : (
                         <HugeiconsIcon icon={Calendar01Icon} size={22} color={theme.textMuted} />
                       )}
@@ -472,16 +472,16 @@ export default function CalendarScreen() {
           <View style={styles.listContainer}>
             {loadingTxs ? (
               <>
-                {[1, 2, 3].map(sk => (
+                {[1, 2, 3].map((sk: number) => (
                   <View key={sk} style={[styles.listItem, { borderBottomColor: theme.border }]}>
                     <View style={styles.listLeft}>
-                      <View style={[styles.iconBox, { backgroundColor: '#27272A' }]} />
+                      <View style={[styles.iconBox, { backgroundColor: theme.border }]} />
                       <View style={styles.listTextCol}>
-                        <View style={{ width: 120, height: 14, backgroundColor: '#27272A', borderRadius: 4, marginBottom: 6 }} />
-                        <View style={{ width: 80, height: 12, backgroundColor: '#27272A', borderRadius: 4 }} />
+                        <View style={{ width: 120, height: 14, backgroundColor: theme.border, borderRadius: 4, marginBottom: 6 }} />
+                        <View style={{ width: 80, height: 12, backgroundColor: theme.border, borderRadius: 4 }} />
                       </View>
                     </View>
-                    <View style={{ width: 60, height: 16, backgroundColor: '#27272A', borderRadius: 4 }} />
+                    <View style={{ width: 60, height: 16, backgroundColor: theme.border, borderRadius: 4 }} />
                   </View>
                 ))}
               </>
@@ -500,8 +500,8 @@ export default function CalendarScreen() {
                   onPress={() => router.push(`/transaction/${tx.id}` as any)}
                 >
                   <View style={styles.listLeft}>
-                    <View style={[styles.iconBox, { backgroundColor: '#27272A' }]}>
-                      <Text style={{ color: '#FAFAFA', fontSize: 16, fontWeight: '700' }}>{initial}</Text>
+                  <View style={[styles.iconBox, { backgroundColor: theme.pillBg }]}>
+                      <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>{initial}</Text>
                     </View>
                     <View style={styles.listTextCol}>
                       <Text style={[styles.listName, { color: theme.text }]}>{tx.description || tx.categories?.name || 'Movimiento'}</Text>
@@ -522,27 +522,27 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { paddingBottom: 100, paddingTop: 16 },
 
   monthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 16 },
   monthText: { fontSize: 22, fontWeight: '700' },
   monthNav: { flexDirection: 'row', gap: 8 },
-  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center' },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 
   calendarContainer: { paddingHorizontal: 16, marginBottom: 32 },
   daysHeader: { flexDirection: 'row', marginBottom: 8 },
   dayHeaderText: { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '500' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCellWrapper: { width: '14.28%', aspectRatio: 0.65, padding: 3 },
-  dayCell: { flex: 1, backgroundColor: '#18181B', borderRadius: 12, paddingTop: 8, paddingHorizontal: 4, alignItems: 'center' },
+  dayCell: { flex: 1, borderRadius: 12, paddingTop: 8, paddingHorizontal: 4, alignItems: 'center' },
   dayText: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   logosContainer: { width: '100%', alignItems: 'center', gap: 2 },
-  logoBadgeWrap: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  logoBadgeWrap: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tinyLogo: { width: 14, height: 14 },
   tinyFallback: { width: 14, height: 14, borderRadius: 7 },
-  moreEventsText: { fontSize: 10, color: '#A1A1AA', fontWeight: 'bold' },
+  moreEventsText: { fontSize: 10, fontWeight: 'bold' },
 
   upcomingSection: { marginTop: 16 },
   upcomingHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 12 },

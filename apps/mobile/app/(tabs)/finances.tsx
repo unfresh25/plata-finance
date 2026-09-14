@@ -21,7 +21,7 @@ export default function FinancesScreen() {
   const [shoppingLists, setShoppingLists] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [currency, setCurrency] = useState('USD');
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   const fetchFinances = async () => {
     if (!user) return;
@@ -94,7 +94,7 @@ export default function FinancesScreen() {
             : accounts.map(item => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.creditCard, { width: CARD_WIDTH }]}
+                style={[styles.creditCard, { width: CARD_WIDTH, shadowColor: isDark ? '#000' : theme.text, shadowOpacity: isDark ? 0.1 : 0.05 }]}
                 onPress={() => router.push(`/account/${item.id}` as any)}
                 onLongPress={() => router.push(`/edit-account?id=${item.id}` as any)}
                 delayLongPress={400}
@@ -105,15 +105,15 @@ export default function FinancesScreen() {
                   imageStyle={{ borderRadius: 24 }}
                   resizeMode="cover"
                 >
-                  <View style={styles.cardOverlay}>
+                  <View style={[styles.cardOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' }]}>
                     <View style={styles.cardTop}>
-                      <Text style={styles.cardName}>{item.name}</Text>
-                      <View style={styles.chip}><View style={styles.chipLine} /></View>
+                      <Text style={[styles.cardName, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{item.name}</Text>
+                      <View style={[styles.chip, { borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.2)' }]}><View style={[styles.chipLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.15)' }]} /></View>
                     </View>
                     <View style={styles.cardBottom}>
                       <View>
-                        <Text style={styles.cardSub}>{item.type}</Text>
-                        <Text style={styles.cardBalance}>{fmt(item.balance)}</Text>
+                        <Text style={[styles.cardSub, { color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }]}>{item.type}</Text>
+                        <Text style={[styles.cardBalance, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{fmt(item.balance)}</Text>
                       </View>
                       <View style={styles.mcLogo}>
                         <View style={[styles.mcCircle, { backgroundColor: '#EF4444', marginRight: -12 }]} />
@@ -225,7 +225,9 @@ export default function FinancesScreen() {
                 >
                   <View>
                     <Text style={[styles.listName, { color: theme.text }]}>{item.name}</Text>
-                    <Text style={[styles.listSub, { color: theme.textMuted }]}>{item.shopping_items?.[0]?.count ?? 0} ítems</Text>
+                    <Text style={[styles.listSub, { color: theme.textMuted }]}>
+                      {item.store ? `${item.store} • ` : ''}{item.shopping_items?.[0]?.count ?? 0} ítems
+                    </Text>
                   </View>
                   <Text style={[styles.chevron, { color: theme.textMuted }]}>›</Text>
                 </TouchableOpacity>
@@ -274,28 +276,28 @@ export default function FinancesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  center: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: { paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
-  addBtn: { backgroundColor: 'rgba(99,158,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  addBtnText: { color: '#FAFAFA', fontSize: 13, fontWeight: '600' },
+  title: { fontSize: 24, fontWeight: '700' },
+  addBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  addBtnText: { fontSize: 13, fontWeight: '600' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
+  sectionTitle: { fontSize: 16, fontWeight: '600' },
   sectionAddBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   sectionAddBtnText: { fontSize: 13, fontWeight: '600' },
   listCard: { padding: 0 },
-  emptyText: { fontSize: 14, color: '#A1A1AA', textAlign: 'center', marginVertical: 12 },
+  emptyText: { fontSize: 14, textAlign: 'center', marginVertical: 12 },
   listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
-  listName: { fontSize: 16, fontWeight: '500', color: '#FAFAFA' },
-  listSub: { fontSize: 13, color: '#A1A1AA', marginTop: 4, textTransform: 'capitalize' },
-  listAmount: { fontSize: 16, fontWeight: '600', color: '#FAFAFA', fontVariant: ['tabular-nums'] },
-  tapHint: { fontSize: 11, color: '#3F3F46', marginTop: 2 },
-  progressBar: { height: 6, backgroundColor: 'rgba(99,158,255,0.2)', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#2563EB', borderRadius: 3 },
-  chevron: { fontSize: 22, color: '#71717A' },
+  listName: { fontSize: 16, fontWeight: '500' },
+  listSub: { fontSize: 13, marginTop: 4, textTransform: 'capitalize' },
+  listAmount: { fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  tapHint: { fontSize: 11, marginTop: 2 },
+  progressBar: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3 },
+  chevron: { fontSize: 22 },
 
-  creditCard: { height: 200, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10 },
+  creditCard: { height: 200, borderRadius: 24, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
   cardBg: { flex: 1, borderRadius: 24 },
   cardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 24, padding: 20, justifyContent: 'space-between' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

@@ -7,6 +7,7 @@ import TransactionItem from '../../src/components/TransactionItem';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { Cancel01Icon, Edit02Icon, MoreHorizontalIcon, Delete01Icon } from '@hugeicons/core-free-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.92;
@@ -16,6 +17,7 @@ export default function AccountDetailScreen() {
   const { id, accountData } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
   
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<any>(accountData ? JSON.parse(accountData as string) : null);
@@ -128,29 +130,29 @@ export default function AccountDetailScreen() {
         <Pressable style={StyleSheet.absoluteFillObject} onPress={closeSheet} />
       </Animated.View>
 
-      <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}>
+      <Animated.View style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}>
         <View style={styles.handleArea} {...panResponder.panHandlers}>
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
         </View>
 
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
-            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          <TouchableOpacity onPress={closeSheet} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Detalles de Cuenta</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Detalles de Cuenta</Text>
           <View>
-            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
-              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color={theme.text} />
             </TouchableOpacity>
             {showMenu && (
               <>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
-                <View style={[styles.dropdown, { top: 40 }]}>
+                <View style={[styles.dropdown, { top: 40, backgroundColor: theme.card, borderColor: theme.border }]}>
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
-                    <Text style={styles.dropdownText}>Editar</Text>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color={theme.text} />
+                    <Text style={[styles.dropdownText, { color: theme.text }]}>Editar</Text>
                   </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
+                  <View style={[styles.dropdownDivider, { backgroundColor: theme.border }]} />
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
                     <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
                     <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
@@ -166,19 +168,19 @@ export default function AccountDetailScreen() {
             <View style={styles.cardWrapper}>
               <ImageBackground
                 source={require('../../assets/images/card-bg.png')}
-                style={styles.cardBg}
+                style={[styles.cardBg, { shadowColor: isDark ? '#000' : theme.text, shadowOpacity: isDark ? 0.1 : 0.05 }]}
                 imageStyle={{ borderRadius: 24 }}
                 resizeMode="cover"
               >
-                <View style={styles.cardOverlay}>
+                <View style={[styles.cardOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' }]}>
                   <View style={styles.cardTop}>
-                    <Text style={styles.cardName}>{activeAcc.name}</Text>
-                    <View style={styles.chip}><View style={styles.chipLine} /></View>
+                    <Text style={[styles.cardName, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{activeAcc.name}</Text>
+                    <View style={[styles.chip, { borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.2)' }]}><View style={[styles.chipLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.15)' }]} /></View>
                   </View>
                   <View style={styles.cardBottom}>
                     <View>
-                      <Text style={styles.cardSub}>{activeAcc.type}</Text>
-                      <Text style={styles.cardBalance}>{fmt(activeAcc.balance)}</Text>
+                      <Text style={[styles.cardSub, { color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }]}>{activeAcc.type}</Text>
+                      <Text style={[styles.cardBalance, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{fmt(activeAcc.balance)}</Text>
                     </View>
                     <View style={styles.mcLogo}>
                       <View style={[styles.mcCircle, { backgroundColor: '#EF4444', marginRight: -12 }]} />
@@ -190,10 +192,10 @@ export default function AccountDetailScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Historial de Movimientos</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Historial de Movimientos</Text>
           <View style={styles.listContainer}>
             {transactions.length === 0 ? (
-              <Text style={styles.emptyText}>No hay transacciones en esta cuenta</Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>No hay transacciones en esta cuenta</Text>
             ) : transactions.map((tx, index) => {
               const cat = categories.find(c => c.id === tx.category_id);
               const creator = members.find(m => m.id === tx.created_by);
@@ -219,31 +221,31 @@ export default function AccountDetailScreen() {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetContainer: { height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, marginBottom: 10 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 8 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  headerTitle: { fontSize: 16, fontWeight: '600' },
   content: { paddingBottom: 80 },
   cardWrapper: { paddingHorizontal: 20, paddingVertical: 16 },
-  cardBg: { height: 200, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10 },
+  cardBg: { height: 200, borderRadius: 24, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
   cardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 24, padding: 20, justifyContent: 'space-between' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardName: { fontSize: 18, color: '#FFFFFF', fontWeight: '700', letterSpacing: 1 },
+  cardName: { fontSize: 18, color: '#FFFFFF', fontWeight: '700', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
   chip: { width: 34, height: 24, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', justifyContent: 'center', alignItems: 'center' },
-  chipLine: { width: '100%' as any, height: 1, backgroundColor: 'rgba(255,255,255,0.4)' },
+  chipLine: { width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.4)' },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   cardSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 4 },
-  cardBalance: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1, fontVariant: ['tabular-nums'] },
+  cardBalance: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4, fontVariant: ['tabular-nums'] },
   mcLogo: { flexDirection: 'row', alignItems: 'center' },
   mcCircle: { width: 32, height: 32, borderRadius: 16, opacity: 0.85 },
   dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
-  dropdown: { position: 'absolute', right: 0, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdown: { position: 'absolute', right: 0, borderRadius: 14, borderWidth: 1, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#FAFAFA', paddingHorizontal: 20, marginBottom: 8 },
+  dropdownText: { fontSize: 16, fontWeight: '600' },
+  dropdownDivider: { height: 1 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', paddingHorizontal: 20, marginBottom: 8 },
   listContainer: { paddingHorizontal: 20 },
-  emptyText: { fontSize: 14, color: '#A1A1AA', textAlign: 'center', marginVertical: 32 },
+  emptyText: { fontSize: 14, textAlign: 'center', marginVertical: 32 },
 });

@@ -13,7 +13,7 @@ import { Cancel01Icon } from '@hugeicons/core-free-icons';
 export default function AddBudgetScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
   const [householdId, setHouseholdId] = useState<string | null>(null);
@@ -80,8 +80,8 @@ export default function AddBudgetScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
-          <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.pillBg }]} onPress={() => router.back()}>
+          <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -90,26 +90,26 @@ export default function AddBudgetScreen() {
         <View style={styles.heroSection}>
           <Text style={{ fontSize: 48, fontWeight: '700', color: theme.danger, marginRight: 8, marginTop: 4 }}>$</Text>
           <AmountInput
-            style={styles.heroInput}
+            style={[styles.heroInput, { color: theme.text }]}
             value={limitAmount}
             onChangeText={setLimitAmount}
             placeholder="0"
-            placeholderTextColor="rgba(255,255,255,0.2)"
+            placeholderTextColor={theme.textMuted}
             autoFocus
           />
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.label}>Categoría mensual</Text>
+        <View style={[styles.formCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : theme.card }]}>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Categoría mensual</Text>
           {categories.length === 0 ? (
-            <Text style={styles.emptyNote}>Crea primero categorías de tipo "gasto".</Text>
+            <Text style={[styles.emptyNote, { color: theme.textMuted }]}>Crea primero categorías de tipo "gasto".</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 20 }}>
               {categories.map(cat => (
-                <TouchableOpacity key={cat.id} style={[styles.pill, categoryId === cat.id && styles.pillActive]} onPress={() => setCategoryId(cat.id)}>
+                <TouchableOpacity key={cat.id} style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }, categoryId === cat.id && { backgroundColor: theme.text, borderColor: theme.text }]} onPress={() => setCategoryId(cat.id)}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <DynamicIcon name={cat.icon} size={16} color={categoryId === cat.id ? '#000' : '#FAFAFA'} />
-                    <Text style={[styles.pillText, categoryId === cat.id && styles.pillTextActive]}>{cat.name}</Text>
+                    <DynamicIcon name={cat.icon} size={16} color={categoryId === cat.id ? theme.background : theme.text} />
+                    <Text style={[styles.pillText, { color: theme.text }, categoryId === cat.id && { color: theme.background }]}>{cat.name}</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -118,9 +118,9 @@ export default function AddBudgetScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>Guardar Presupuesto</Text>}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20, borderTopColor: theme.border }]}>
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.text }]} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={theme.background} /> : <Text style={[styles.saveBtnText, { color: theme.background }]}>Guardar Presupuesto</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -128,24 +128,22 @@ export default function AddBudgetScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16 },
-  closeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  closeBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   content: { paddingBottom: 40 },
   
   heroSection: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 160, paddingHorizontal: 20, marginBottom: 20 },
-  heroInput: { fontSize: 72, fontWeight: '800', color: '#FAFAFA', textAlign: 'center', minWidth: 100 },
+  heroInput: { fontSize: 72, fontWeight: '800', textAlign: 'center', minWidth: 100 },
   
-  formCard: { marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 24, padding: 20 },
-  label: { fontSize: 13, color: '#A1A1AA', marginBottom: 16, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  emptyNote: { color: '#71717A', fontStyle: 'italic' },
+  formCard: { marginHorizontal: 20, borderRadius: 24, padding: 20 },
+  label: { fontSize: 13, marginBottom: 16, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  emptyNote: { fontStyle: 'italic' },
   
-  pill: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  pillActive: { backgroundColor: '#FAFAFA', borderColor: '#FAFAFA' },
-  pillText: { color: '#FAFAFA', fontWeight: '600', fontSize: 15 },
-  pillTextActive: { color: '#000000' },
+  pill: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontWeight: '600', fontSize: 15 },
   
-  footer: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
-  saveBtn: { backgroundColor: '#FAFAFA', height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText: { color: '#000', fontSize: 17, fontWeight: '700' },
+  footer: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1 },
+  saveBtn: { height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { fontSize: 17, fontWeight: '700' },
 });

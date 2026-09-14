@@ -263,7 +263,7 @@ export default function HomeScreen() {
             {accounts.map(acc => (
               <TouchableOpacity
                 key={acc.id}
-                style={[styles.creditCard, { width: CARD_WIDTH }]}
+                style={[styles.creditCard, { width: CARD_WIDTH, shadowColor: isDark ? '#000' : theme.text, shadowOpacity: isDark ? 0.1 : 0.05 }]}
                 onPress={() => router.push(`/account/${acc.id}` as any)}
                 onLongPress={() => router.push(`/edit-account?id=${acc.id}` as any)}
                 delayLongPress={400}
@@ -274,15 +274,15 @@ export default function HomeScreen() {
                   imageStyle={{ borderRadius: 24 }}
                   resizeMode="cover"
                 >
-                  <View style={styles.cardOverlay}>
+                  <View style={[styles.cardOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' }]}>
                     <View style={styles.cardTop}>
-                      <Text style={styles.cardName}>{acc.name}</Text>
-                      <View style={styles.chip}><View style={styles.chipLine} /></View>
+                      <Text style={[styles.cardName, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{acc.name}</Text>
+                      <View style={[styles.chip, { borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.2)' }]}><View style={[styles.chipLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.15)' }]} /></View>
                     </View>
                     <View style={styles.cardBottom}>
                       <View>
-                        <Text style={styles.cardSub}>{acc.type}</Text>
-                        <Text style={styles.cardBalance}>{fmt(acc.balance)}</Text>
+                        <Text style={[styles.cardSub, { color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }]}>{acc.type}</Text>
+                        <Text style={[styles.cardBalance, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{fmt(acc.balance)}</Text>
                       </View>
                       <View style={styles.mcLogo}>
                         <View style={[styles.mcCircle, { backgroundColor: '#EF4444', marginRight: -12 }]} />
@@ -368,7 +368,7 @@ export default function HomeScreen() {
                       {matchedLogo ? (
                         <Image source={matchedLogo.logo} style={styles.logoImg} resizeMode="contain" />
                       ) : ev.categories ? (
-                        <DynamicIcon name={ev.categories.icon} size={14} color="#FAFAFA" />
+                        <DynamicIcon name={ev.categories.icon} size={14} color={theme.background} />
                       ) : (
                         <HugeiconsIcon icon={Calendar01Icon} size={22} color={theme.textMuted} />
                       )}
@@ -431,7 +431,7 @@ export default function HomeScreen() {
                     {matchedLogo ? (
                       <Image source={matchedLogo.logo} style={styles.logoImg} resizeMode="contain" />
                     ) : ev.categories ? (
-                      <DynamicIcon name={ev.categories.icon} size={14} color="#FAFAFA" />
+                      <DynamicIcon name={ev.categories.icon} size={14} color={theme.background} />
                     ) : (
                       <HugeiconsIcon icon={Calendar01Icon} size={22} color={theme.textMuted} />
                     )}
@@ -454,27 +454,27 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1 },
   content: { paddingBottom: 100 },
-  center: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20 },
   header: { flex: 1 },
-  greeting: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
-  heroSub: { fontSize: 22, color: '#A1A1AA', fontWeight: '500', marginTop: 4 },
-  balanceAmount: { fontSize: 44, fontWeight: '800', color: '#FAFAFA', letterSpacing: -1, paddingHorizontal: 20, marginTop: 16, marginBottom: 24, fontVariant: ['tabular-nums'] },
+  greeting: { fontSize: 24, fontWeight: '700' },
+  heroSub: { fontSize: 22, fontWeight: '500', marginTop: 4 },
+  balanceAmount: { fontSize: 44, fontWeight: '800', letterSpacing: -1, paddingHorizontal: 20, marginTop: 16, marginBottom: 24, fontVariant: ['tabular-nums'] },
 
   trendsRow: { flexDirection: 'row', gap: 24, paddingHorizontal: 20, marginBottom: 32 },
   trendItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  trendLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 2 },
+  trendLabel: { fontSize: 13, marginBottom: 2 },
   trendValue: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
 
   section: { marginBottom: 32 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#FAFAFA' },
-  seeAllText: { fontSize: 14, color: '#2563EB', fontWeight: '500' },
+  sectionTitle: { fontSize: 18, fontWeight: '600' },
+  seeAllText: { fontSize: 14, fontWeight: '500' },
 
   accountsScroll: { paddingHorizontal: 20, gap: 16 },
-  creditCard: { height: 200, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10 },
+  creditCard: { height: 200, borderRadius: 24, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 },
   cardBg: { flex: 1, borderRadius: 24 },
   cardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 24, padding: 20, justifyContent: 'space-between' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -488,15 +488,14 @@ const styles = StyleSheet.create({
   mcCircle: { width: 32, height: 32, borderRadius: 16, opacity: 0.85 },
 
   listContainer: { paddingHorizontal: 20 },
-  emptyText: { fontSize: 14, color: '#A1A1AA', textAlign: 'center', marginVertical: 12 },
-  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#27272A' },
+  emptyText: { fontSize: 14, textAlign: 'center', marginVertical: 12 },
+  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1 },
   listLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  iconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  iconBox: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   iconEmoji: { fontSize: 20 },
   listTextCol: { justifyContent: 'center' },
-  listName: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  listSub: { fontSize: 13, color: '#A1A1AA', marginTop: 2 },
+  listName: { fontSize: 16, fontWeight: '600' },
+  listSub: { fontSize: 13, marginTop: 2 },
   listAmount: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
   logoImg: { width: 34, height: 34 },
 });
-

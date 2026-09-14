@@ -1,5 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
@@ -10,20 +11,41 @@ function RootNavigation() {
   const { initialized, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
-    if (!initialized) return;
+    SecureStore.getItemAsync('has_seen_onboarding').then(val => {
+      setHasSeenOnboarding(val === 'true');
+      setCheckedOnboarding(true);
+    }).catch(() => {
+      setHasSeenOnboarding(false);
+      setCheckedOnboarding(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!initialized || !checkedOnboarding) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === 'onboarding';
 
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)');
+    if (!user) {
+      // Only send to onboarding if they haven't seen it AND they're not already
+      // in the auth flow (e.g., after pressing "Empezar" from onboarding)
+      if (!hasSeenOnboarding && !inOnboarding && !inAuthGroup) {
+        router.replace('/onboarding');
+      } else if (!inOnboarding && !inAuthGroup) {
+        router.replace('/(auth)/login');
+      }
+    } else if (user) {
+      if (inAuthGroup || inOnboarding) {
+        router.replace('/(tabs)');
+      }
     }
-  }, [user, initialized, segments]);
+  }, [user, initialized, segments, checkedOnboarding, hasSeenOnboarding]);
 
-  if (!initialized) {
+  if (!initialized || !checkedOnboarding) {
     return (
       <View style={{ flex: 1, backgroundColor: '#09090B', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#2563EB" />
@@ -33,6 +55,7 @@ function RootNavigation() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#09090B' }, animation: 'fade' }}>
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="add-transaction" options={{ presentation: 'modal' }} />

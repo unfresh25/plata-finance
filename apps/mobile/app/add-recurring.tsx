@@ -18,7 +18,7 @@ const TYPES = ['expense', 'income'];
 export default function AddRecurringScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [saving, setSaving] = useState(false);
@@ -107,13 +107,13 @@ export default function AddRecurringScreen() {
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-          <Text style={styles.iconText}>✕</Text>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.pillBg }]} onPress={() => router.back()}>
+          <Text style={[styles.iconText, { color: theme.text }]}>✕</Text>
         </TouchableOpacity>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => setType(type === 'income' ? 'expense' : 'income')}>
-            <Text style={styles.iconText}>{type === 'income' ? '↓' : '↑'}</Text>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.pillBg }]} onPress={() => setType(type === 'income' ? 'expense' : 'income')}>
+            <Text style={[styles.iconText, { color: theme.text }]}>{type === 'income' ? '↓' : '↑'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -136,44 +136,56 @@ export default function AddRecurringScreen() {
 
         {/* DETAILS SECTION */}
         <View style={styles.detailsSection}>
-          <Text style={styles.sectionLabel}>Nombre del servicio</Text>
-          <View style={styles.inputContainer}>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Nombre del servicio</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.pillBg }]}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { color: theme.text }]}
               placeholder="Ej. Netflix, Spotify, Arriendo"
-              placeholderTextColor="#71717A"
+              placeholderTextColor={theme.textMuted}
               value={name}
               onChangeText={setName}
             />
           </View>
 
-          <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Categoría</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 12, color: theme.textMuted }]}>Categoría</Text>
           <TouchableOpacity 
-            style={[styles.inputContainer, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }]}
+            style={[styles.inputContainer, { backgroundColor: theme.pillBg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }]}
             onPress={() => setShowCategoryModal(true)}
           >
             {currentCategory ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <DynamicIcon name={currentCategory.icon} size={20} color={currentCategory.color} />
-                <Text style={styles.textInput}>{currentCategory.name}</Text>
+                <Text style={[styles.textInput, { color: theme.text }]}>{currentCategory.name}</Text>
               </View>
             ) : (
-              <Text style={[styles.textInput, { color: '#71717A' }]}>Seleccionar categoría</Text>
+              <Text style={[styles.textInput, { color: theme.textMuted }]}>Seleccionar categoría</Text>
             )}
-            <Text style={{ color: '#71717A', fontSize: 18 }}>›</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 18 }}>›</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Frecuencia</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 12, color: theme.textMuted }]}>Frecuencia</Text>
           <View style={styles.pillGrid}>
             {FREQUENCIES.map(f => (
-              <TouchableOpacity key={f} style={[styles.choicePill, frequency === f && styles.choicePillActive]} onPress={() => setFrequency(f)}>
-                <Text style={[styles.choicePillText, frequency === f && styles.choicePillTextActive]}>{FREQ_LABELS[f]}</Text>
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.choicePill,
+                  { backgroundColor: theme.pillBg, borderColor: frequency === f ? theme.text : 'transparent' }
+                ]}
+                onPress={() => setFrequency(f)}
+              >
+                <Text style={[
+                  styles.choicePillText,
+                  { color: frequency === f ? theme.text : theme.textMuted }
+                ]}>
+                  {FREQ_LABELS[f]}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <View style={{ marginTop: 24 }}>
-              <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Día de cobro</Text>
+              <Text style={[styles.sectionLabel, { marginBottom: 0, color: theme.textMuted }]}>Día de cobro</Text>
               <DaySelector selectedDay={dayOfMonth} onSelectDay={setDayOfMonth} color={type === 'income' ? '#22C55E' : '#EF4444'} />
           </View>
         </View>
@@ -182,25 +194,25 @@ export default function AddRecurringScreen() {
       {/* FIXED BOTTOM ACTIONS */}
       <View style={styles.bottomActions}>
         <TouchableOpacity
-          style={[styles.categoryPillBtn, selectedLogo ? { backgroundColor: 'rgba(255,255,255,0.1)' } : undefined, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}
+          style={[styles.categoryPillBtn, { backgroundColor: theme.pillBg }, selectedLogo ? { borderWidth: 1, borderColor: theme.border } : undefined, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}
           onPress={() => setShowLogoModal(true)}
         >
           {selectedLogo ? (
             <Image source={selectedLogo.logo} style={{ width: 24, height: 24 }} resizeMode="contain" />
           ) : (
-            <Text style={{ fontSize: 20 }}>✦</Text>
+            <Text style={{ fontSize: 20, color: theme.text }}>✦</Text>
           )}
-          <Text style={styles.categoryPillBtnText}>
+          <Text style={[styles.categoryPillBtnText, { color: theme.text }]}>
             {selectedLogo ? selectedLogo.name : 'Servicio'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.saveBtn}
+          style={[styles.saveBtn, { backgroundColor: theme.text }]}
           onPress={handleSave}
           disabled={saving || !amount || amount === '0'}
         >
-          {saving ? <ActivityIndicator color="#09090B" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
+          {saving ? <ActivityIndicator color={theme.background} /> : <Text style={[styles.saveBtnText, { color: theme.background }]}>Guardar</Text>}
         </TouchableOpacity>
       </View>
 
@@ -208,30 +220,30 @@ export default function AddRecurringScreen() {
       <Modal visible={showLogoModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropClose} activeOpacity={1} onPress={() => setShowLogoModal(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccionar Servicio</Text>
-              <TouchableOpacity onPress={() => setShowLogoModal(false)} style={styles.modalCloseBtn}>
-                <Text style={styles.modalCloseText}>✕</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Seleccionar Servicio</Text>
+              <TouchableOpacity onPress={() => setShowLogoModal(false)} style={[styles.modalCloseBtn, { backgroundColor: theme.pillBg }]}>
+                <Text style={[styles.modalCloseText, { color: theme.text }]}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.logoGrid}>
               <TouchableOpacity
-                style={[styles.modalLogoBox, !selectedLogo && { borderColor: '#FAFAFA', borderWidth: 2 }]}
+                style={[styles.modalLogoBox, { backgroundColor: theme.pillBg }, !selectedLogo && { borderColor: theme.text, borderWidth: 2 }]}
                 onPress={() => { setSelectedLogo(null); setShowLogoModal(false); }}
               >
-                <Text style={styles.noLogoText}>Ninguno</Text>
+                <Text style={[styles.noLogoText, { color: theme.textMuted }]}>Ninguno</Text>
               </TouchableOpacity>
 
               {SUBSCRIPTION_LOGOS.filter(l => l.id !== 'none').map(logo => (
                 <TouchableOpacity
                   key={logo.id}
-                  style={[styles.modalLogoBox, selectedLogo?.id === logo.id && { borderColor: '#FAFAFA', borderWidth: 2 }]}
+                  style={[styles.modalLogoBox, { backgroundColor: theme.pillBg }, selectedLogo?.id === logo.id && { borderColor: theme.text, borderWidth: 2 }]}
                   onPress={() => handleSelectLogo(logo)}
                 >
                   <Image source={logo.logo} style={styles.logoImg} resizeMode="contain" />
-                  <Text style={styles.logoName} numberOfLines={1} ellipsizeMode="tail">{logo.name}</Text>
+                  <Text style={[styles.logoName, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{logo.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -243,19 +255,19 @@ export default function AddRecurringScreen() {
       <Modal visible={showCategoryModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdropClose} activeOpacity={1} onPress={() => setShowCategoryModal(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccionar Categoría</Text>
-              <TouchableOpacity onPress={() => setShowCategoryModal(false)} style={styles.modalCloseBtn}>
-                <Text style={styles.modalCloseText}>✕</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Seleccionar Categoría</Text>
+              <TouchableOpacity onPress={() => setShowCategoryModal(false)} style={[styles.modalCloseBtn, { backgroundColor: theme.pillBg }]}>
+                <Text style={[styles.modalCloseText, { color: theme.text }]}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.categoryGrid}>
               {filteredCategories.map(cat => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.modalCatPill, { borderColor: cat.color, borderWidth: categoryId === cat.id ? 2 : 1 }]}
+                  style={[styles.modalCatPill, { backgroundColor: theme.pillBg, borderColor: cat.color, borderWidth: categoryId === cat.id ? 2 : 1 }]}
                   onPress={() => {
                     setCategoryId(cat.id);
                     setShowCategoryModal(false);
@@ -266,7 +278,7 @@ export default function AddRecurringScreen() {
                 </TouchableOpacity>
               ))}
               {filteredCategories.length === 0 && (
-                <Text style={styles.emptyText}>No hay categorías de este tipo.</Text>
+                <Text style={[styles.emptyText, { color: theme.textMuted }]}>No hay categorías de este tipo.</Text>
               )}
             </ScrollView>
           </View>
@@ -280,50 +292,48 @@ export default function AddRecurringScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  iconText: { color: '#FAFAFA', fontSize: 18, fontWeight: '600' },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  iconText: { fontSize: 18, fontWeight: '600' },
   headerRight: { flexDirection: 'row', gap: 12, alignItems: 'center' },
 
   contentScroll: { paddingHorizontal: 20, paddingBottom: 20 },
   amountContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 140, marginBottom: 10 },
   currencySymbol: { fontSize: 44, fontWeight: '700', marginRight: 4, marginTop: 10 },
-  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], maxWidth: '90%', letterSpacing: -2 },
+  amountText: { fontSize: 72, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1, letterSpacing: -2 },
 
   detailsSection: { gap: 12 },
-  sectionLabel: { fontSize: 13, color: '#71717A', fontWeight: '500', marginBottom: 12, marginLeft: 4 },
-  inputContainer: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16 },
-  textInput: { color: '#FAFAFA', fontSize: 17, letterSpacing: 0 },
+  sectionLabel: { fontSize: 13, fontWeight: '500', marginBottom: 12, marginLeft: 4 },
+  inputContainer: { borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16 },
+  textInput: { fontSize: 17, letterSpacing: 0 },
 
   pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  choicePill: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  choicePillActive: { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: '#FAFAFA' },
-  choicePillText: { color: '#A1A1AA', fontWeight: '600', fontSize: 15 },
-  choicePillTextActive: { color: '#FAFAFA' },
+  choicePill: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 20, borderWidth: 1 },
+  choicePillText: { fontWeight: '600', fontSize: 15 },
 
   bottomActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  categoryPillBtn: { backgroundColor: '#3F3F46', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 24, maxWidth: '60%' },
-  categoryPillBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-  saveBtn: { backgroundColor: '#FAFAFA', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 24 },
-  saveBtnText: { color: '#000000', fontWeight: '800', fontSize: 16 },
+  categoryPillBtn: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 24, maxWidth: '60%' },
+  categoryPillBtnText: { fontWeight: '600', fontSize: 16 },
+  saveBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 24 },
+  saveBtnText: { fontWeight: '800', fontSize: 16 },
 
   // MODAL STYLES
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalBackdropClose: { ...StyleSheet.absoluteFillObject },
-  modalContent: { backgroundColor: '#18181B', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', minHeight: '50%' },
-  modalHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, alignSelf: 'center', marginTop: 12 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  modalTitle: { fontSize: 18, fontWeight: '600', color: '#FAFAFA' },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  modalCloseText: { color: '#FAFAFA', fontSize: 14, fontWeight: '600' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', minHeight: '50%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 18, fontWeight: '600' },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  modalCloseText: { fontSize: 14, fontWeight: '600' },
 
   logoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 20 },
-  modalLogoBox: { width: '31%', aspectRatio: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, alignItems: 'center', justifyContent: 'center', padding: 10, borderWidth: 2, borderColor: 'transparent' },
+  modalLogoBox: { width: '31%', aspectRatio: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', padding: 10, borderWidth: 2, borderColor: 'transparent' },
   logoImg: { width: 40, height: 40, marginBottom: 8 },
-  logoName: { color: '#FAFAFA', fontSize: 12, fontWeight: '500', textAlign: 'center' },
-  noLogoText: { color: '#A1A1AA', fontSize: 14, fontWeight: '600' },
+  logoName: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
+  noLogoText: { fontSize: 14, fontWeight: '600' },
 
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 20 },
-  modalCatPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  modalCatPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
   modalCatText: { fontSize: 15, fontWeight: '600' },
-  emptyText: { color: '#A1A1AA', fontSize: 14, textAlign: 'center', marginTop: 20, width: '100%' },
+  emptyText: { fontSize: 14, textAlign: 'center', marginTop: 20, width: '100%' },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, Animated, PanResponder, Dimensions, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, Animated, PanResponder, Dimensions, Image, ActivityIndicator, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { formatCurrency, formatShortDate } from '@jojos/core';
@@ -8,6 +8,7 @@ import { Cancel01Icon, Calendar01Icon, Folder01Icon, Wallet01Icon, MoreHorizonta
 import { useAuth } from '../../src/context/AuthContext';
 import { SUBSCRIPTION_LOGOS } from '../../src/data/SubscriptionLogos';
 import DynamicIcon from '../../src/components/DynamicIcon';
+import { useTheme } from '../../src/context/ThemeContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
@@ -17,10 +18,13 @@ export default function RecurringDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [event, setEvent] = useState<any>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [currency, setCurrency] = useState('USD');
   const [showMenu, setShowMenu] = useState(false);
 
@@ -62,6 +66,12 @@ export default function RecurringDetailScreen() {
 
         if (error) throw error;
         setEvent(data);
+
+        const { data: accs } = await supabase.from('accounts').select('id, name, type, color, icon, balance').eq('household_id', data.household_id);
+        if (accs) {
+          setAccounts(accs);
+          setSelectedAccountId(data.account_id || accs[0]?.id);
+        }
       } catch (err) {
         Alert.alert('Error', 'No se pudo cargar el evento recurrente');
       } finally {
@@ -157,13 +167,13 @@ export default function RecurringDetailScreen() {
   const handleConfirmPayment = async () => {
     try {
       setConfirming(true);
-      const { data: accounts } = await supabase.from('accounts').select('id, balance').eq('household_id', event.household_id).limit(1);
-      if (!accounts || accounts.length === 0) {
-        Alert.alert('Error', 'No tienes cuentas creadas.');
+      if (!selectedAccountId) {
+        Alert.alert('Error', 'Debes seleccionar una cuenta a utilizar.');
         return;
       }
       
-      const account = accounts[0];
+      const account = accounts.find(a => a.id === selectedAccountId);
+      if (!account) return;
       const amount = event.amount;
       const type = event.type; 
 
@@ -209,8 +219,8 @@ export default function RecurringDetailScreen() {
     return (
       <View style={styles.modalBg}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]} />
-        <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}>
-          <View style={styles.center}><Text style={{ color: '#FAFAFA' }}>Evento no encontrado</Text></View>
+        <Animated.View style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}>
+          <View style={styles.center}><Text style={{ color: theme.text }}>Evento no encontrado</Text></View>
         </Animated.View>
       </View>
     );
@@ -230,33 +240,33 @@ export default function RecurringDetailScreen() {
       </Animated.View>
 
       <Animated.View
-        style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}
+        style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.handleArea}>
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
         </View>
 
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
-            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          <TouchableOpacity onPress={closeSheet} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
           </TouchableOpacity>
           <View>
-            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
-              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color={theme.text} />
             </TouchableOpacity>
             {showMenu && (
               <>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
-                <View style={[styles.dropdown, { top: 40 }]}>
+                <View style={[styles.dropdown, { top: 40, backgroundColor: theme.card, borderColor: theme.border }]}>
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
-                    <Text style={styles.dropdownText}>Editar</Text>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color={theme.text} />
+                    <Text style={[styles.dropdownText, { color: theme.text }]}>Editar</Text>
                   </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
+                  <View style={[styles.dropdownDivider, { backgroundColor: theme.border }]} />
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
-                    <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
-                    <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
+                    <HugeiconsIcon icon={Delete01Icon} size={18} color={theme.danger} />
+                    <Text style={[styles.dropdownText, { color: theme.danger }]}>Eliminar</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -267,42 +277,61 @@ export default function RecurringDetailScreen() {
         {event && (
           <View style={styles.content}>
             <View style={styles.cardHeader}>
-              <View style={[styles.avatar, { backgroundColor: event?.categories?.color || '#18181B' }]}>
+              <View style={[styles.avatar, { backgroundColor: event?.categories?.color || theme.border }]}>
                 {logoMatch ? (
                   <Image source={logoMatch.logo} style={{ width: 32, height: 32 }} resizeMode="contain" />
                 ) : event?.categories ? (
-                  <DynamicIcon name={event.categories.icon} size={16} color="#FAFAFA" />
+                  <DynamicIcon name={event.categories.icon} size={16} color={theme.background} />
                 ) : (
-                  <HugeiconsIcon icon={Calendar01Icon} size={24} color="#FAFAFA" />
+                  <HugeiconsIcon icon={Calendar01Icon} size={24} color={theme.background} />
                 )}
               </View>
               <View>
-                <Text style={styles.cardTitle}>{logoMatch ? logoMatch.name : 'Servicio'}</Text>
-                <Text style={styles.cardSubtitle}>{event.name}</Text>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>{logoMatch ? logoMatch.name : 'Servicio'}</Text>
+                <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>{event.name}</Text>
               </View>
             </View>
 
             <Text style={styles.sentence}>
-              <Text style={styles.grayText}>Tú {isIncome ? 'recibes ' : 'gastas '}</Text>
-              <Text style={[styles.boldText, isIncome ? { color: '#22C55E' } : { color: '#FAFAFA' }]}>{formatCurrency(event.amount || 0, currency)} </Text>
-              <Text style={styles.grayText}>{frequencyLabel} en esta suscripción.</Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>Tú {isIncome ? 'recibes ' : 'gastas '}</Text>
+              <Text style={[styles.boldText, isIncome ? { color: '#22C55E' } : { color: theme.text }]}>{formatCurrency(event.amount || 0, currency)} </Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{frequencyLabel} en esta suscripción.</Text>
             </Text>
 
             <View style={styles.pillsContainer}>
-              <View style={styles.pill}>
-                <HugeiconsIcon icon={Calendar01Icon} size={15} color="#A1A1AA" />
-                <Text style={styles.pillText}>{event.next_date ? `Próximo pago: ${formatShortDate(event.next_date)}` : '...'}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <HugeiconsIcon icon={Calendar01Icon} size={15} color={theme.textMuted} />
+                <Text style={[styles.pillText, { color: theme.text }]}>{event.next_date ? `Próximo pago: ${formatShortDate(event.next_date)}` : '...'}</Text>
               </View>
-              <View style={styles.pill}>
-                <HugeiconsIcon icon={event.is_active ? Tick02Icon : Alert01Icon} size={15} color={event.is_active ? "#22C55E" : "#A1A1AA"} />
-                <Text style={styles.pillText}>{event.is_active ? 'Activa' : 'Pausada'}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <HugeiconsIcon icon={event.is_active ? Tick02Icon : Alert01Icon} size={15} color={event.is_active ? "#22C55E" : theme.textMuted} />
+                <Text style={[styles.pillText, { color: theme.text }]}>{event.is_active ? 'Activa' : 'Pausada'}</Text>
               </View>
               {event.categories && (
-                <View style={styles.pill}>
+                <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
                   <DynamicIcon name={event.categories.icon} size={15} color={event.categories.color} />
-                  <Text style={styles.pillText}>{event.categories.name}</Text>
+                  <Text style={[styles.pillText, { color: theme.text }]}>{event.categories.name}</Text>
                 </View>
               )}
+            </View>
+
+            <View style={{ marginTop: 24 }}>
+              <Text style={[styles.grayText, { color: theme.textMuted, marginBottom: 12, fontSize: 14 }]}>Cuenta para el pago</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
+                {accounts.map(acc => {
+                  const isSelected = selectedAccountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountPill, { borderColor: isSelected ? (acc.color || theme.primary) : theme.border, backgroundColor: isSelected ? `${acc.color || '#3B82F6'}15` : theme.pillBg }]}
+                      onPress={() => setSelectedAccountId(acc.id)}
+                    >
+                      <Text style={{ fontSize: 16 }}>{acc.icon}</Text>
+                      <Text style={[styles.accountPillText, { color: isSelected ? (acc.color || theme.text) : theme.text }]}>{acc.name}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </ScrollView>
             </View>
 
             <TouchableOpacity 
@@ -321,29 +350,31 @@ export default function RecurringDetailScreen() {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetContainer: { height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, marginBottom: 10 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
-  dropdown: { position: 'absolute', right: 20, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdown: { position: 'absolute', right: 20, borderRadius: 14, borderWidth: 1, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
+  dropdownText: { fontSize: 16, fontWeight: '600' },
+  dropdownDivider: { height: 1 },
 
   content: { padding: 24, paddingTop: 32 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 32 },
-  avatar: { width: 24, height: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#27272A' },
-  cardTitle: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
-  cardSubtitle: { fontSize: 15, color: '#A1A1AA', marginTop: 2, fontWeight: '500' },
+  avatar: { width: 24, height: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cardTitle: { fontSize: 24, fontWeight: '700' },
+  cardSubtitle: { fontSize: 15, marginTop: 2, fontWeight: '500' },
 
   sentence: { fontSize: 32, lineHeight: 42, letterSpacing: -0.5, marginBottom: 40 },
-  grayText: { color: '#A1A1AA' },
-  boldText: { fontWeight: '700', color: '#FAFAFA' },
+  grayText: { fontWeight: '400' },
+  boldText: { fontWeight: '700' },
 
   pillsContainer: { flexDirection: 'column', flexWrap: 'wrap', gap: 12 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  pillText: { color: '#E4E4E7', fontSize: 15, fontWeight: '500' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontSize: 15, fontWeight: '500' },
+  accountPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  accountPillText: { fontSize: 15, fontWeight: '600' },
 });

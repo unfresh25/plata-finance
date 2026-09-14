@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Jojo's Finance",
-    "slug": "jojos-finance",
+    "name": "Plata",
+    "slug": "plata-finance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "jojosfinance",
+    "scheme": "platafinance",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.jojosfinance.app"
+      "bundleIdentifier": "com.jojosfinance.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,14 +35,23 @@
           "color": "#2563EB"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "SUPABASE_URL": "",
-      "SUPABASE_ANON_KEY": ""
+      "SUPABASE_ANON_KEY": "",
+      "router": {},
+      "eas": {
+        "projectId": "e244f989-25cb-4ec7-bfd2-ca8b3bf0626a"
+      }
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/e244f989-25cb-4ec7-bfd2-ca8b3bf0626a"
     }
   }
 }

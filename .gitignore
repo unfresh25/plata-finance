@@ -11,3 +11,19 @@ __pycache__
 *.pyc
 .venv
 backend/.venv
+
+# OS / editor cruft
+.DS_Store
+**/.DS_Store
+
+# Editor / tooling (no forman parte del proyecto)
+.cursor/
+.vscode/
+**/.cursor/
+**/.vscode/
+.mcp.json
+**/.mcp.json
+
+# Agentes / skills locales (no son código del proyecto)
+.agents/
+skills-lock.json

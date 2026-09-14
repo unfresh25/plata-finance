@@ -23,6 +23,7 @@ export default function EditAccountScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
 
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
@@ -75,14 +76,14 @@ export default function EditAccountScreen() {
   const displayBalance = balance ? `$${Number(balance).toLocaleString('es-CO')}` : '$0';
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 8) }]}>
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 8) }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Text style={styles.closeBtnText}>✕</Text>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.closeBtn, { backgroundColor: theme.pillBg }]}>
+          <Text style={[styles.closeBtnText, { color: theme.text }]}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Editar Cuenta</Text>
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteIconBtn}>
-          <HugeiconsIcon icon={Delete01Icon} size={20} color="#EF4444" />
+        <Text style={[styles.title, { color: theme.text }]}>Editar Cuenta</Text>
+        <TouchableOpacity onPress={handleDelete} style={[styles.deleteIconBtn, { backgroundColor: isDark ? '#EF444415' : 'rgba(239, 68, 68, 0.05)' }]}>
+          <HugeiconsIcon icon={Delete01Icon} size={20} color={theme.danger} />
         </TouchableOpacity>
       </View>
 
@@ -91,19 +92,19 @@ export default function EditAccountScreen() {
         <View style={styles.cardWrapper}>
           <ImageBackground
             source={require('../assets/images/card-bg.png')}
-            style={styles.cardBg}
+            style={[styles.cardBg, { shadowColor: isDark ? '#000' : theme.text, shadowOpacity: isDark ? 0.1 : 0.05, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4 }]}
             imageStyle={{ borderRadius: 24 }}
             resizeMode="cover"
           >
-            <View style={[styles.cardOverlay, { borderColor: `${cardColor}60` }]}>
+            <View style={[styles.cardOverlay, { borderColor: `${cardColor}60`, backgroundColor: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.15)' }]}>
               <View style={styles.cardTop}>
-                <Text style={styles.cardName}>{name || 'Nombre de Cuenta'}</Text>
-                <View style={styles.chip}><View style={styles.chipLine} /></View>
+                <Text style={[styles.cardName, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{name || 'Nombre de Cuenta'}</Text>
+                <View style={[styles.chip, { borderColor: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.2)' }]}><View style={[styles.chipLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.15)' }]} /></View>
               </View>
               <View style={styles.cardBottom}>
                 <View>
-                  <Text style={styles.cardType}>{TYPES.find(t => t.val === type)?.label?.toUpperCase()}</Text>
-                  <Text style={styles.cardBalance}>{displayBalance}</Text>
+                  <Text style={[styles.cardType, { color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }]}>{TYPES.find(t => t.val === type)?.label?.toUpperCase()}</Text>
+                  <Text style={[styles.cardBalance, { color: isDark ? '#FFFFFF' : '#18181B', textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent' }]}>{displayBalance}</Text>
                 </View>
                 <View style={styles.mcLogo}>
                   <View style={[styles.mcCircle, { backgroundColor: '#EF4444', marginRight: -12 }]} />
@@ -116,15 +117,15 @@ export default function EditAccountScreen() {
 
         {/* TYPE PILLS */}
         <View style={styles.section}>
-          <Text style={styles.label}>Tipo de Cuenta</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Tipo de Cuenta</Text>
           <View style={styles.pillRow}>
             {TYPES.map(({ val, label }) => (
               <TouchableOpacity
                 key={val}
-                style={[styles.pill, type === val && { backgroundColor: cardColor, borderColor: cardColor }]}
+                style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }, type === val && { backgroundColor: cardColor, borderColor: cardColor }]}
                 onPress={() => setType(val)}
               >
-                <Text style={[styles.pillText, type === val && styles.pillTextActive]}>{label}</Text>
+                <Text style={[styles.pillText, { color: theme.textMuted }, type === val && { color: '#FFF' }]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -132,11 +133,11 @@ export default function EditAccountScreen() {
 
         {/* NAME */}
         <View style={styles.section}>
-          <Text style={styles.label}>Nombre</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Nombre</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholder="Ej: Tarjeta Crédito Nu"
-            placeholderTextColor="#71717A"
+            placeholderTextColor={theme.textMuted}
             value={name}
             onChangeText={setName}
           />
@@ -144,18 +145,18 @@ export default function EditAccountScreen() {
 
         {/* BALANCE */}
         <View style={styles.section}>
-          <Text style={styles.label}>Balance Actual</Text>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Balance Actual</Text>
           <AmountInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholder="0"
-            placeholderTextColor="#71717A"
+            placeholderTextColor={theme.textMuted}
             value={balance}
             onChangeText={setBalance}
           />
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: theme.border }]}>
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: cardColor }]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Guardar Cambios</Text>}
         </TouchableOpacity>
@@ -165,36 +166,35 @@ export default function EditAccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090B' },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
-  closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 20 },
-  closeBtnText: { color: '#FAFAFA', fontSize: 18, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '700', color: '#FAFAFA' },
-  deleteIconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EF444415', borderRadius: 20, borderWidth: 1, borderColor: '#EF444440' },
+  closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  closeBtnText: { fontSize: 18, fontWeight: '600' },
+  title: { fontSize: 18, fontWeight: '700' },
+  deleteIconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1, borderColor: '#EF444440' },
   content: { paddingBottom: 40 },
 
   cardWrapper: { marginHorizontal: 20, marginBottom: 28 },
   cardBg: { height: 200, borderRadius: 24 },
-  cardOverlay: { flex: 1, borderRadius: 24, borderWidth: 1.5, padding: 22, justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.18)' },
+  cardOverlay: { flex: 1, borderRadius: 24, borderWidth: 1.5, padding: 22, justifyContent: 'space-between' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardName: { fontSize: 18, color: '#FFF', fontWeight: '700', flex: 1, letterSpacing: 0.3 },
+  cardName: { fontSize: 18, color: '#FFF', fontWeight: '700', flex: 1, letterSpacing: 0.3, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
   chip: { width: 34, height: 24, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', justifyContent: 'center', alignItems: 'center' },
   chipLine: { width: '100%' as any, height: 1, backgroundColor: 'rgba(255,255,255,0.4)' },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   cardType: { fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: 1.5, marginBottom: 4 },
-  cardBalance: { fontSize: 28, fontWeight: '800', color: '#FFF', letterSpacing: 0.5 },
+  cardBalance: { fontSize: 28, fontWeight: '800', color: '#FFF', letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
   mcLogo: { flexDirection: 'row', alignItems: 'center' },
   mcCircle: { width: 32, height: 32, borderRadius: 16, opacity: 0.85 },
 
   section: { marginHorizontal: 20, marginBottom: 20 },
-  label: { fontSize: 13, color: '#71717A', fontWeight: '500', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
+  label: { fontSize: 13, fontWeight: '500', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: '#18181B', borderWidth: 1, borderColor: '#27272A' },
-  pillText: { color: '#A1A1AA', fontWeight: '600', fontSize: 14 },
-  pillTextActive: { color: '#FFF' },
-  input: { backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', color: '#FAFAFA', paddingHorizontal: 18, height: 54, fontSize: 18, letterSpacing: 0 },
+  pill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontWeight: '600', fontSize: 14 },
+  input: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 18, height: 54, fontSize: 18, letterSpacing: 0 },
 
-  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#18181B' },
+  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
   saveBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
 });

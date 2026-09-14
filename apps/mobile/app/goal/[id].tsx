@@ -6,6 +6,7 @@ import { formatCurrency, formatShortDate } from '@jojos/core';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { Cancel01Icon, MoreHorizontalIcon, Edit02Icon, Delete01Icon, Target01Icon } from '@hugeicons/core-free-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import DynamicIcon from '../../src/components/DynamicIcon';
 import AmountInput from '../../src/components/AmountInput';
 
@@ -17,6 +18,7 @@ export default function GoalDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -222,9 +224,9 @@ export default function GoalDetailScreen() {
   if (!goal && !loading) {
     return (
       <View style={styles.modalBg}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]} />
-        <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}>
-          <View style={styles.center}><Text style={{ color: '#FAFAFA' }}>Meta no encontrada</Text></View>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)', opacity: overlayOpacity }]} />
+        <Animated.View style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}>
+          <View style={styles.center}><Text style={{ color: theme.text }}>Meta no encontrada</Text></View>
         </Animated.View>
       </View>
     );
@@ -236,38 +238,38 @@ export default function GoalDetailScreen() {
 
   return (
     <View style={styles.modalBg}>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)', opacity: overlayOpacity }]}>
         <Pressable style={StyleSheet.absoluteFillObject} onPress={closeSheet} />
       </Animated.View>
 
       <Animated.View
-        style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}
+        style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.handleArea}>
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
         </View>
 
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
-            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          <TouchableOpacity onPress={closeSheet} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
           </TouchableOpacity>
           <View>
-            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
-              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color={theme.text} />
             </TouchableOpacity>
             {showMenu && (
               <>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
-                <View style={[styles.dropdown, { top: 40 }]}>
+                <View style={[styles.dropdown, { backgroundColor: theme.card, borderColor: theme.border, top: 40 }]}>
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
-                    <Text style={styles.dropdownText}>Editar</Text>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color={theme.text} />
+                    <Text style={[styles.dropdownText, { color: theme.text }]}>Editar</Text>
                   </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
+                  <View style={[styles.dropdownDivider, { backgroundColor: theme.border }]} />
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
-                    <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
-                    <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
+                    <HugeiconsIcon icon={Delete01Icon} size={18} color={theme.danger} />
+                    <Text style={[styles.dropdownText, { color: theme.danger }]}>Eliminar</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -278,38 +280,38 @@ export default function GoalDetailScreen() {
         {goal && (
           <View style={styles.content}>
             <View style={styles.cardHeader}>
-              <View style={[styles.avatar, { backgroundColor: goal.color || '#18181B' }]}>
+              <View style={[styles.avatar, { backgroundColor: goal.color || theme.pillBg, borderColor: theme.border }]}>
                 {goal.icon ? (
-                  <DynamicIcon name={goal.icon} size={20} color="#FAFAFA" />
+                  <DynamicIcon name={goal.icon} size={20} color={theme.background} />
                 ) : (
-                  <HugeiconsIcon icon={Target01Icon} size={24} color="#FAFAFA" />
+                  <HugeiconsIcon icon={Target01Icon} size={24} color={theme.text} />
                 )}
               </View>
               <View>
-                <Text style={styles.cardTitle}>{goal.name}</Text>
-                <Text style={styles.cardSubtitle}>Meta de Ahorro</Text>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>{goal.name}</Text>
+                <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>Meta de Ahorro</Text>
               </View>
             </View>
 
             <Text style={styles.sentence}>
-              <Text style={styles.grayText}>Faltan </Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>Faltan </Text>
               <Text style={[styles.boldText, { color: goal.color }]}>{formatCurrency(remaining, currency)}</Text>
-              <Text style={styles.grayText}>{goal.deadline ? ` para ` : '.'}</Text>
-              {goal.deadline && <Text style={styles.boldText}>{formatShortDate(goal.deadline)}</Text>}
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{goal.deadline ? ` para ` : '.'}</Text>
+              {goal.deadline && <Text style={[styles.boldText, { color: theme.text }]}>{formatShortDate(goal.deadline)}</Text>}
             </Text>
 
             <View style={{ marginBottom: 32 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ color: '#FAFAFA', fontWeight: '600', fontSize: 13 }}>{progressPct.toFixed(1)}% Alcanzado</Text>
-                    <Text style={{ color: '#A1A1AA', fontSize: 13, fontVariant: ['tabular-nums'] }}>{formatCurrency(goal.current_amount, currency)} / {formatCurrency(goal.target_amount, currency)}</Text>
+                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{progressPct.toFixed(1)}% Alcanzado</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{formatCurrency(goal.current_amount, currency)} / {formatCurrency(goal.target_amount, currency)}</Text>
                 </View>
-                <View style={{ height: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 6, width: '100%', overflow: 'hidden' }}>
+                <View style={{ height: 12, backgroundColor: theme.border, borderRadius: 6, width: '100%', overflow: 'hidden' }}>
                     <View style={{ height: '100%', backgroundColor: goal.color, width: `${progressPct}%`, borderRadius: 6 }} />
                 </View>
             </View>
 
-            <View style={styles.actionBlock}>
-              <Text style={styles.grayText}>¿Cuánto deseas aportar hoy?</Text>
+            <View style={[styles.actionBlock, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : theme.pillBg, borderColor: theme.border }]}>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>¿Cuánto deseas aportar hoy?</Text>
               <View style={styles.inputContainer}>
                 <Text style={[styles.currencyFlag, { color: goal.color }]}>$</Text>
                 <AmountInput
@@ -317,7 +319,7 @@ export default function GoalDetailScreen() {
                     value={payAmountStr}
                     onChangeText={setPayAmountStr}
                     placeholder="0"
-                    placeholderTextColor="#71717A"
+                    placeholderTextColor={theme.textMuted}
                     selectionColor={goal.color}
                 />
               </View>
@@ -339,34 +341,34 @@ export default function GoalDetailScreen() {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetContainer: { height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, marginBottom: 10 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
-  dropdown: { position: 'absolute', right: 20, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdown: { position: 'absolute', right: 20, borderRadius: 14, borderWidth: 1, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
+  dropdownText: { fontSize: 16, fontWeight: '600' },
+  dropdownDivider: { height: 1 },
 
   content: { padding: 24, paddingTop: 32 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#27272A' },
-  cardTitle: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
-  cardSubtitle: { fontSize: 15, color: '#A1A1AA', marginTop: 2, fontWeight: '500' },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cardTitle: { fontSize: 24, fontWeight: '700' },
+  cardSubtitle: { fontSize: 15, marginTop: 2, fontWeight: '500' },
 
   sentence: { fontSize: 30, lineHeight: 40, letterSpacing: -0.5, marginBottom: 32 },
-  grayText: { color: '#A1A1AA', fontSize: 16 },
-  boldText: { fontWeight: '700', color: '#FAFAFA' },
+  grayText: { fontSize: 16 },
+  boldText: { fontWeight: '700' },
 
   pillsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  pillText: { color: '#E4E4E7', fontSize: 13, fontWeight: '600' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontSize: 13, fontWeight: '600' },
 
-  actionBlock: { backgroundColor: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  actionBlock: { padding: 16, borderRadius: 20, borderWidth: 1 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   currencyFlag: { fontSize: 32, fontWeight: '500', marginRight: 4, marginTop: 4 },
-  payInput: { fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'], minWidth: 150 },
+  payInput: { fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1 },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, Animated, PanResponder, Dimensions, ActivityIndicator, TextInput, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, Animated, PanResponder, Dimensions, ActivityIndicator, TextInput, Keyboard, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { formatCurrency, formatShortDate } from '@jojos/core';
@@ -18,10 +18,13 @@ export default function DebtDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [debt, setDebt] = useState<any>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [currency, setCurrency] = useState('USD');
   const [showMenu, setShowMenu] = useState(false);
   
@@ -68,6 +71,12 @@ export default function DebtDetailScreen() {
         setDebt(data);
         const remaining = (data.amount || 0) - (data.amount_paid || 0);
         setPayAmountStr(remaining > 0 ? remaining.toString() : '');
+
+        const { data: accs } = await supabase.from('accounts').select('id, name, type, color, icon, balance').eq('household_id', data.household_id);
+        if (accs) {
+          setAccounts(accs);
+          setSelectedAccountId(accs[0]?.id);
+        }
       } catch (err) {
         Alert.alert('Error', 'No se pudo cargar la deuda');
       } finally {
@@ -174,13 +183,14 @@ export default function DebtDetailScreen() {
 
     try {
       setConfirming(true);
-      const { data: accounts } = await supabase.from('accounts').select('id, balance').eq('household_id', debt.household_id).limit(1);
-      if (!accounts || accounts.length === 0) {
-        Alert.alert('Error', 'No tienes cuentas creadas para descontar / recibir el dinero.');
+      if (!selectedAccountId) {
+        Alert.alert('Error', 'Selecciona una cuenta para la transacción.');
         return;
       }
       
-      const account = accounts[0];
+      const account = accounts.find(a => a.id === selectedAccountId);
+      if (!account) return;
+      
       const txType = debt.direction === 'owed_to_us' ? 'income' : 'expense';
 
       // Record transaction
@@ -224,9 +234,9 @@ export default function DebtDetailScreen() {
   if (!debt && !loading) {
     return (
       <View style={styles.modalBg}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]} />
-        <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}>
-          <View style={styles.center}><Text style={{ color: '#FAFAFA' }}>Deuda no encontrada</Text></View>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)', opacity: overlayOpacity }]} />
+        <Animated.View style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}>
+          <View style={styles.center}><Text style={{ color: theme.text }}>Deuda no encontrada</Text></View>
         </Animated.View>
       </View>
     );
@@ -237,38 +247,38 @@ export default function DebtDetailScreen() {
 
   return (
     <View style={styles.modalBg}>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)', opacity: overlayOpacity }]}>
         <Pressable style={StyleSheet.absoluteFillObject} onPress={closeSheet} />
       </Animated.View>
 
       <Animated.View
-        style={[styles.sheetContainer, { transform: [{ translateY: panY }] }]}
+        style={[styles.sheetContainer, { backgroundColor: theme.card, transform: [{ translateY: panY }] }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.handleArea}>
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
         </View>
 
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={closeSheet} style={styles.iconBtn}>
-            <HugeiconsIcon icon={Cancel01Icon} size={24} color="#FAFAFA" />
+          <TouchableOpacity onPress={closeSheet} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+            <HugeiconsIcon icon={Cancel01Icon} size={24} color={theme.text} />
           </TouchableOpacity>
           <View>
-            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={styles.iconBtn}>
-              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color="#FAFAFA" />
+            <TouchableOpacity onPress={() => setShowMenu(v => !v)} style={[styles.iconBtn, { backgroundColor: theme.pillBg }]}>
+              <HugeiconsIcon icon={MoreHorizontalIcon} size={24} color={theme.text} />
             </TouchableOpacity>
             {showMenu && (
               <>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setShowMenu(false)} />
-                <View style={[styles.dropdown, { top: 40 }]}>
+                <View style={[styles.dropdown, { backgroundColor: theme.card, borderColor: theme.border, top: 40 }]}>
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleEdit}>
-                    <HugeiconsIcon icon={Edit02Icon} size={18} color="#FAFAFA" />
-                    <Text style={styles.dropdownText}>Editar</Text>
+                    <HugeiconsIcon icon={Edit02Icon} size={18} color={theme.text} />
+                    <Text style={[styles.dropdownText, { color: theme.text }]}>Editar</Text>
                   </TouchableOpacity>
-                  <View style={styles.dropdownDivider} />
+                  <View style={[styles.dropdownDivider, { backgroundColor: theme.border }]} />
                   <TouchableOpacity style={styles.dropdownItem} onPress={handleDelete}>
-                    <HugeiconsIcon icon={Delete01Icon} size={18} color="#EF4444" />
-                    <Text style={[styles.dropdownText, { color: '#EF4444' }]}>Eliminar</Text>
+                    <HugeiconsIcon icon={Delete01Icon} size={18} color={theme.danger} />
+                    <Text style={[styles.dropdownText, { color: theme.danger }]}>Eliminar</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -279,61 +289,80 @@ export default function DebtDetailScreen() {
         {debt && (
           <View style={styles.content}>
             <View style={styles.cardHeader}>
-              <View style={[styles.avatar, { backgroundColor: debt?.categories?.color || '#18181B' }]}>
+              <View style={[styles.avatar, { backgroundColor: debt?.categories?.color || theme.pillBg, borderColor: theme.border }]}>
                 {debt?.categories ? (
-                  <DynamicIcon name={debt.categories.icon} size={16} color="#FAFAFA" />
+                  <DynamicIcon name={debt.categories.icon} size={16} color={theme.background} />
                 ) : (
-                  <HugeiconsIcon icon={UserIcon} size={24} color="#FAFAFA" />
+                  <HugeiconsIcon icon={UserIcon} size={24} color={theme.text} />
                 )}
               </View>
               <View>
-                <Text style={styles.cardTitle}>{debt.person_name}</Text>
-                <Text style={styles.cardSubtitle}>{debt.description || 'Deuda'}</Text>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>{debt.person_name}</Text>
+                <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>{debt.description || 'Deuda'}</Text>
               </View>
             </View>
 
             <Text style={styles.sentence}>
-              <Text style={styles.grayText}>{isOwed ? 'Nos deben ' : 'Debemos '} </Text>
-              <Text style={[styles.boldText, isOwed ? { color: '#22C55E' } : { color: '#EF4444' }]}>{formatCurrency(remaining, currency)}</Text>
-              <Text style={styles.grayText}>{debt.due_date ? ` para pagar antes de ` : '.'}</Text>
-              {debt.due_date && <Text style={styles.boldText}>{formatShortDate(debt.due_date)}</Text>}
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{isOwed ? 'Nos deben ' : 'Debemos '} </Text>
+              <Text style={[styles.boldText, isOwed ? { color: '#22C55E' } : { color: theme.danger }]}>{formatCurrency(remaining, currency)}</Text>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>{debt.due_date ? ` para pagar antes de ` : '.'}</Text>
+              {debt.due_date && <Text style={[styles.boldText, { color: theme.text }]}>{formatShortDate(debt.due_date)}</Text>}
             </Text>
 
             <View style={styles.pillsContainer}>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>Total: {formatCurrency(debt.amount, currency)}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <Text style={[styles.pillText, { color: theme.text }]}>Total: {formatCurrency(debt.amount, currency)}</Text>
               </View>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>Pagado: {formatCurrency(debt.amount_paid, currency)}</Text>
+              <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
+                <Text style={[styles.pillText, { color: theme.text }]}>Pagado: {formatCurrency(debt.amount_paid, currency)}</Text>
               </View>
               {debt.categories && (
-                <View style={styles.pill}>
+                <View style={[styles.pill, { backgroundColor: theme.pillBg, borderColor: theme.border }]}>
                   <DynamicIcon name={debt.categories.icon} size={15} color={debt.categories.color} />
-                  <Text style={styles.pillText}>{debt.categories.name}</Text>
+                  <Text style={[styles.pillText, { color: theme.text }]}>{debt.categories.name}</Text>
                 </View>
               )}
             </View>
 
-            <View style={styles.actionBlock}>
-              <Text style={styles.grayText}>¿Cuánto deseas abonar?</Text>
+            <View style={[styles.actionBlock, { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : theme.pillBg, borderColor: theme.border }]}>
+              <Text style={[styles.grayText, { color: theme.textMuted }]}>¿Cuánto deseas abonar?</Text>
               <View style={styles.inputContainer}>
-                <Text style={styles.currencyFlag}>$</Text>
+                <Text style={[styles.currencyFlag, { color: theme.textMuted }]}>$</Text>
                 <AmountInput
-                    style={styles.payInput}
+                    style={[styles.payInput, { color: theme.text }]}
                     value={payAmountStr}
                     onChangeText={setPayAmountStr}
                     placeholder="0"
-                    placeholderTextColor="#71717A"
+                    placeholderTextColor={theme.textMuted}
                 />
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={{ marginTop: 24, backgroundColor: isOwed ? '#22C55E' : '#EF4444', paddingVertical: 16, borderRadius: 24, alignItems: 'center' }}
+            <View style={{ marginTop: 20 }}>
+              <Text style={[styles.grayText, { color: theme.textMuted, marginBottom: 12, fontSize: 14 }]}>Cuenta involucrada</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
+                {accounts.map(acc => {
+                  const isSelected = selectedAccountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountPill, { borderColor: isSelected ? (acc.color || theme.primary) : theme.border, backgroundColor: isSelected ? `${acc.color || '#3B82F6'}15` : theme.pillBg }]}
+                      onPress={() => setSelectedAccountId(acc.id)}
+                    >
+                      <Text style={{ fontSize: 16 }}>{acc.icon}</Text>
+                      <Text style={[styles.accountPillText, { color: isSelected ? (acc.color || theme.text) : theme.text }]}>{acc.name}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </ScrollView>
+            </View>
+
+            <TouchableOpacity  
+              style={{ marginTop: 24, backgroundColor: isOwed ? '#22C55E' : theme.danger, paddingVertical: 16, borderRadius: 24, alignItems: 'center' }}
               onPress={handleConfirmPayment}
               disabled={confirming}
             >
-               {confirming ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: isOwed ? '#000' : '#FFF', fontWeight: 'bold', fontSize: 16 }}>Abonar</Text>}
+               {confirming ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>Abonar</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -344,34 +373,37 @@ export default function DebtDetailScreen() {
 
 const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  sheetContainer: { backgroundColor: '#09090B', height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetContainer: { height: SHEET_MAX_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   handleArea: { width: '100%', height: 30, alignItems: 'center', justifyContent: 'flex-end' },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#3F3F46', borderRadius: 2, marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, marginBottom: 10 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 22 },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   dropdownOverlay: { position: 'absolute', top: -50, right: -50, bottom: -500, left: -500, zIndex: 90 },
-  dropdown: { position: 'absolute', right: 20, backgroundColor: '#18181B', borderRadius: 14, borderWidth: 1, borderColor: '#27272A', minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  dropdown: { position: 'absolute', right: 20, borderRadius: 14, borderWidth: 1, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 12 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
-  dropdownText: { fontSize: 16, fontWeight: '600', color: '#FAFAFA' },
-  dropdownDivider: { height: 1, backgroundColor: '#27272A' },
+  dropdownText: { fontSize: 16, fontWeight: '600' },
+  dropdownDivider: { height: 1 },
 
   content: { padding: 24, paddingTop: 32 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#27272A' },
-  cardTitle: { fontSize: 24, fontWeight: '700', color: '#FAFAFA' },
-  cardSubtitle: { fontSize: 15, color: '#A1A1AA', marginTop: 2, fontWeight: '500' },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cardTitle: { fontSize: 24, fontWeight: '700' },
+  cardSubtitle: { fontSize: 15, marginTop: 2, fontWeight: '500' },
 
   sentence: { fontSize: 30, lineHeight: 40, letterSpacing: -0.5, marginBottom: 32 },
-  grayText: { color: '#A1A1AA', fontSize: 16 },
-  boldText: { fontWeight: '700', color: '#FAFAFA' },
+  grayText: { fontSize: 16 },
+  boldText: { fontWeight: '700' },
 
-  pillsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  pillText: { color: '#E4E4E7', fontSize: 13, fontWeight: '600' },
+  pillsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  pillText: { fontSize: 13, fontWeight: '600' },
 
-  actionBlock: { backgroundColor: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  accountPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  accountPillText: { fontSize: 15, fontWeight: '600' },
+
+  actionBlock: { padding: 16, borderRadius: 20, borderWidth: 1 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  currencyFlag: { fontSize: 32, color: '#A1A1AA', fontWeight: '500', marginRight: 4, marginTop: 4 },
-  payInput: { fontSize: 40, fontWeight: '800', color: '#FAFAFA', fontVariant: ['tabular-nums'], minWidth: 150 },
+  currencyFlag: { fontSize: 32, fontWeight: '500', marginRight: 4, marginTop: 4 },
+  payInput: { fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1 },
 });
