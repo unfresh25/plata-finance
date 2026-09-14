@@ -30,3 +30,7 @@ skills-lock.json
 
 # TS build cache
 *.tsbuildinfo
+
+# Supabase CLI temp/local
+supabase/.temp/
+supabase/.branches/
