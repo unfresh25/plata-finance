@@ -37,6 +37,7 @@ export default function TabHeader() {
       setHouseholdName(CACHED_HEADER.householdName);
       setInitial(CACHED_HEADER.initial);
       setMembers(CACHED_HEADER.members);
+      setAvatarUrl(CACHED_HEADER.avatarUrl ?? null);
       return;
     }
 

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { ThemeProvider } from '../src/context/ThemeContext';
+import { wrapWithSentry } from '../src/lib/sentry';
 import { View, ActivityIndicator } from 'react-native';
 
 function RootNavigation() {
@@ -83,7 +84,7 @@ function RootNavigation() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
@@ -96,3 +97,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Envuelve el root con Sentry si está activo (no-op si no hay DSN / dependencia).
+export default wrapWithSentry(RootLayout);

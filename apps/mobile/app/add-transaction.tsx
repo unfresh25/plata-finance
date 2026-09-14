@@ -65,8 +65,9 @@ export default function AddTransactionScreen() {
   }, [user]);
 
   const handleSave = async () => {
-    if (!amount || isNaN(Number(amount))) {
-      Alert.alert('Error', 'Ingresa un monto válido.');
+    const parsedAmount = Number(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Error', 'Ingresa un monto válido mayor que cero.');
       return;
     }
     if (!accountId) {
@@ -89,15 +90,10 @@ export default function AddTransactionScreen() {
 
       if (error) throw error;
 
-      // Update account balance
-      const account = accounts.find(a => a.id === accountId);
-      if (account) {
-        const newBalance = type === 'income'
-          ? account.balance + Number(amount)
-          : account.balance - Number(amount);
-
-        await supabase.from('accounts').update({ balance: newBalance }).eq('id', account.id);
-      }
+      // Ajuste de balance atómico en la BD (evita read-modify-write con race conditions).
+      const delta = type === 'income' ? parsedAmount : -parsedAmount;
+      const { error: balErr } = await supabase.rpc('apply_account_delta', { p_account_id: accountId, p_delta: delta });
+      if (balErr) throw balErr;
 
       router.back();
     } catch (e: any) {
@@ -110,57 +106,41 @@ export default function AddTransactionScreen() {
   const processImageWithGemini = async (base64Img: string, mimeType: string) => {
     setAnalyzingImage(true);
     try {
-      // Intenta leer la API key desde .env. Si no hay, pide al usuario añadirla.
-      const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        Alert.alert('Configuración faltante', 'Falta agregar EXPO_PUBLIC_GEMINI_API_KEY en tu archivo .env para usar el OCR visual.');
+      // El OCR corre en el backend (la clave de Gemini vive server-side, no en el
+      // bundle del cliente). Se envía el JWT del usuario para autenticar la petición.
+      const apiBase = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiBase) {
+        Alert.alert('Configuración faltante', 'Falta EXPO_PUBLIC_API_URL para usar el OCR de recibos.');
         setAnalyzingImage(false);
         return;
       }
 
-      const prompt = `
-        Eres un asistente de finanzas. Extrae la información clave del siguiente recibo o factura.
-        Responde ÚNICAMENTE con un JSON válido que contenga:
-        "amount": el total a pagar (número, sin signos),
-        "description": nombre del local o un resumen corto de qué fue el gasto,
-        "date": fecha en formato YYYY-MM-DD si es legible.
-      `;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Sesión no válida. Inicia sesión de nuevo.');
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`${apiBase.replace(/\/$/, '')}/ocr/receipt`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType, data: base64Img } }
-            ]
-          }],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
-        })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ image_base64: base64Img, mime_type: mimeType }),
       });
 
-      const data = await response.json();
-      if (data.candidates && data.candidates[0].content.parts[0].text) {
-        let jsonStr = data.candidates[0].content.parts[0].text;
-        // Limpiar backticks si los envía
-        if (jsonStr.includes('```')) {
-          jsonStr = jsonStr.replace(/```(json)?|```/g, '').trim();
-        }
-        const parsed = JSON.parse(jsonStr);
-
-        if (parsed.amount) setAmount(String(parsed.amount));
-        if (parsed.description) setDescription(parsed.description);
-        if (parsed.date) {
-          const parsedDate = new Date(parsed.date);
-          if (!isNaN(parsedDate.getTime())) setDate(parsedDate);
-        }
-        setType('expense'); // Asumimos gasto para un recibo
-      } else {
-        throw new Error('No se pudo extraer la información visual.');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || 'No se pudo procesar la imagen.');
       }
+
+      const parsed = await response.json();
+      if (parsed.amount) setAmount(String(parsed.amount));
+      if (parsed.description) setDescription(parsed.description);
+      if (parsed.date) {
+        const parsedDate = new Date(parsed.date);
+        if (!isNaN(parsedDate.getTime())) setDate(parsedDate);
+      }
+      setType('expense'); // Asumimos gasto para un recibo
     } catch (error: any) {
       Alert.alert('Error de OCR', error.message || 'Hubo un problema procesando la imagen.');
     } finally {

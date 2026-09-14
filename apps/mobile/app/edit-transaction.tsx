@@ -80,29 +80,20 @@ export default function EditTransactionScreen() {
         const oldAccountId = originalTx.account_id;
         const newAccountId = accountId;
 
+        // Ajustes de balance atómicos vía RPC (no read-modify-write).
         if (oldAccountId === newAccountId) {
-          const account = accounts.find(a => a.id === oldAccountId);
-          if (account) {
-            const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
-            const apply = type === 'income' ? Number(amount) : -Number(amount);
-            const netChange = revert + apply;
-            
-            if (netChange !== 0) {
-              await supabase.from('accounts').update({ balance: account.balance + netChange }).eq('id', oldAccountId);
-            }
+          const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
+          const apply = type === 'income' ? Number(amount) : -Number(amount);
+          const netChange = revert + apply;
+          if (netChange !== 0) {
+            await supabase.rpc('apply_account_delta', { p_account_id: oldAccountId, p_delta: netChange });
           }
         } else {
-          const oldAccount = accounts.find(a => a.id === oldAccountId);
-          const newAccount = accounts.find(a => a.id === newAccountId);
-          
-          if (oldAccount) {
-            const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
-            await supabase.from('accounts').update({ balance: oldAccount.balance + revert }).eq('id', oldAccountId);
-          }
-          if (newAccount) {
-            const apply = type === 'income' ? Number(amount) : -Number(amount);
-            await supabase.from('accounts').update({ balance: newAccount.balance + apply }).eq('id', newAccountId);
-          }
+          // Revertir en la cuenta vieja y aplicar en la nueva.
+          const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
+          await supabase.rpc('apply_account_delta', { p_account_id: oldAccountId, p_delta: revert });
+          const apply = type === 'income' ? Number(amount) : -Number(amount);
+          await supabase.rpc('apply_account_delta', { p_account_id: newAccountId, p_delta: apply });
         }
       }
       router.back();
@@ -119,11 +110,9 @@ export default function EditTransactionScreen() {
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
             if (originalTx) {
-              const acc = accounts.find(a => a.id === originalTx.account_id);
-              if (acc) {
-                const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
-                await supabase.from('accounts').update({ balance: acc.balance + revert }).eq('id', acc.id);
-              }
+              // Revertir el efecto de la transacción eliminada, de forma atómica.
+              const revert = originalTx.type === 'income' ? -originalTx.amount : originalTx.amount;
+              await supabase.rpc('apply_account_delta', { p_account_id: originalTx.account_id, p_delta: revert });
 
               if (originalTx.recurring_id) {
                 const { data: recurringEvents } = await supabase

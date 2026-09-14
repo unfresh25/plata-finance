@@ -206,9 +206,9 @@ export default function DebtDetailScreen() {
         created_by: user?.id
       });
       
-      // Update balance
+      // Ajuste de balance atómico (evita read-modify-write).
       const balanceChange = txType === 'income' ? paymentAmount : -paymentAmount;
-      await supabase.from('accounts').update({ balance: account.balance + balanceChange }).eq('id', account.id);
+      await supabase.rpc('apply_account_delta', { p_account_id: account.id, p_delta: balanceChange });
 
       // Record specifically in debt bindings
       const newPaid = (debt.amount_paid || 0) + paymentAmount;
@@ -227,7 +227,9 @@ export default function DebtDetailScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
-      if (confirming) setConfirming(false);
+      // Siempre resetear el spinner: `confirming` capturado en el closure puede
+      // estar obsoleto, así que no lo usamos como guarda.
+      setConfirming(false);
     }
   };
 

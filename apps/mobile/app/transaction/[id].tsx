@@ -159,11 +159,10 @@ export default function TransactionDetailScreen() {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
             setLoading(true);
-            const { data: acc } = await supabase.from('accounts').select('balance').eq('id', tx.account_id).single();
-            if (acc) {
-              const newBalance = tx.type === 'income' ? acc.balance - tx.amount : acc.balance + tx.amount;
-              await supabase.from('accounts').update({ balance: newBalance }).eq('id', tx.account_id);
-            }
+            // Revertir el efecto de la transacción en el saldo, de forma atómica:
+            // un income eliminado resta; un expense eliminado suma.
+            const revertDelta = tx.type === 'income' ? -tx.amount : tx.amount;
+            await supabase.rpc('apply_account_delta', { p_account_id: tx.account_id, p_delta: revertDelta });
 
             if (tx.recurring_id) {
               const { data: recurringEvents } = await supabase

@@ -13,6 +13,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { Image } from 'react-native';
 import { forceHeaderUpdate } from '../src/components/TabHeader';
+import { PromptModal, PromptConfig } from '../src/components/PromptModal';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -25,6 +26,10 @@ export default function SettingsScreen() {
   const [household, setHousehold] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+
+  // Prompt cross-platform (Alert.prompt no existe en Android).
+  const [prompt, setPrompt] = useState<{ config: PromptConfig; onConfirm: (v: string) => void } | null>(null);
+  const askPrompt = (config: PromptConfig, onConfirm: (v: string) => void) => setPrompt({ config, onConfirm });
 
   const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -41,7 +46,7 @@ export default function SettingsScreen() {
           if (hh) {
             setInviteCode(hh.invite_code || null);
             // Fetch household members
-            const { data: mems } = await supabase.from('profiles').select('id, name, email, avatar_url').eq('household_id', hh.id);
+            const { data: mems } = await supabase.from('profiles').select('id, name, avatar_url').eq('household_id', hh.id);
             setMembers(mems || []);
           }
         }
@@ -67,36 +72,27 @@ export default function SettingsScreen() {
   };
 
   const handleCreateHousehold = () => {
-    Alert.prompt('Nuevo Hogar', 'Ingresa el nombre del nuevo hogar:', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Crear', onPress: async (name?: string) => {
-          if (!name || !name.trim()) return;
-          try {
-            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const { data: hh, error: hhErr } = await supabase.from('households').insert({ name: name.trim(), invite_code: code }).select().single();
-            if (hhErr) throw hhErr;
-            if (hh) {
-              const { error: upErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user?.id);
-              if (upErr) throw upErr;
-              // Bootstrap default categories
-              await supabase.from('categories').insert([
-                { household_id: hh.id, name: 'Alimentación', type: 'expense', icon: '', color: '#EF4444' },
-                { household_id: hh.id, name: 'Transporte', type: 'expense', icon: '', color: '#F59E0B' },
-                { household_id: hh.id, name: 'Vivienda', type: 'expense', icon: '', color: '#6366F1' },
-                { household_id: hh.id, name: 'Salario', type: 'income', icon: '', color: '#22C55E' },
-              ]);
-              Alert.alert('Éxito', `Hogar "${hh.name}" creado correctamente.\nCódigo de invitación: ${code}`);
-              setHousehold(hh);
-              setInviteCode(code);
-              setMembers([{ id: user?.id, name: profile?.name, email: user?.email, avatar_url: profile?.avatar_url }]);
-            }
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+    askPrompt(
+      { title: 'Nuevo Hogar', message: 'Ingresa el nombre del nuevo hogar:', placeholder: 'Nombre del hogar', confirmLabel: 'Crear' },
+      async (name: string) => {
+        try {
+          // RPC atómica y segura: crea el hogar, vincula el perfil y siembra
+          // categorías por defecto en una sola transacción server-side.
+          const { data, error } = await supabase.rpc('create_household', { p_name: name });
+          if (error) throw error;
+          const hh = Array.isArray(data) ? data[0] : data;
+          if (hh) {
+            Alert.alert('Éxito', `Hogar "${hh.name}" creado correctamente.\nCódigo de invitación: ${hh.invite_code}`);
+            setHousehold(hh);
+            setInviteCode(hh.invite_code);
+            setMembers([{ id: user?.id, name: profile?.name, email: user?.email, avatar_url: profile?.avatar_url }]);
+            forceHeaderUpdate({});
           }
+        } catch (e: any) {
+          Alert.alert('Error', e.message);
         }
       }
-    ]);
+    );
   };
 
   const handleGenerateInviteCode = async () => {
@@ -113,33 +109,28 @@ export default function SettingsScreen() {
   };
 
   const handleJoinHousehold = () => {
-    Alert.prompt('Unirse a Hogar', 'Ingresa el código de invitación:', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Unirse', onPress: async (code?: string) => {
-          if (!code || !code.trim()) return;
-          try {
-            const { data: hh, error: hhErr } = await supabase.from('households').select('*').eq('invite_code', code.trim().toUpperCase()).single();
-            if (hhErr || !hh) throw new Error('Código de invitación inválido o vencido.');
+    askPrompt(
+      { title: 'Unirse a Hogar', message: 'Ingresa el código de invitación:', placeholder: 'CÓDIGO', confirmLabel: 'Unirse', autoCapitalize: 'characters' },
+      async (code: string) => {
+        try {
+          // RPC SECURITY DEFINER: valida el código y vincula el perfil server-side.
+          // Evita exponer la tabla households y el UPDATE directo de household_id.
+          const { data, error } = await supabase.rpc('join_household', { p_code: code.trim().toUpperCase() });
+          if (error) throw error;
+          const hh = Array.isArray(data) ? data[0] : data;
+          if (!hh) throw new Error('Código de invitación inválido o vencido.');
 
-            const { error: upErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user?.id);
-            if (upErr) throw upErr;
-
-            Alert.alert('Éxito', `Te has unido exitosamente a "${hh.name}".`);
-
-            // Refresh settings view
-            setHousehold(hh);
-            setInviteCode(hh.invite_code);
-            forceHeaderUpdate({}); // Force a refetch basically
-            const { data: mems } = await supabase.from('profiles').select('id, name, email, avatar_url').eq('household_id', hh.id);
-            setMembers(mems || []);
-
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
+          Alert.alert('Éxito', `Te has unido exitosamente a "${hh.name}".`);
+          setHousehold(hh);
+          setInviteCode(hh.invite_code);
+          forceHeaderUpdate({});
+          const { data: mems } = await supabase.from('profiles').select('id, name, avatar_url').eq('household_id', hh.id);
+          setMembers(mems || []);
+        } catch (e: any) {
+          Alert.alert('Error', e.message);
         }
       }
-    ]);
+    );
   };
 
   const handleCurrencySelect = async (selected: string) => {
@@ -158,25 +149,21 @@ export default function SettingsScreen() {
   const initial = userName.charAt(0).toUpperCase();
 
   const handleEditName = () => {
-    Alert.prompt('Editar Nombre', 'Ingresa tu nuevo nombre para mostrar:', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Guardar', onPress: async (newName?: string) => {
-          if (!newName || !newName.trim()) return;
-          try {
-            const finalName = newName.trim();
-            // Upate Auth metadata
-            await supabase.auth.updateUser({ data: { full_name: finalName } });
-            // Update Profiles table
-            await supabase.from('profiles').update({ name: finalName }).eq('id', user?.id);
-            setProfile({ ...profile, name: finalName });
-            Alert.alert('Éxito', 'Nombre actualizado correctamente.');
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
+    askPrompt(
+      { title: 'Editar Nombre', message: 'Ingresa tu nuevo nombre para mostrar:', placeholder: 'Tu nombre', defaultValue: userName, confirmLabel: 'Guardar' },
+      async (newName: string) => {
+        try {
+          const finalName = newName.trim();
+          // Actualiza metadata de Auth y la tabla profiles (ambos permitidos por RLS: perfil propio).
+          await supabase.auth.updateUser({ data: { full_name: finalName } });
+          await supabase.from('profiles').update({ name: finalName }).eq('id', user?.id);
+          setProfile({ ...profile, name: finalName });
+          Alert.alert('Éxito', 'Nombre actualizado correctamente.');
+        } catch (e: any) {
+          Alert.alert('Error', e.message);
         }
       }
-    ], 'plain-text', userName);
+    );
   };
 
   const handleChangeAvatar = async () => {
@@ -403,9 +390,22 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.versionText}>Jojo's Finance v1.0.0</Text>
+        <Text style={styles.versionText}>Plata v1.0.0</Text>
 
       </ScrollView>
+
+      {prompt && (
+        <PromptModal
+          visible={!!prompt}
+          config={prompt.config}
+          onCancel={() => setPrompt(null)}
+          onConfirm={(value) => {
+            const cb = prompt.onConfirm;
+            setPrompt(null);
+            cb(value);
+          }}
+        />
+      )}
     </View>
   );
 }
