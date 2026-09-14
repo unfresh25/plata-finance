@@ -209,6 +209,8 @@ alter table public.financial_plans
 --    cualquier path del bucket; la de UPDATE/DELETE ya validaba owner.
 -- ─────────────────────────────────────────────────────────────────────────────
 drop policy if exists "Avatar Upload Access" on storage.objects;
+-- Policy duplicada e insegura vista en producción (INSERT sin owner check).
+drop policy if exists "Avatar Images allow insert" on storage.objects;
 create policy "Avatar Upload Access"
   on storage.objects for insert
   to authenticated
