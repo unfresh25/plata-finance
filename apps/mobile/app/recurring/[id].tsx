@@ -189,8 +189,9 @@ export default function RecurringDetailScreen() {
         created_by: user?.id
       });
       
+      // Ajuste de balance atómico (evita read-modify-write).
       const balanceChange = type === 'income' ? amount : -amount;
-      await supabase.from('accounts').update({ balance: account.balance + balanceChange }).eq('id', account.id);
+      await supabase.rpc('apply_account_delta', { p_account_id: account.id, p_delta: balanceChange });
 
       const [y, m, d] = event.next_date.split('T')[0].split('-');
       const current = new Date(Number(y), Number(m) - 1, Number(d));

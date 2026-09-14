@@ -1,11 +1,9 @@
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-pydantic==2.7.3
-supabase==2.4.6
-prophet==1.1.5
-pandas==2.2.2
-numpy==1.26.4
-scikit-learn==1.5.0
-google-generativeai==0.5.4
-python-dotenv==1.0.1
-httpx==0.27.0
+# Backend mínimo para producción — solo lo que usa el OCR y la app hoy.
+# Las libs de IA (prophet, pandas, numpy, scikit-learn, google-generativeai)
+# se añaden cuando se implementen predictions/insights: ver requirements-ml.txt
+fastapi>=0.111,<0.142
+uvicorn[standard]>=0.30,<0.36
+pydantic>=2.7,<3
+httpx>=0.27,<0.29
+PyJWT>=2.8,<3
+python-dotenv>=1.0,<2

@@ -194,11 +194,8 @@ export default function GoalDetailScreen() {
         created_by: user?.id
       });
       
-      // Update balance
-      const { data: acc } = await supabase.from('accounts').select('balance').eq('id', workAccountId).single();
-      if (acc) {
-          await supabase.from('accounts').update({ balance: acc.balance - paymentAmount }).eq('id', workAccountId);
-      }
+      // Aporte a la meta: descontar del saldo de la cuenta de forma atómica.
+      await supabase.rpc('apply_account_delta', { p_account_id: workAccountId, p_delta: -paymentAmount });
 
       // Update goal
       const newCurrent = (goal.current_amount || 0) + paymentAmount;

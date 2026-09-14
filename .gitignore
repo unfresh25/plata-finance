@@ -27,3 +27,10 @@ backend/.venv
 # Agentes / skills locales (no son código del proyecto)
 .agents/
 skills-lock.json
+
+# TS build cache
+*.tsbuildinfo
+
+# Supabase CLI temp/local
+supabase/.temp/
+supabase/.branches/

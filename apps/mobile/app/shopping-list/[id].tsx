@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { ArrowLeft01Icon, Settings01Icon, ShoppingCart01Icon, Delete01Icon, CheckmarkCircle02Icon, CircleIcon } from '@hugeicons/core-free-icons';
 import AmountInput from '../../src/components/AmountInput';
+import { PromptModal, PromptConfig } from '../../src/components/PromptModal';
 import { formatCurrency } from '@jojos/core';
 
 export default function ShoppingListDetailScreen() {
@@ -23,6 +24,10 @@ export default function ShoppingListDetailScreen() {
   const [items, setItems] = useState<any[]>([]);
   const [newItemName, setNewItemName] = useState('');
   const [addingItem, setAddingItem] = useState(false);
+
+  // Prompt cross-platform (Alert.prompt no existe en Android).
+  const [prompt, setPrompt] = useState<{ config: PromptConfig; onConfirm: (v: string) => void } | null>(null);
+  const askPrompt = (config: PromptConfig, onConfirm: (v: string) => void) => setPrompt({ config, onConfirm });
   
   const [showSettings, setShowSettings] = useState(false);
   const [editName, setEditName] = useState('');
@@ -91,23 +96,27 @@ export default function ShoppingListDetailScreen() {
 
   const onRefresh = useCallback(() => { setRefreshing(true); fetchItems(); }, [id]);
 
+  const confirmItemPurchase = async (item: any, val: string) => {
+    const parsed = val ? Number(val.replace(/[^0-9.]/g, '')) : (item.estimated_price || 0);
+    const finalPrice = isNaN(parsed) ? (item.estimated_price || 0) : parsed;
+    const { error } = await supabase.from('shopping_items').update({ is_checked: true, actual_price: finalPrice }).eq('id', item.id);
+    if (!error) setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_checked: true, actual_price: finalPrice } : i));
+  };
+
   const toggleItem = async (item: any) => {
     if (!item.is_checked) {
-      // Prompt for actual price
-      Alert.prompt(
-        'Precio real de ' + item.name, 
-        'Ingresa cuánto costó finalmente:', 
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Confirmar', onPress: async (val?: string) => {
-              const actual = val ? Number(val.replace(/[^0-9.]/g, '')) : (item.estimated_price || 0);
-              const finalPrice = isNaN(actual) ? 0 : actual;
-              const { error } = await supabase.from('shopping_items').update({ is_checked: true, actual_price: finalPrice }).eq('id', item.id);
-              if (!error) setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_checked: true, actual_price: finalPrice } : i));
-          }}
-        ], 
-        'plain-text', 
-        item.actual_price ? String(item.actual_price) : (item.estimated_price ? String(item.estimated_price) : '')
+      // Modal cross-platform (Alert.prompt no funciona en Android).
+      askPrompt(
+        {
+          title: 'Precio real de ' + item.name,
+          message: 'Ingresa cuánto costó finalmente:',
+          placeholder: '0',
+          defaultValue: item.actual_price ? String(item.actual_price) : (item.estimated_price ? String(item.estimated_price) : ''),
+          confirmLabel: 'Confirmar',
+          keyboardType: 'decimal-pad',
+          allowEmpty: true,
+        },
+        (val: string) => confirmItemPurchase(item, val)
       );
     } else {
       const { error } = await supabase.from('shopping_items').update({ is_checked: false }).eq('id', item.id);
@@ -458,6 +467,19 @@ export default function ShoppingListDetailScreen() {
             </View>
          </View>
       </Modal>
+
+      {prompt && (
+        <PromptModal
+          visible={!!prompt}
+          config={prompt.config}
+          onCancel={() => setPrompt(null)}
+          onConfirm={(value) => {
+            const cb = prompt.onConfirm;
+            setPrompt(null);
+            cb(value);
+          }}
+        />
+      )}
     </View>
   );
 }

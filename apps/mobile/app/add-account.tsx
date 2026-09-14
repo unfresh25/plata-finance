@@ -45,11 +45,11 @@ export default function AddAccountScreen() {
     let targetHouseholdId = householdId;
     if (!targetHouseholdId && user) {
       try {
-        const { data: hh } = await supabase.from('households').insert({ name: 'Hogar Principal' }).select().single();
-        if (hh) {
-          await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user.id);
-          targetHouseholdId = hh.id;
-        }
+        // RPC atómica y segura (no insert/update directos desde el cliente).
+        const { data, error } = await supabase.rpc('create_household', { p_name: 'Hogar Principal' });
+        if (error) throw error;
+        const hh = Array.isArray(data) ? data[0] : data;
+        if (hh) targetHouseholdId = hh.id;
       } catch (e: any) {
         setLoading(false);
         return Alert.alert('Error', e.message);

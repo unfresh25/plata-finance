@@ -1,0 +1,10 @@
+# Dependencias de IA/ML — instalar SOLO cuando se implementen los endpoints de
+# predictions e insights (hoy son placeholders). Añaden peso y tiempo de build
+# considerable (prophet compila código nativo), por eso no van en el deploy base.
+-r requirements.txt
+supabase==2.4.6
+prophet==1.1.5
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.0
+google-generativeai==0.5.4

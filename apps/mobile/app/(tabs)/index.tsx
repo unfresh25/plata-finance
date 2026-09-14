@@ -66,8 +66,11 @@ export default function HomeScreen() {
       }
 
       if (pData && !pData.household_id) {
-        // First check if there's a pending invite code to join
-        let pendingInvite = null;
+        // Primer arranque sin hogar: unirse por código pendiente o crear uno nuevo.
+        // Ambos flujos usan RPC SECURITY DEFINER atómicas (create_household / join_household)
+        // en vez de insert/update directos desde el cliente — así se respeta el aislamiento
+        // por household y el bootstrap (hogar + perfil + categorías + cuenta) es transaccional.
+        let pendingInvite: string | null = null;
         try {
           pendingInvite = await SecureStore.getItemAsync('pending_invite_code');
         } catch (e) { }
@@ -75,41 +78,26 @@ export default function HomeScreen() {
         let joinedExisting = false;
 
         if (pendingInvite) {
-          console.log('Procesando invite code pendiente:', pendingInvite);
-          const { data: hh } = await supabase.from('households').select('id, name').eq('invite_code', pendingInvite).single();
-          if (hh) {
-            const { error: updateErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', pData.id);
-            if (!updateErr) {
-              joinedExisting = true;
-              pData.household_id = hh.id;
-              pData.households = hh;
-              Alert.alert('¡Bienvenido!', `Te has unido exitosamente al hogar "${hh.name}".`);
-            }
+          const { data: joinData, error: joinErr } = await supabase.rpc('join_household', { p_code: pendingInvite.trim().toUpperCase() });
+          const hh = Array.isArray(joinData) ? joinData[0] : joinData;
+          if (!joinErr && hh) {
+            joinedExisting = true;
+            pData.household_id = hh.id;
+            pData.households = hh;
+            Alert.alert('¡Bienvenido!', `Te has unido exitosamente al hogar "${hh.name}".`);
           } else {
             Alert.alert('Código inválido', `El código de invitación ${pendingInvite} no fue encontrado. Se creará un nuevo hogar para ti.`);
           }
           try { await SecureStore.deleteItemAsync('pending_invite_code'); } catch (e) { }
         }
 
-        // Only create a new household if we didn't join an existing one
+        // Solo crear un hogar nuevo si no se unió a uno existente.
         if (!joinedExisting) {
-          const { data: hh, error: hhErr } = await supabase.from('households').insert({ name: 'Hogar Principal' }).select().single();
-          if (hhErr) Alert.alert('Error Creando Hogar', hhErr.message);
-
-          if (hh) {
-            const { error: hhUpErr } = await supabase.from('profiles').update({ household_id: hh.id }).eq('id', pData.id);
-            if (hhUpErr) Alert.alert('Error Vinculando Hogar', hhUpErr.message);
-
-            await Promise.all([
-              // Supabase client instance allows parallel unhandled inserts but we'll await them safely 
-              supabase.from('accounts').insert({ household_id: hh.id, name: 'Efectivo Principal', type: 'banco', balance: 0 }),
-              supabase.from('categories').insert([
-                { household_id: hh.id, name: 'Alimentación', type: 'expense', icon: '🍔', color: '#EF4444' },
-                { household_id: hh.id, name: 'Transporte', type: 'expense', icon: '🚗', color: '#F59E0B' },
-                { household_id: hh.id, name: 'Vivienda', type: 'expense', icon: '🏠', color: '#6366F1' },
-                { household_id: hh.id, name: 'Salario', type: 'income', icon: '💰', color: '#22C55E' },
-              ])
-            ]);
+          const { data: createData, error: createErr } = await supabase.rpc('create_household', { p_name: 'Hogar Principal' });
+          if (createErr) {
+            Alert.alert('Error Creando Hogar', createErr.message);
+          } else {
+            // La RPC ya vinculó el perfil y sembró categorías + cuenta por defecto.
             const res = await supabase.from('profiles').select('*, households(*)').eq('id', user.id).single();
             pData = res.data;
           }
