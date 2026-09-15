@@ -23,8 +23,8 @@ struct AccountDetailView: View {
             .sorted { $0.date > $1.date }
     }
 
-    private var tint: Color {
-        Color(hexString: liveAccount.color) ?? Palette.sky
+    private var base: Color {
+        AccountCreditCardStyle.color(from: liveAccount.color, id: liveAccount.id)
     }
 
     var body: some View {
@@ -62,12 +62,13 @@ struct AccountDetailView: View {
                 Text(acc.name)
                     .font(Typo.headline)
                     .tracking(-0.2)
-                    .foregroundStyle(Palette.ink)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: acc.type.sfSymbol)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
             }
 
             Spacer(minLength: Space.xl)
@@ -75,41 +76,56 @@ struct AccountDetailView: View {
             Text(acc.type.label.uppercased())
                 .font(Typo.overline)
                 .tracking(1.4)
-                .foregroundStyle(Palette.inkSecondary)
+                .foregroundStyle(.white.opacity(0.78))
                 .padding(.bottom, Space.xs)
 
             Text(CurrencyFormatter.string(acc.balance, currency: app.currency))
                 .font(Typo.amountLarge)
                 .tracking(-0.5)
                 .monospacedDigit()
-                .foregroundStyle(Palette.ink)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
         .padding(Space.l)
         .frame(height: 190)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [tint.opacity(0.28), Palette.surfaceElevated],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
-        )
+        .background {
+            ZStack {
+                // Gradiente diagonal del color de la cuenta: clara → base → oscura.
+                LinearGradient(
+                    colors: [
+                        AccountCreditCardStyle.lighten(base, by: 0.16),
+                        base,
+                        AccountCreditCardStyle.darken(base, by: 0.26),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                // Highlight de luz en la esquina superior (efecto tarjeta).
+                RadialGradient(
+                    colors: [.white.opacity(0.22), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 360
+                )
+                .blendMode(.softLight)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AccountCreditCardStyle.radius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+            RoundedRectangle(cornerRadius: AccountCreditCardStyle.radius, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.16), Palette.stroke.opacity(0.4)],
+                        colors: [.white.opacity(0.28), .white.opacity(0.05)],
                         startPoint: .top,
                         endPoint: .bottom
                     ),
                     lineWidth: 1
                 )
         )
-        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
-        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
+        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
     }
 
     // MARK: - Historial

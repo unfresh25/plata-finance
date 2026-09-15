@@ -29,7 +29,8 @@ struct SettingsView: View {
             VStack(spacing: Space.xl) {
                 SettingsProfileCard(
                     name: app.profile?.name,
-                    email: app.user?.email
+                    email: app.user?.email,
+                    avatarUrl: app.profile?.avatarUrl
                 )
 
                 SettingsHouseholdSection(
@@ -92,11 +93,12 @@ struct SettingsView: View {
 private struct SettingsProfileCard: View {
     let name: String?
     let email: String?
+    var avatarUrl: String?
 
     var body: some View {
         Card {
             HStack(spacing: Space.l) {
-                SettingsAvatar(name: name)
+                AvatarView(name: name, urlString: avatarUrl, size: 64)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name?.isEmpty == false ? name! : "Sin nombre")

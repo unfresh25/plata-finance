@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 // Pantalla insignia: registrar un movimiento. Monto GIGANTE con teclado
 // numérico propio (más elegante y controlado que el del sistema), PillToggle de
@@ -24,6 +26,14 @@ struct AddTransactionView: View {
     @State private var showAccountPicker = false
     @State private var isSaving = false
     @State private var saveError: String?
+
+    // Escaneo de recibo (OCR)
+    @State private var showScanSource = false
+    @State private var showPhotosPicker = false
+    @State private var showCamera = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isScanning = false
+    @State private var scanError: String?
 
     var body: some View {
         NavigationStack {
@@ -65,6 +75,8 @@ struct AddTransactionView: View {
                     amountDisplay
                         .padding(.vertical, Space.m)
 
+                    scanReceiptButton
+
                     selectors
                 }
                 .padding(.horizontal, Space.l)
@@ -92,6 +104,39 @@ struct AddTransactionView: View {
         } message: {
             Text(saveError ?? "Inténtalo de nuevo.")
         }
+        .confirmationDialog("Escanear recibo", isPresented: $showScanSource, titleVisibility: .visible) {
+            if AddTxCameraPicker.isAvailable {
+                Button("Tomar foto") { showCamera = true }
+            }
+            Button("Elegir de la galería") { showPhotosPicker = true }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Toma una foto o elige una imagen del recibo para autocompletar el movimiento.")
+        }
+        .photosPicker(
+            isPresented: $showPhotosPicker,
+            selection: $photoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .fullScreenCover(isPresented: $showCamera) {
+            AddTxCameraPicker { image in
+                showCamera = false
+                if let data = image?.jpegData(compressionQuality: 0.7) {
+                    scanReceipt(imageData: data)
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .onChange(of: photoItem) { _, newItem in
+            guard let newItem else { return }
+            loadAndScan(from: newItem)
+        }
+        .alert("No se pudo escanear", isPresented: scanErrorBinding) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(scanError ?? "Inténtalo de nuevo.")
+        }
     }
 
     // MARK: - Monto gigante
@@ -114,6 +159,38 @@ struct AddTransactionView: View {
                 .animation(Motion.value, value: amountValue)
                 .frame(maxWidth: .infinity)
         }
+    }
+
+    // MARK: - Escanear recibo
+
+    /// Acción destacada bajo el monto: escanea un recibo y autocompleta el
+    /// formulario vía OCR en el backend. Cápsula de glass tenue (nada de glass
+    /// sobre glass: vive sobre el velo del sheet, no dentro de una Card).
+    private var scanReceiptButton: some View {
+        Button {
+            showScanSource = true
+        } label: {
+            HStack(spacing: Space.s) {
+                if isScanning {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Palette.accent)
+                } else {
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                Text(isScanning ? "Escaneando…" : "Escanear recibo")
+                    .font(Typo.callout.weight(.medium))
+            }
+            .foregroundStyle(isScanning ? Palette.inkSecondary : Palette.accent)
+            .padding(.vertical, Space.s)
+            .padding(.horizontal, Space.l)
+            .liquidGlassCapsule(interactive: true)
+        }
+        .pressable()
+        .disabled(isScanning)
+        .frame(maxWidth: .infinity)
+        .animation(Motion.ui, value: isScanning)
     }
 
     // MARK: - Selectores
@@ -269,6 +346,109 @@ struct AddTransactionView: View {
                 saveError = error.localizedDescription
             }
         }
+    }
+
+    // MARK: - Escaneo (OCR)
+
+    /// Carga los bytes del ítem de la galería y dispara el OCR. Re-encodea a
+    /// JPEG para garantizar el mime_type que espera el backend.
+    private func loadAndScan(from item: PhotosPickerItem) {
+        isScanning = true
+        scanError = nil
+        Task {
+            do {
+                guard
+                    let data = try await item.loadTransferable(type: Data.self),
+                    let image = UIImage(data: data),
+                    let jpeg = image.jpegData(compressionQuality: 0.7)
+                else {
+                    isScanning = false
+                    scanError = "No se pudo leer la imagen seleccionada."
+                    photoItem = nil
+                    return
+                }
+                photoItem = nil
+                await performScan(jpeg: jpeg)
+            } catch {
+                isScanning = false
+                scanError = error.localizedDescription
+                photoItem = nil
+            }
+        }
+    }
+
+    /// Entrada desde la cámara: ya tenemos los bytes JPEG.
+    private func scanReceipt(imageData: Data) {
+        isScanning = true
+        scanError = nil
+        Task { await performScan(jpeg: imageData) }
+    }
+
+    /// El OCR corre en el backend (la clave de Gemini vive server-side). Se manda
+    /// el JWT del usuario para autenticar y se rellena el formulario con la
+    /// respuesta {amount, description, date}. Un recibo se asume gasto.
+    private func performScan(jpeg: Data) async {
+        do {
+            let base64 = jpeg.base64EncodedString()
+            let endpoint = SupabaseConfig.apiURL.appendingPathComponent("ocr/receipt")
+
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(
+                "Bearer \(SupabaseClient.shared.accessToken ?? "")",
+                forHTTPHeaderField: "Authorization"
+            )
+            let body: [String: String] = ["image_base64": base64, "mime_type": "image/jpeg"]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                let detail = (try? JSONDecoder().decode(OCRErrorResponse.self, from: data))?.detail
+                throw SupabaseError(message: detail ?? "No se pudo procesar la imagen.")
+            }
+
+            let parsed = try JSONDecoder().decode(OCRReceiptResponse.self, from: data)
+            applyScan(parsed)
+            isScanning = false
+        } catch {
+            isScanning = false
+            scanError = error.localizedDescription
+        }
+    }
+
+    /// Rellena los campos con lo detectado. El monto se normaliza a dígitos
+    /// enteros para el teclado propio (sin decimales, como COP).
+    private func applyScan(_ result: OCRReceiptResponse) {
+        type = .expense // un recibo se asume gasto
+        reconcileCategoryForType()
+
+        if let amount = result.amount, amount > 0 {
+            let whole = Int(amount.rounded())
+            amountDigits = String(min(whole, 999_999_999_999)) // respeta el tope de 12 dígitos
+        }
+        if let description = result.description, !description.isEmpty {
+            note = description
+        }
+        if let dateString = result.date, let scanned = Self.parseOCRDate(dateString) {
+            date = min(scanned, Date()) // el DatePicker no permite futuro
+        }
+    }
+
+    private var scanErrorBinding: Binding<Bool> {
+        Binding(get: { scanError != nil }, set: { if !$0 { scanError = nil } })
+    }
+
+    private static func parseOCRDate(_ string: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        f.dateFormat = "yyyy-MM-dd"
+        if let d = f.date(from: string) { return d }
+        // Respaldo: fecha ISO 8601 completa (ej. "2026-01-15T00:00:00Z").
+        let iso = ISO8601DateFormatter()
+        return iso.date(from: string)
     }
 
     // MARK: - Derivados
@@ -619,5 +799,65 @@ private struct AddTxNoAccounts: View {
         }
         .padding(Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Respuestas del OCR
+
+/// Respuesta esperada del endpoint /ocr/receipt: {amount, description, date}.
+private struct OCRReceiptResponse: Decodable {
+    let amount: Double?
+    let description: String?
+    let date: String?
+}
+
+private struct OCRErrorResponse: Decodable {
+    let detail: String?
+}
+
+// MARK: - Cámara (UIImagePickerController envuelto)
+
+/// Envoltorio mínimo de UIImagePickerController para captura con cámara. La
+/// galería usa PhotosPicker (nativo, sin permisos complejos); la cámara sí
+/// requiere UIKit. Devuelve la imagen elegida (o nil si se cancela).
+private struct AddTxCameraPicker: UIViewControllerRepresentable {
+    var onFinish: (UIImage?) -> Void
+
+    static var isAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.allowsEditing = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onFinish: onFinish)
+    }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onFinish: (UIImage?) -> Void
+
+        init(onFinish: @escaping (UIImage?) -> Void) {
+            self.onFinish = onFinish
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let image = (info[.editedImage] as? UIImage) ?? (info[.originalImage] as? UIImage)
+            onFinish(image)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onFinish(nil)
+        }
     }
 }

@@ -357,7 +357,7 @@ struct CalendarView: View {
             date: date,
             frequencyLabel: ev.frequency.label,
             category: category,
-            logoSlug: CalendarVisual.logoSlug(forName: ev.name),
+            logoSlug: SubscriptionLogo.slug(forStoredId: ev.logoId) ?? CalendarVisual.logoSlug(forName: ev.name),
             isDebt: false,
             targetId: ev.id
         )

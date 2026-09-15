@@ -252,9 +252,13 @@ struct RecurrentesAvatar: View {
 // MARK: - Resolución de logo / ícono / color (compartida en la feature)
 
 enum RecurrentesVisual {
-    /// Busca un logo del catálogo cuyo slug coincida con el nombre del evento.
+    /// Logo del evento: primero el `logo_id` guardado en la BD (fiable), y si no,
+    /// se intenta adivinar por el nombre del servicio.
     static func logo(for event: RecurringEvent) -> Image? {
-        SubscriptionLogo.image(for: slug(for: event.name))
+        if let stored = SubscriptionLogo.imageForStoredId(event.logoId) {
+            return stored
+        }
+        return SubscriptionLogo.image(for: slug(for: event.name))
     }
 
     /// Normaliza el nombre del servicio a un slug del catálogo (Netflix → netflix).

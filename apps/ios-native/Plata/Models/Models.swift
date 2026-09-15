@@ -154,6 +154,7 @@ struct RecurringEvent: Codable, Identifiable, Hashable {
     var categoryId: String?
     var accountId: String?
     var isActive: Bool
+    var logoId: String?   // id del logo de app elegido (netflix, disney, apple-music…)
 
     enum CodingKeys: String, CodingKey {
         case id, name, amount, frequency
@@ -162,6 +163,7 @@ struct RecurringEvent: Codable, Identifiable, Hashable {
         case categoryId = "category_id"
         case accountId = "account_id"
         case isActive = "is_active"
+        case logoId = "logo_id"
     }
 }
 

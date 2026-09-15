@@ -13,7 +13,7 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
-                DashboardHeader(name: app.profile?.name)
+                DashboardHeader(name: app.profile?.name, avatarUrl: app.profile?.avatarUrl)
 
                 DashboardBalanceCard(
                     balance: app.totalBalance,
@@ -53,6 +53,7 @@ struct DashboardView: View {
 
 private struct DashboardHeader: View {
     let name: String?
+    var avatarUrl: String?
 
     var body: some View {
         HStack(alignment: .center) {
@@ -71,7 +72,12 @@ private struct DashboardHeader: View {
                 HStack(spacing: Space.s) {
                     DashboardHeaderIcon(systemName: "calendar", destination: AnyView(CalendarView()))
                     DashboardHeaderIcon(systemName: "chart.bar.fill", destination: AnyView(ReportsView()))
-                    avatar
+                    // Avatar: foto real; al tocar abre Ajustes.
+                    NavigationLink { SettingsView() } label: {
+                        AvatarView(name: name, urlString: avatarUrl, size: 40)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.96)
                 }
             }
         }
@@ -99,21 +105,6 @@ private struct DashboardHeader: View {
         }
         .buttonStyle(.plain)
         .pressable(scale: 0.96)
-    }
-
-    private var avatar: some View {
-        Text(initial)
-            .font(Typo.headline)
-            .foregroundStyle(Palette.accent)
-            .frame(width: 40, height: 40)
-            .liquidGlass(cornerRadius: 20, interactive: true)
-            .clipShape(Circle())
-            .overlay(Circle().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
-    }
-
-    private var initial: String {
-        let trimmed = (name ?? "").trimmingCharacters(in: .whitespaces)
-        return String(trimmed.first ?? "?").uppercased()
     }
 
     private var todayString: String {
@@ -220,10 +211,10 @@ private struct DashboardAccountsCarousel: View {
         VStack(alignment: .leading, spacing: Space.m) {
             SectionLabel(text: "Cuentas")
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Space.m) {
+                HStack(spacing: Space.l) {
                     ForEach(accounts) { account in
-                        Button {
-                            // Navegación al detalle de cuenta (pendiente de router).
+                        NavigationLink {
+                            AccountDetailView(account: account)
                         } label: {
                             DashboardAccountCard(account: account, currency: currency)
                         }
@@ -238,71 +229,14 @@ private struct DashboardAccountsCarousel: View {
     }
 }
 
+/// Tarjeta de cuenta del carrusel del Dashboard: ahora con estética de tarjeta
+/// de crédito real (ver `AccountCreditCard`). Ancho fijo, apilable en el scroll.
 private struct DashboardAccountCard: View {
     let account: Account
     let currency: String
 
-    private var color: Color { DashboardStyle.color(from: account.color) }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                Image(systemName: account.type.sfSymbol)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(color)
-                Spacer()
-                Text(account.type.label)
-                    // Sobre la tarjeta de color el texto necesita más contraste que gris plano.
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.ink)
-                    .padding(.horizontal, Space.s)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    // Borde superior luminoso sobre el material del chip.
-                    .overlay(Capsule().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
-            }
-
-            Spacer(minLength: Space.l)
-
-            Text(account.name)
-                .font(Typo.callout)
-                .foregroundStyle(Palette.inkSecondary)
-                .lineLimit(1)
-
-            Text(CurrencyFormatter.string(account.balance, currency: currency))
-                .font(Typo.amountMedium)
-                .monospacedDigit()
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .padding(.top, 2)
-        }
-        .padding(Space.l)
-        .frame(width: 190, height: 130, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [color.opacity(0.22), color.opacity(0.06)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-        )
-        .overlay(
-            // Borde superior luminoso blanco que se apaga hacia abajo (luz sobre la
-            // superficie), sin teñir de color el contorno para no leerse como glow.
-            RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.16), .white.opacity(0.03)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-        )
-        // Sombras neutras y sutiles, multicapa (sin glow de color).
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+        AccountCreditCard(account: account, currency: currency)
     }
 }
 

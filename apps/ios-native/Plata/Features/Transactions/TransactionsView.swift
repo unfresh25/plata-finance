@@ -1,8 +1,10 @@
 import SwiftUI
 
-// Lista de movimientos agrupada por fecha. Headers amables ("Hoy", "Ayer",
-// fecha formateada). Cada fila reutiliza CategoryIcon + AmountText del design
-// system. Búsqueda opcional y estado vacío con copy en español.
+// Lista de movimientos agrupada por fecha. Header custom con título grande
+// "Movimientos" y buscador limpio debajo (sin el espacio fantasma del
+// navigationTitle .large + .searchable). Arriba de la lista, dos tarjetas de
+// "highlights" del mes: total gastado (con % vs mes anterior) y mayor gasto por
+// categoría. Cada fila reutiliza CategoryIcon + AmountText del design system.
 
 struct TransactionsView: View {
     @Environment(AppState.self) private var app
@@ -12,44 +14,22 @@ struct TransactionsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Palette.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.xl) {
+                    TransactionsHeader(query: $query) { showingAdd = true }
 
-                Group {
-                    if app.transactions.isEmpty {
-                        TransactionsEmptyState { showingAdd = true }
-                    } else if filtered.isEmpty {
-                        TransactionsNoResults(query: query)
-                    } else {
-                        transactionList
-                    }
+                    content
                 }
+                .padding(.horizontal, Space.l)
+                .padding(.top, Space.s)
+                .padding(.bottom, Space.xxxl)
             }
-            .navigationTitle("Movimientos")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAdd = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Palette.bg)
-                            .frame(width: 32, height: 32)
-                            .background(Palette.ink, in: Circle())
-                    }
-                    .pressable()
-                }
-            }
-            .searchable(
-                text: $query,
-                placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "Buscar movimiento"
-            )
-            // Header translúcido: el contenido se ve pasar por debajo (Apple §12),
-            // y en iOS 26 el campo de búsqueda adopta Liquid Glass nativo.
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .background(Palette.bg.ignoresSafeArea())
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            // Sin navigation bar: el título vive en el header custom, así se
+            // elimina el espacio fantasma sobre el buscador.
+            .toolbar(.hidden, for: .navigationBar)
         }
         .tint(Palette.accent)
         .sheet(isPresented: $showingAdd) {
@@ -57,63 +37,105 @@ struct TransactionsView: View {
         }
     }
 
+    // MARK: - Contenido según estado
+
+    @ViewBuilder
+    private var content: some View {
+        if app.transactions.isEmpty {
+            TransactionsEmptyState { showingAdd = true }
+                .padding(.top, Space.xxxl)
+        } else if isSearching {
+            // Buscando: solo la lista de resultados (los highlights estorbarían).
+            if filtered.isEmpty {
+                TransactionsNoResults(query: query)
+                    .padding(.top, Space.xxxl)
+            } else {
+                transactionList
+            }
+        } else {
+            monthHighlights
+            transactionList
+        }
+    }
+
+    // MARK: - Highlights del mes
+
+    @ViewBuilder
+    private var monthHighlights: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionLabel(text: "Este mes")
+
+            HStack(alignment: .top, spacing: Space.m) {
+                MonthSpentCard(
+                    total: monthExpenseTotal,
+                    delta: expenseDeltaPercent,
+                    currency: app.currency
+                )
+                TopCategoryCard(
+                    highlight: topCategory,
+                    currency: app.currency
+                )
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     // MARK: - Lista
 
     private var transactionList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: Space.xl, pinnedViews: []) {
-                ForEach(groups) { group in
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        HStack {
-                            Text(group.title)
-                                .font(Typo.overline)
-                                .tracking(0.8)
-                                .foregroundStyle(Palette.inkTertiary)
-                            Spacer()
-                            AmountText(
-                                amount: group.net,
-                                currency: app.currency,
-                                font: Typo.caption,
-                                signed: true,
-                                tintBySign: true
-                            )
-                        }
-                        .padding(.horizontal, Space.xs)
-
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
-                                NavigationLink {
-                                    TransactionDetailView(transaction: tx)
-                                } label: {
-                                    TransactionRow(transaction: tx)
-                                }
-                                .buttonStyle(.plain)
-                                .pressable()
-                                if index < group.items.count - 1 {
-                                    Divider()
-                                        .overlay(Palette.stroke)
-                                        .padding(.leading, 44 + Space.m + Space.l)
-                                }
-                            }
-                        }
-                        .background(
-                            Palette.surface,
-                            in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                                .strokeBorder(Palette.stroke, lineWidth: 1)
+        LazyVStack(alignment: .leading, spacing: Space.xl) {
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: Space.s) {
+                    HStack {
+                        Text(group.title)
+                            .font(Typo.overline)
+                            .tracking(0.8)
+                            .foregroundStyle(Palette.inkTertiary)
+                        Spacer()
+                        AmountText(
+                            amount: group.net,
+                            currency: app.currency,
+                            font: Typo.caption,
+                            signed: true,
+                            tintBySign: true
                         )
                     }
+                    .padding(.horizontal, Space.xs)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
+                            NavigationLink {
+                                TransactionDetailView(transaction: tx)
+                            } label: {
+                                TransactionRow(transaction: tx)
+                            }
+                            .buttonStyle(.plain)
+                            .pressable()
+                            if index < group.items.count - 1 {
+                                Divider()
+                                    .overlay(Palette.stroke)
+                                    .padding(.leading, 44 + Space.m + Space.l)
+                            }
+                        }
+                    }
+                    .background(
+                        Palette.surface,
+                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                            .strokeBorder(Palette.stroke, lineWidth: 1)
+                    )
                 }
             }
-            .padding(.horizontal, Space.l)
-            .padding(.top, Space.s)
-            .padding(.bottom, Space.xxxl)
         }
     }
 
     // MARK: - Datos derivados
+
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     private var filtered: [Transaction] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -144,15 +166,256 @@ struct TransactionsView: View {
             }
             .sorted { $0.id > $1.id }
     }
+
+    // Prefijo YYYY-MM del mes actual y del anterior, en hora local.
+    private var currentMonthPrefix: String { TransactionMonth.prefix(monthsAgo: 0) }
+    private var previousMonthPrefix: String { TransactionMonth.prefix(monthsAgo: 1) }
+
+    /// Gasto total (expense) del mes en curso.
+    private var monthExpenseTotal: Double {
+        app.transactions
+            .filter { $0.type == .expense && $0.date.hasPrefix(currentMonthPrefix) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    /// Gasto total del mes anterior (para el %).
+    private var previousMonthExpenseTotal: Double {
+        app.transactions
+            .filter { $0.type == .expense && $0.date.hasPrefix(previousMonthPrefix) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    /// Variación % del gasto vs mes anterior. Nil si el mes anterior fue 0
+    /// (no hay base para comparar → no inventamos un porcentaje).
+    private var expenseDeltaPercent: Double? {
+        let prev = previousMonthExpenseTotal
+        guard prev > 0 else { return nil }
+        return (monthExpenseTotal - prev) / prev * 100
+    }
+
+    /// Categoría con más gasto este mes: agrupa los expense por categoryId.
+    private var topCategory: TopCategoryHighlight? {
+        let expenses = app.transactions.filter {
+            $0.type == .expense && $0.date.hasPrefix(currentMonthPrefix)
+        }
+        guard !expenses.isEmpty else { return nil }
+
+        let totals = Dictionary(grouping: expenses, by: { $0.categoryId })
+            .mapValues { $0.reduce(0.0) { $0 + $1.amount } }
+
+        guard let (categoryId, amount) = totals.max(by: { $0.value < $1.value }) else {
+            return nil
+        }
+        return TopCategoryHighlight(
+            category: app.category(for: categoryId),
+            amount: amount
+        )
+    }
 }
 
-// MARK: - Modelo de grupo (privado del feature)
+// MARK: - Modelos derivados (privados del feature)
 
 private struct TransactionDayGroup: Identifiable {
     let id: String        // YYYY-MM-DD
     let title: String
     let net: Double
     let items: [Transaction]
+}
+
+private struct TopCategoryHighlight {
+    let category: Category?
+    let amount: Double
+}
+
+// MARK: - Header custom (título grande + buscador limpio)
+
+private struct TransactionsHeader: View {
+    @Binding var query: String
+    var onAdd: () -> Void
+
+    @FocusState private var searchFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.l) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Movimientos")
+                    .font(Typo.titleXL)
+                    .tracking(-0.6) // tracking negativo sutil en título grande
+                    .foregroundStyle(Palette.ink)
+                Spacer(minLength: Space.m)
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.bg)
+                        .frame(width: 36, height: 36)
+                        .background(Palette.ink, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .pressable(scale: 0.94)
+                // Alinea el círculo con la baseline del título grande.
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] }
+            }
+
+            TransactionsSearchField(query: $query, focused: $searchFocused)
+        }
+    }
+}
+
+private struct TransactionsSearchField: View {
+    @Binding var query: String
+    var focused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.inkTertiary)
+
+            TextField("Buscar movimiento", text: $query)
+                .font(Typo.body)
+                .foregroundStyle(Palette.ink)
+                .tint(Palette.accent)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused(focused)
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        .padding(.horizontal, Space.m)
+        .frame(height: 44)
+        .liquidGlassCapsule()
+        .overlay(
+            Capsule().strokeBorder(Palette.stroke.opacity(0.6), lineWidth: 1)
+        )
+        .animation(Motion.ui, value: query.isEmpty)
+    }
+}
+
+// MARK: - Tarjetas de highlights del mes
+
+/// "Total gastado" este mes, con la variación % vs el mes anterior si existe.
+private struct MonthSpentCard: View {
+    let total: Double
+    let delta: Double?          // % vs mes anterior; nil si no comparable
+    let currency: String
+
+    var body: some View {
+        Card(padding: Space.l) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Label {
+                    Text("Total gastado")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                } icon: {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Palette.negative)
+                }
+                .labelStyle(.titleAndIcon)
+
+                Text(CurrencyFormatter.string(total, currency: currency))
+                    .font(Typo.amountMedium)
+                    .tracking(-0.5)
+                    .foregroundStyle(Palette.ink)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                deltaBadge
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var deltaBadge: some View {
+        if let delta {
+            let up = delta >= 0
+            // Gastar más = negativo (rojo), gastar menos = positivo (verde).
+            let tint = up ? Palette.negative : Palette.positive
+            HStack(spacing: 3) {
+                Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text("\(abs(delta), specifier: "%.0f")% vs mes anterior")
+                    .font(Typo.caption)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        } else {
+            Text("Primer mes con registros")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.inkTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+}
+
+/// "Mayor gasto" del mes: categoría con más gasto, con su ícono, color y monto.
+private struct TopCategoryCard: View {
+    let highlight: TopCategoryHighlight?
+    let currency: String
+
+    var body: some View {
+        Card(padding: Space.l) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text("Mayor gasto")
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+
+                if let highlight {
+                    HStack(spacing: Space.s) {
+                        CategoryIcon(systemName: icon(for: highlight), color: color(for: highlight), size: 30)
+                        Text(name(for: highlight))
+                            .font(Typo.callout)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+
+                    Text(CurrencyFormatter.string(highlight.amount, currency: currency))
+                        .font(Typo.amount)
+                        .tracking(-0.3)
+                        .foregroundStyle(color(for: highlight))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                } else {
+                    Text("Sin gastos aún")
+                        .font(Typo.callout)
+                        .foregroundStyle(Palette.inkTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, Space.xs)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func name(for highlight: TopCategoryHighlight) -> String {
+        highlight.category?.name ?? "Sin categoría"
+    }
+
+    private func color(for highlight: TopCategoryHighlight) -> Color {
+        TransactionVisual.color(for: highlight.category)
+    }
+
+    private func icon(for highlight: TopCategoryHighlight) -> String {
+        TransactionVisual.symbol(for: highlight.category, fallbackType: .expense)
+    }
 }
 
 // MARK: - Fila
@@ -251,7 +514,7 @@ private struct TransactionsEmptyState: View {
                 .padding(.top, Space.s)
         }
         .padding(Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -272,7 +535,22 @@ private struct TransactionsNoResults: View {
                 .multilineTextAlignment(.center)
         }
         .padding(Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Prefijo de mes local (privado del feature)
+
+enum TransactionMonth {
+    /// Prefijo "YYYY-MM" para el mes actual (monthsAgo: 0) o anteriores, en la
+    /// zona horaria local — evita el desfase de UTC de ISO8601DateFormatter.
+    static func prefix(monthsAgo: Int) -> String {
+        let cal = Calendar.current
+        let base = cal.date(byAdding: .month, value: -monthsAgo, to: Date()) ?? Date()
+        let comps = cal.dateComponents([.year, .month], from: base)
+        let year = comps.year ?? 2000
+        let month = comps.month ?? 1
+        return String(format: "%04d-%02d", year, month)
     }
 }
 

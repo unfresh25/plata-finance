@@ -108,4 +108,21 @@ enum SubscriptionLogo {
         guard let slug, all.contains(slug) else { return nil }
         return Image("Logos/\(slug)")
     }
+
+    /// Resuelve el slug real del catálogo para un `logo_id` guardado en la BD.
+    /// Los ids de la BD (heredados del picker original) no siempre coinciden con
+    /// los slugs del asset catalog — p.ej. "disney" en la BD es "disney-" aquí,
+    /// porque el nombre de archivo original era "Disney+.png".
+    static func slug(forStoredId id: String?) -> String? {
+        guard let id, !id.isEmpty else { return nil }
+        if all.contains(id) { return id }                 // coincidencia directa
+        if all.contains(id + "-") { return id + "-" }     // disney → disney-
+        // Prefijo: el slug más largo cuya base coincida con el id.
+        return all.first { $0.hasPrefix(id) }
+    }
+
+    /// Imagen a partir del `logo_id` almacenado (con la normalización anterior).
+    static func imageForStoredId(_ id: String?) -> Image? {
+        image(for: slug(forStoredId: id))
+    }
 }

@@ -18,9 +18,19 @@ struct AccountsView: View {
                     if app.accounts.isEmpty {
                         AccountsEmptyState()
                     } else {
-                        VStack(spacing: Space.m) {
+                        VStack(spacing: Space.l) {
                             ForEach(app.accounts) { account in
-                                AccountsRow(account: account, currency: app.currency)
+                                NavigationLink {
+                                    AccountDetailView(account: account)
+                                } label: {
+                                    AccountCreditCard(
+                                        account: account,
+                                        currency: app.currency,
+                                        fillsWidth: true
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .pressable()
                             }
                         }
                     }
@@ -69,36 +79,6 @@ private struct AccountsTotalCard: View {
                     .tracking(0.8)
                     .foregroundStyle(Palette.inkTertiary)
                 AmountText(amount: total, currency: currency, font: Typo.amountHero(44))
-            }
-        }
-    }
-}
-
-// MARK: - Fila de cuenta
-
-private struct AccountsRow: View {
-    let account: Account
-    let currency: String
-
-    private var tint: Color { AccountsColor.parse(account.color, fallbackFor: account.id) }
-
-    var body: some View {
-        Card(padding: Space.m) {
-            HStack(spacing: Space.m) {
-                CategoryIcon(systemName: account.type.sfSymbol, color: tint)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(account.name)
-                        .font(Typo.headline)
-                        .foregroundStyle(Palette.ink)
-                    Text(account.type.label)
-                        .font(Typo.subhead)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-
-                Spacer(minLength: Space.s)
-
-                AmountText(amount: account.balance, currency: currency, font: Typo.amount)
             }
         }
     }
