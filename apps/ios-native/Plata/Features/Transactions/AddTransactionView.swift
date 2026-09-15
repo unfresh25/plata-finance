@@ -28,7 +28,8 @@ struct AddTransactionView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
 
                 if app.accounts.isEmpty {
                     AddTxNoAccounts { dismiss() }
@@ -44,11 +45,10 @@ struct AddTransactionView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
         .onAppear(perform: seedDefaults)
         .onChange(of: type) { _, _ in reconcileCategoryForType() }
     }
@@ -106,6 +106,7 @@ struct AddTransactionView: View {
             Text(formattedAmount)
                 .font(Typo.amountHero(amountFontSize))
                 .monospacedDigit()
+                .tracking(-0.5) // tracking negativo sutil en cifra display grande
                 .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
@@ -196,12 +197,12 @@ struct AddTransactionView: View {
                 type: type
             )
             .presentationDetents([.medium, .large])
-            .presentationBackground(Palette.bg)
+            .glassSheetBackground()
         }
         .sheet(isPresented: $showAccountPicker) {
             AccountPickerSheet(accounts: app.accounts, selection: $accountId)
                 .presentationDetents([.medium])
-                .presentationBackground(Palette.bg)
+                .glassSheetBackground()
         }
     }
 
@@ -433,7 +434,8 @@ private struct SelectorPlaceholderIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 
@@ -450,7 +452,7 @@ private struct CategoryPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 if categories.isEmpty {
                     VStack(spacing: Space.s) {
                         Image(systemName: "square.grid.2x2")
@@ -485,7 +487,6 @@ private struct CategoryPickerSheet: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }
@@ -527,7 +528,7 @@ private struct AccountPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: Space.s) {
                         ForEach(accounts) { account in
@@ -550,7 +551,6 @@ private struct AccountPickerSheet: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }

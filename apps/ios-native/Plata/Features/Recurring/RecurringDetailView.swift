@@ -44,6 +44,18 @@ struct RecurringDetailView: View {
                     confirmButton
                         .padding(.horizontal, Space.l)
                         .padding(.bottom, Space.s)
+                        .padding(.top, Space.l)
+                        // Velo neutro que desvanece el contenido al hacer scroll
+                        // detrás del botón flotante (sin ocultar el glass del botón).
+                        .background(
+                            LinearGradient(
+                                colors: [Palette.bg.opacity(0), Palette.bg.opacity(0.9)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .allowsHitTesting(false)
+                            .ignoresSafeArea(edges: .bottom)
+                        )
                 }
             }
             .navigationTitle("")
@@ -79,7 +91,8 @@ struct RecurringDetailView: View {
                     }
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
+            .toolbarBackground(.thinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .onAppear {
@@ -114,8 +127,13 @@ struct RecurringDetailView: View {
                     .frame(width: 72, height: 72)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(Palette.stroke.opacity(logo == nil ? 0 : 1), lineWidth: 1)
+                            .strokeBorder(
+                                logo == nil ? tint.opacity(0.22) : Palette.stroke.opacity(0.7),
+                                lineWidth: 1
+                            )
                     )
+                    .shadow(color: .black.opacity(0.10), radius: 8, y: 3)
+                    .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
                 if let logo {
                     logo.resizable().scaledToFit().frame(width: 44, height: 44)
                 } else {
@@ -128,6 +146,7 @@ struct RecurringDetailView: View {
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text(event.name)
                     .font(Typo.title)
+                    .tracking(-0.3)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(2)
                 Text(event.frequency.label)
@@ -150,7 +169,9 @@ struct RecurringDetailView: View {
                 .foregroundStyle(Palette.inkSecondary)
         )
         .font(.system(size: 26, weight: .semibold, design: .rounded))
+        .tracking(-0.4)
         .lineSpacing(4)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var frequencyPhrase: String {
@@ -166,7 +187,8 @@ struct RecurringDetailView: View {
     // MARK: - Pills de metadatos
 
     private var pills: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        GlassGroup(spacing: Space.s) {
+            VStack(alignment: .leading, spacing: Space.s) {
             RecurrentesInfoPill(
                 symbol: "calendar",
                 text: "Próximo pago: \(RecurrentesDate.fullLabel(event.nextDate))",
@@ -189,6 +211,7 @@ struct RecurringDetailView: View {
                 text: "≈ \(CurrencyFormatter.string(RecurrentesMath.monthlyEquivalent(amount: event.amount, frequency: event.frequency), currency: app.currency)) al mes",
                 tint: Palette.accent
             )
+            }
         }
     }
 
@@ -234,13 +257,9 @@ struct RecurringDetailView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.vertical, Space.m)
-            .background(
-                isSelected ? accentColor.opacity(0.14) : Palette.surface,
-                in: Capsule()
-            )
-            .overlay(
-                Capsule().strokeBorder(isSelected ? accentColor : Palette.stroke, lineWidth: isSelected ? 1.5 : 1)
-            )
+            // Seleccionado: cápsula teñida sólida (no glass). Sin seleccionar:
+            // glass sutil como track interactivo → nunca glass sobre glass.
+            .modifier(AccountPillSurface(isSelected: isSelected, tint: accentColor))
         }
         .pressable()
     }
@@ -347,6 +366,25 @@ struct RecurringDetailView: View {
     }
 }
 
+// MARK: - Fondo de pill de cuenta (glass sutil / teñido según selección)
+
+private struct AccountPillSurface: ViewModifier {
+    let isSelected: Bool
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        if isSelected {
+            content
+                .background(tint.opacity(0.16), in: Capsule())
+                .overlay(Capsule().strokeBorder(tint.opacity(0.55), lineWidth: 1))
+        } else {
+            content
+                .liquidGlassCapsule(interactive: true)
+                .overlay(Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1))
+        }
+    }
+}
+
 // MARK: - Pill de información
 
 private struct RecurrentesInfoPill: View {
@@ -359,15 +397,19 @@ private struct RecurrentesInfoPill: View {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(tint)
+                .frame(width: 18)
             Text(text)
                 .font(Typo.callout)
+                .fontWeight(.semibold)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
         }
-        .padding(.horizontal, Space.l)
-        .padding(.vertical, Space.m)
-        .background(Palette.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(Palette.stroke, lineWidth: 1))
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, Space.s + 2)
+        // Chip de estado con glass sutil (elemento interactivo/ligero). El tint
+        // vive solo en el ícono → sin glass sobre glass ni tinte pesado.
+        .liquidGlassCapsule()
+        .overlay(Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1))
     }
 }
 

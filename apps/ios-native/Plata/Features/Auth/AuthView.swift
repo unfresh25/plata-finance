@@ -120,6 +120,7 @@ struct AuthView: View {
             }
             Text(isRegister ? "Crea tu cuenta" : "Hola de nuevo")
                 .font(Typo.title)
+                .tracking(-0.4)
                 .foregroundStyle(Palette.ink)
             Text(isRegister
                  ? "Empieza a llevar tus finanzas en pareja."
@@ -213,10 +214,12 @@ private struct AuthTextField: View {
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.l)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        // Campo con material glass sutil (elemento interactivo → glass ligero).
+        .liquidGlass(cornerRadius: Radius.m)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .strokeBorder(isFocused ? Palette.accent.opacity(0.6) : Palette.stroke, lineWidth: 1)
+                // Foco: borde de acento tenue, sin glow. Reposo: hairline luminoso.
+                .strokeBorder(isFocused ? Palette.accent.opacity(0.55) : Palette.stroke.opacity(0.5), lineWidth: 1)
         )
         .animation(Motion.value, value: isFocused)
     }

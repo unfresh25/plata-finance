@@ -123,16 +123,29 @@ private struct DebtsRowCard: View {
 
                     Spacer(minLength: Space.s)
 
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 4) {
                         AmountText(
                             amount: debt.remaining,
                             currency: currency,
                             font: Typo.amount
                         )
                         .foregroundStyle(isSettled ? Palette.inkSecondary : tint)
-                        Text(isSettled ? "Saldado" : "pendiente")
+                        // Badge de estado sobre Card glass → capa teñida sutil, no glass.
+                        Text(isSettled ? "Saldado" : "Pendiente")
                             .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
+                            .foregroundStyle(isSettled ? Palette.inkTertiary : tint)
+                            .padding(.horizontal, Space.s)
+                            .padding(.vertical, 2)
+                            .background(
+                                (isSettled ? Palette.inkTertiary : tint).opacity(0.14),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    (isSettled ? Palette.inkTertiary : tint).opacity(0.26),
+                                    lineWidth: 0.5
+                                )
+                            )
                     }
                 }
 

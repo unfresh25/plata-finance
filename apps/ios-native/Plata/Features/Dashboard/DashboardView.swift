@@ -59,16 +59,20 @@ private struct DashboardHeader: View {
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text(greeting)
                     .font(Typo.title)
+                    .tracking(-0.4)
                     .foregroundStyle(Palette.ink)
                 Text(todayString)
                     .font(Typo.subhead)
                     .foregroundStyle(Palette.inkSecondary)
             }
             Spacer(minLength: Space.m)
-            HStack(spacing: Space.s) {
-                DashboardHeaderIcon(systemName: "calendar", destination: AnyView(CalendarView()))
-                DashboardHeaderIcon(systemName: "chart.bar.fill", destination: AnyView(ReportsView()))
-                avatar
+            // Chrome flotante: los tres botones fusionan como un solo grupo glass (iOS 26).
+            GlassGroup(spacing: Space.s) {
+                HStack(spacing: Space.s) {
+                    DashboardHeaderIcon(systemName: "calendar", destination: AnyView(CalendarView()))
+                    DashboardHeaderIcon(systemName: "chart.bar.fill", destination: AnyView(ReportsView()))
+                    avatar
+                }
             }
         }
     }
@@ -84,24 +88,27 @@ private struct DashboardHeader: View {
             destination
         } label: {
             Image(systemName: systemName)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Palette.inkSecondary)
+                // Sobre glass el ícono necesita un pelo más de contraste que el gris plano.
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.ink)
                 .frame(width: 40, height: 40)
-                .background(Palette.surfaceElevated, in: Circle())
-                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
+                .liquidGlass(cornerRadius: 20, interactive: true)
+                .clipShape(Circle())
+                // Borde superior luminoso: la luz cae sobre el material desde arriba.
+                .overlay(Circle().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
         }
+        .buttonStyle(.plain)
+        .pressable(scale: 0.96)
     }
 
     private var avatar: some View {
-        Circle()
-            .fill(Palette.surfaceElevated)
-            .overlay(
-                Text(initial)
-                    .font(Typo.headline)
-                    .foregroundStyle(Palette.accent)
-            )
-            .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
+        Text(initial)
+            .font(Typo.headline)
+            .foregroundStyle(Palette.accent)
             .frame(width: 40, height: 40)
+            .liquidGlass(cornerRadius: 20, interactive: true)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
     }
 
     private var initial: String {
@@ -131,6 +138,7 @@ private struct DashboardBalanceCard: View {
                 currency: currency,
                 font: Typo.amountHero(52)
             )
+            .tracking(-0.8)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
         }
@@ -182,6 +190,8 @@ private struct DashboardKPICard: View {
                         .foregroundStyle(tint)
                         .frame(width: 24, height: 24)
                         .background(tint.opacity(0.16), in: Circle())
+                        // Hairline del propio color: define el chip sin glow (coherente con CategoryIcon).
+                        .overlay(Circle().strokeBorder(tint.opacity(0.22), lineWidth: 0.5))
                     Spacer(minLength: 0)
                 }
                 VStack(alignment: .leading, spacing: 2) {
@@ -242,11 +252,14 @@ private struct DashboardAccountCard: View {
                     .foregroundStyle(color)
                 Spacer()
                 Text(account.type.label)
+                    // Sobre la tarjeta de color el texto necesita más contraste que gris plano.
                     .font(Typo.caption)
-                    .foregroundStyle(Palette.inkSecondary)
+                    .foregroundStyle(Palette.ink)
                     .padding(.horizontal, Space.s)
                     .padding(.vertical, 4)
-                    .background(Palette.bg.opacity(0.4), in: Capsule())
+                    .background(.ultraThinMaterial, in: Capsule())
+                    // Borde superior luminoso sobre el material del chip.
+                    .overlay(Capsule().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
             }
 
             Spacer(minLength: Space.l)
@@ -275,9 +288,21 @@ private struct DashboardAccountCard: View {
             in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
         )
         .overlay(
+            // Borde superior luminoso blanco que se apaga hacia abajo (luz sobre la
+            // superficie), sin teñir de color el contorno para no leerse como glow.
             RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .strokeBorder(color.opacity(0.25), lineWidth: 1)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.16), .white.opacity(0.03)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
         )
+        // Sombras neutras y sutiles, multicapa (sin glow de color).
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
     }
 }
 
@@ -428,6 +453,14 @@ private struct DashboardEmptyState: View {
 /// Utilidades específicas del Dashboard: conversión de color hex de datos y
 /// mapeo de íconos de categoría (nombres del backend) a SF Symbols.
 private enum DashboardStyle {
+    /// Borde superior luminoso para chrome glass: la luz cae desde arriba sobre
+    /// el material y se apaga hacia abajo. Blanco muy tenue, sin glow de color.
+    static let topEdge = LinearGradient(
+        colors: [.white.opacity(0.20), .white.opacity(0.04)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
     /// Convierte un color hex de datos (`"#RRGGBB"` o `"RRGGBB"`) a `Color`.
     /// Fallback al acento de marca si no se puede parsear.
     static func color(from hex: String) -> Color {

@@ -54,7 +54,10 @@ struct CalendarView: View {
             }
             .navigationTitle("Calendario")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Palette.bg, for: .navigationBar)
+            // Chrome translúcido: el grid se ve pasar por debajo al hacer scroll
+            // (Apple §12), en vez de una barra opaca que corta la composición.
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .task { await loadMembers() }
@@ -418,11 +421,16 @@ private struct CalendarMonthHeader: View {
         HStack {
             Text(title)
                 .font(Typo.title)
+                .tracking(-0.4)  // título grande: tracking negativo sutil
                 .foregroundStyle(Palette.ink)
+                .contentTransition(.numericText())
             Spacer()
-            HStack(spacing: Space.s) {
-                CalendarNavButton(icon: "chevron.left", action: onPrev)
-                CalendarNavButton(icon: "chevron.right", action: onNext)
+            // Dos botones glass juntos → GlassGroup los fusiona (morphing en iOS 26).
+            GlassGroup(spacing: Space.s) {
+                HStack(spacing: Space.s) {
+                    CalendarNavButton(icon: "chevron.left", action: onPrev)
+                    CalendarNavButton(icon: "chevron.right", action: onNext)
+                }
             }
         }
     }
@@ -438,8 +446,10 @@ private struct CalendarNavButton: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
-                .background(Palette.surface, in: Circle())
-                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
+                // Botón de chrome flotante → Liquid Glass (cápsula cuadrada = círculo)
+                // con borde luminoso superior tenue.
+                .liquidGlassCapsule(interactive: true)
+                .overlay(Circle().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 0.5))
         }
         .pressable()
     }
@@ -458,9 +468,11 @@ private struct CalendarDayCell: View {
         Button(action: action) {
             VStack(spacing: Space.xs) {
                 Text("\(day)")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    // Sobre el glass del día seleccionado, un pelo más de peso
+                    // para sostener el contraste (rule: texto sobre glass más fuerte).
+                    .font(.system(size: 14, weight: isSelected ? .bold : .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(isToday ? Palette.accent : Palette.ink)
+                    .foregroundStyle(numberColor)
                     .padding(.top, Space.s)
 
                 CalendarBadgeStack(badges: badges)
@@ -476,15 +488,30 @@ private struct CalendarDayCell: View {
         .pressable(scale: 0.95)
     }
 
-    private var background: some View {
-        RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
-            .fill(isToday ? Palette.accent.opacity(0.18) : Palette.surface)
+    private var numberColor: Color {
+        // Sobre el glass teñido de acento el número necesita contraste: ink, no
+        // accent-sobre-accent. Hoy (sin seleccionar) sí resalta en accent.
+        if isSelected { return Palette.ink }
+        return isToday ? Palette.accent : Palette.ink
+    }
+
+    // El día seleccionado se resalta con glass teñido de acento (sobre el fondo,
+    // no dentro de una Card → sin glass sobre glass). Hoy usa una capa de acento
+    // muy sutil; el resto, la superficie sólida base.
+    @ViewBuilder private var background: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
+        if isSelected {
+            Color.clear.liquidGlassTinted(Palette.accent, cornerRadius: Radius.s, interactive: false)
+        } else {
+            shape.fill(isToday ? Palette.accent.opacity(0.12) : Palette.surface)
+        }
     }
 
     private var border: some View {
         RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
             .strokeBorder(
-                isToday ? Palette.accent : (isSelected ? Palette.ink : Palette.stroke),
+                isSelected ? Palette.accent.opacity(0.8)
+                    : (isToday ? Palette.accent.opacity(0.55) : Palette.stroke),
                 lineWidth: (isToday || isSelected) ? 1.5 : 1
             )
     }
@@ -576,10 +603,17 @@ private struct CalendarSectionHeader: View {
                 .font(Typo.headline)
                 .foregroundStyle(Palette.ink)
             Spacer()
+            // Contador como chip sutil teñido del color del ícono (material ligero,
+            // sobre el fondo → no glass sobre glass).
             Text("\(count)")
-                .font(Typo.callout)
+                .font(Typo.caption)
                 .monospacedDigit()
-                .foregroundStyle(Palette.inkSecondary)
+                .foregroundStyle(iconColor)
+                .frame(minWidth: 22)
+                .padding(.horizontal, Space.s)
+                .padding(.vertical, 3)
+                .background(iconColor.opacity(0.14), in: Capsule())
+                .overlay(Capsule().strokeBorder(iconColor.opacity(0.24), lineWidth: 0.5))
         }
     }
 }

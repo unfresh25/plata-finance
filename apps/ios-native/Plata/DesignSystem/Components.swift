@@ -113,6 +113,8 @@ struct PillToggle<T: Hashable>: View {
                 } label: {
                     Text(opt.label)
                         .font(Typo.callout)
+                        // Sobre el pill teñido el texto necesita más peso/contraste.
+                        .fontWeight(isSelected ? .semibold : .medium)
                         .foregroundStyle(isSelected ? Palette.bg : Palette.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Space.m)
@@ -120,6 +122,12 @@ struct PillToggle<T: Hashable>: View {
                             if isSelected {
                                 Capsule()
                                     .fill(opt.tint)
+                                    // Borde superior luminoso muy tenue sobre el tint.
+                                    .overlay(
+                                        Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+                                    )
+                                    // Sombra neutra y sutil que despega el pill del track.
+                                    .shadow(color: .black.opacity(0.14), radius: 6, y: 2)
                                     .matchedGeometryEffect(id: "pill", in: namespace)
                             }
                         }
@@ -128,7 +136,9 @@ struct PillToggle<T: Hashable>: View {
             }
         }
         .padding(4)
-        .background(Palette.surface, in: Capsule())
+        // Track glass sutil (cápsula). El pill activo NO es glass → no hay glass sobre glass.
+        .liquidGlassCapsule()
+        .overlay(Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1))
     }
 }
 
@@ -140,11 +150,14 @@ struct CategoryIcon: View {
     var size: CGFloat = 44
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.32, style: .continuous)
         Image(systemName: systemName)
             .font(.system(size: size * 0.42, weight: .semibold))
             .foregroundStyle(color)
             .frame(width: size, height: size)
-            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: size * 0.32, style: .continuous))
+            .background(color.opacity(0.16), in: shape)
+            // Borde luminoso hairline del propio color: define el chip sin glow.
+            .overlay(shape.strokeBorder(color.opacity(0.22), lineWidth: 0.5))
     }
 }
 
@@ -212,9 +225,14 @@ struct SectionLabel: View {
                 .foregroundStyle(Palette.inkTertiary)
             Spacer()
             if let action, let actionLabel {
-                Button(actionLabel, action: action)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.accent)
+                Button(action: action) {
+                    Text(actionLabel)
+                        .font(Typo.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Palette.accent)
+                }
+                .buttonStyle(.plain)
+                .pressable(scale: 0.94)
             }
         }
     }

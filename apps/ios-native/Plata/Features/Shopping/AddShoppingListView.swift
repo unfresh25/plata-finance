@@ -21,7 +21,8 @@ struct AddShoppingListView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     ScrollView {
@@ -60,7 +61,6 @@ struct AddShoppingListView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
             .alert("No se pudo crear", isPresented: errorBinding) {
                 Button("Entendido", role: .cancel) {}
             } message: {
@@ -69,7 +69,7 @@ struct AddShoppingListView: View {
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
     }
 
     // MARK: - Presupuesto hero
@@ -84,6 +84,7 @@ struct AddShoppingListView: View {
             Text(formattedBudget)
                 .font(Typo.amountHero(budgetFontSize))
                 .monospacedDigit()
+                .tracking(-0.5) // tracking negativo sutil en cifra display grande
                 .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
@@ -285,26 +286,35 @@ private struct ComprasCategoryChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Space.xs) {
-                Image(systemName: IconMapping.sfSymbol(for: category.icon))
-                    .font(.system(size: 13, weight: .semibold))
-                Text(category.name)
-                    .font(Typo.callout)
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isSelected ? color : Palette.inkSecondary)
-            .padding(.horizontal, Space.m)
-            .padding(.vertical, Space.s)
-            .background(
-                (isSelected ? color.opacity(0.16) : Palette.surface),
-                in: Capsule(style: .continuous)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(isSelected ? color : Palette.stroke, lineWidth: isSelected ? 1.5 : 1)
-            )
+            chipLabel
         }
         .pressable()
+    }
+
+    @ViewBuilder private var chipLabel: some View {
+        let label = HStack(spacing: Space.xs) {
+            Image(systemName: IconMapping.sfSymbol(for: category.icon))
+                .font(.system(size: 13, weight: .semibold))
+            Text(category.name)
+                .font(Typo.callout)
+                .lineLimit(1)
+        }
+        // Sobre glass el texto necesita algo más de contraste: ink secundario.
+        .foregroundStyle(isSelected ? color : Palette.inkSecondary)
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, Space.s)
+
+        if isSelected {
+            // Seleccionado: tinte de acento sólido (una sola capa, legible).
+            label
+                .background(color.opacity(0.16), in: Capsule(style: .continuous))
+                .overlay(Capsule(style: .continuous).strokeBorder(color, lineWidth: 1.5))
+        } else {
+            // Sin seleccionar: pill con Liquid Glass (cápsula) + borde luminoso sutil.
+            label
+                .liquidGlassCapsule(interactive: true)
+                .overlay(Capsule(style: .continuous).strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1))
+        }
     }
 }
 
@@ -319,7 +329,8 @@ private struct ComprasFieldIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 

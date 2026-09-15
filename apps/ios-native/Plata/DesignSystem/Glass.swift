@@ -46,6 +46,24 @@ extension View {
     }
 }
 
+extension View {
+    /// Fondo translúcido para sheets/modales (Apple §12: el modal es una capa
+    /// flotante de material, no una barra opaca). Aplica un material pesado como
+    /// `presentationBackground` con un velo tenue de `Palette.bg` encima para
+    /// conservar el tono oscuro profundo de Plata sin perder la translucidez que
+    /// comunica jerarquía. Una sola capa translúcida: legible, sin glass sobre glass.
+    ///
+    /// Sustituye el patrón antiguo `.presentationBackground(Palette.bg)` (opaco).
+    /// El contenido interno NO debe rellenar un ZStack con `Palette.bg` opaco, o
+    /// tapará este material; usa `Palette.bg.opacity(...)` o nada.
+    func glassSheetBackground() -> some View {
+        presentationBackground {
+            Palette.bg.opacity(0.72)
+                .background(.regularMaterial)
+        }
+    }
+}
+
 /// Contenedor que fusiona varios elementos glass cercanos (morphing) — iOS 26.
 /// En versiones previas es un contenedor transparente sin efecto.
 struct GlassGroup<Content: View>: View {

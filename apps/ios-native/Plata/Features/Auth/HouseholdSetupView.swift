@@ -106,6 +106,7 @@ struct HouseholdSetupView: View {
             CategoryIcon(systemName: "sparkles", color: Palette.accent, size: 52)
             Text("Casi listo")
                 .font(Typo.title)
+                .tracking(-0.4)
                 .foregroundStyle(Palette.ink)
                 .padding(.top, Space.xs)
             Text("Un hogar reúne las finanzas tuyas y las de tu pareja en un mismo lugar.")
@@ -204,10 +205,11 @@ private struct HouseholdOptionCard<Expanded: View>: View {
             }
         }
         .padding(Space.l)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        // Card de setup con material glass sutil. Los hijos (campo) son sólidos → sin glass sobre glass.
+        .liquidGlass(cornerRadius: Radius.m)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .strokeBorder(isExpanded ? tint.opacity(0.4) : Palette.stroke, lineWidth: 1)
+                .strokeBorder(isExpanded ? tint.opacity(0.4) : Palette.stroke.opacity(0.5), lineWidth: 1)
         )
     }
 }

@@ -65,7 +65,9 @@ struct CategoriesView: View {
                     .pressable()
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
+            // Header translúcido: el contenido pasa por debajo (Apple §12).
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .sheet(item: $editor) { target in

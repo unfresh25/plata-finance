@@ -157,7 +157,9 @@ private struct MainTabBar: View {
         .overlay(
             Capsule(style: .continuous).strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.25), radius: 24, x: 0, y: 8)
+        // Sombra sutil multicapa: separa la barra del contenido sin pesar.
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
         .padding(.horizontal, Space.xl)
         .padding(.bottom, Space.s)
     }
@@ -198,16 +200,14 @@ private struct MainTabAddButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Palette.bg)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
                 .frame(width: 52, height: 52)
-                .background(
-                    Circle()
-                        .fill(Palette.accent)
-                        .shadow(color: Palette.accent.opacity(0.45), radius: 14, x: 0, y: 4)
-                )
+                .background(Palette.accent, in: Circle())
+                // Sombra neutra sutil (no glow de color): da elevación sin ruido.
+                .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
         }
-        .pressable(scale: 0.9)
+        .pressable(scale: 0.94)
         .accessibilityLabel("Añadir movimiento")
     }
 }

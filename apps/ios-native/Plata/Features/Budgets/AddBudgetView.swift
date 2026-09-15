@@ -31,7 +31,8 @@ struct AddBudgetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
 
                 if expenseCategories.isEmpty {
                     AddBudgetEmptyState()
@@ -47,11 +48,10 @@ struct AddBudgetView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
         .onAppear {
             if categoryId == nil { categoryId = expenseCategories.first?.id }
         }
@@ -114,6 +114,7 @@ struct AddBudgetView: View {
             Text(CurrencyFormatter.string(amountValue, currency: app.currency))
                 .font(Typo.amountHero(amountFontSize))
                 .monospacedDigit()
+                .tracking(-0.5) // tracking negativo sutil en cifra display grande
                 .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)

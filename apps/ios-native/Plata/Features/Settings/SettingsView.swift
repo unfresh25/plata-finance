@@ -101,6 +101,7 @@ private struct SettingsProfileCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name?.isEmpty == false ? name! : "Sin nombre")
                         .font(Typo.title)
+                        .tracking(-0.4)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
 
@@ -128,8 +129,9 @@ private struct SettingsAvatar: View {
             .background(
                 Circle().fill(Palette.accent.opacity(0.16))
             )
+            // Hairline luminoso del propio acento: define el avatar sin glow.
             .overlay(
-                Circle().strokeBorder(Palette.accent.opacity(0.28), lineWidth: 1)
+                Circle().strokeBorder(Palette.accent.opacity(0.22), lineWidth: 0.5)
             )
     }
 
@@ -230,6 +232,11 @@ private struct SettingsInviteCodeRow: View {
                 .background(
                     Capsule().fill((didCopy ? Palette.green : Palette.accent).opacity(0.14))
                 )
+                // Hairline luminoso sutil del color de acción, sin glow.
+                .overlay(
+                    Capsule().strokeBorder((didCopy ? Palette.green : Palette.accent).opacity(0.22), lineWidth: 0.5)
+                )
+                .animation(Motion.value, value: didCopy)
             }
             .pressable()
         }

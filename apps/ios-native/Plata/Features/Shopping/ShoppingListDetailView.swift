@@ -102,7 +102,8 @@ struct ShoppingListDetailView: View {
                 }
             }
         }
-        .toolbarBackground(Palette.bg, for: .navigationBar)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             quickAddBar
         }
@@ -240,7 +241,7 @@ struct ShoppingListDetailView: View {
         .padding(.bottom, Space.s)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
-            Rectangle().fill(Palette.stroke).frame(height: 1)
+            Rectangle().fill(Palette.stroke.opacity(0.6)).frame(height: 1)
         }
     }
 

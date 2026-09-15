@@ -54,7 +54,8 @@ struct CategoryDetailView: View {
                 }
             }
         }
-        .toolbarBackground(Palette.bg, for: .navigationBar)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 
     // MARK: Encabezado con total
@@ -69,6 +70,12 @@ struct CategoryDetailView: View {
                     tint.opacity(0.16),
                     in: RoundedRectangle(cornerRadius: 30, style: .continuous)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .strokeBorder(tint.opacity(0.22), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
 
             VStack(spacing: Space.xs) {
                 Text(isIncome ? "Total ingresado" : "Total gastado")
@@ -78,8 +85,11 @@ struct CategoryDetailView: View {
 
                 Text(CurrencyFormatter.string(total, currency: app.currency))
                     .font(Typo.amountLarge)
+                    .tracking(-0.5)
                     .foregroundStyle(isIncome ? Palette.green : Palette.ink)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
 
                 Text(movementsLabel)
                     .font(Typo.subhead)

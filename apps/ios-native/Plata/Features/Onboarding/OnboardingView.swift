@@ -126,7 +126,7 @@ private struct OnboardingBlobField: View {
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(Palette.ink)
                 )
-                .shadow(color: Palette.bg.opacity(0.6), radius: 12, y: 4)
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
         .frame(maxWidth: .infinity)
         .onAppear {

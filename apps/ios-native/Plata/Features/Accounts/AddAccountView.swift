@@ -83,7 +83,8 @@ struct AddAccountView: View {
                 }
                 .padding(Space.l)
             }
-            .background(Palette.bg.ignoresSafeArea())
+            // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+            .background(Palette.bg.opacity(0.6).ignoresSafeArea())
             .navigationTitle("Nueva cuenta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -93,6 +94,9 @@ struct AddAccountView: View {
                 }
             }
         }
+        .tint(Palette.accent)
+        .presentationDragIndicator(.visible)
+        .glassSheetBackground()
     }
 
     // MARK: - Vista previa
@@ -161,11 +165,15 @@ struct AddAccountView: View {
                     Circle()
                         .fill(swatch.color)
                         .frame(width: 34, height: 34)
+                        // Borde luminoso hairline del propio color: define sin glow.
+                        .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+                        // Anillo de selección concéntrico, del propio color (no ink duro).
                         .overlay(
                             Circle()
-                                .strokeBorder(Palette.ink, lineWidth: isSelected ? 2.5 : 0)
-                                .padding(-3)
+                                .strokeBorder(swatch.color.opacity(isSelected ? 0.9 : 0), lineWidth: 2)
+                                .padding(-4)
                         )
+                        .animation(Motion.ui, value: isSelected)
                 }
                 .pressable()
             }

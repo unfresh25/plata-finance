@@ -79,19 +79,21 @@ struct AddMenuView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: Space.s) {
-                        ForEach(Array(AddDestination.allCases.enumerated()), id: \.element) { index, destination in
-                            Button {
-                                onSelect(destination)
-                            } label: {
-                                AddMenuRow(destination: destination)
+                    // GlassGroup fusiona (morphing) las filas glass cercanas en iOS 26.
+                    GlassGroup(spacing: Space.s) {
+                        VStack(spacing: Space.s) {
+                            ForEach(AddDestination.allCases) { destination in
+                                Button {
+                                    onSelect(destination)
+                                } label: {
+                                    AddMenuRow(destination: destination)
+                                }
+                                .pressable()
                             }
-                            .pressable()
-                            .transition(.opacity)
-                            .animation(Motion.ui.delay(Double(index) * 0.02), value: destination)
                         }
                     }
                     .padding(.horizontal, Space.l)
@@ -109,7 +111,7 @@ struct AddMenuView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
     }
 }
 
@@ -125,10 +127,12 @@ private struct AddMenuRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(destination.label)
                     .font(Typo.headline)
+                    .tracking(-0.2) // tracking negativo sutil en el título de la fila
                     .foregroundStyle(Palette.ink)
                 Text(destination.subtitle)
                     .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                    // Sobre glass el texto secundario necesita más contraste que terciario.
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
 
@@ -140,14 +144,16 @@ private struct AddMenuRow: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
+        // Una sola capa translúcida (glass) sobre el fondo opaco del sheet: legible.
+        .liquidGlass(cornerRadius: Radius.m, interactive: true)
+        .overlay(
+            // Borde superior luminoso sutil: luz que se posa sobre el material.
             RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .fill(Palette.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                        .strokeBorder(Palette.stroke, lineWidth: 1)
-                )
+                .strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1)
         )
+        // Sombra neutra y sutil, multicapa; nada de glow de acento.
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
         .contentShape(RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
     }
 }

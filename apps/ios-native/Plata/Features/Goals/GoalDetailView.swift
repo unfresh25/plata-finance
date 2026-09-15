@@ -52,6 +52,8 @@ struct GoalDetailView: View {
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle(goal.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .sheet(item: $sheet) { mode in
             GoalAmountSheet(
                 mode: mode,
@@ -63,7 +65,7 @@ struct GoalDetailView: View {
                 await perform(mode: mode, amount: amount)
             }
             .presentationDetents([.height(340)])
-            .presentationBackground(Palette.bg)
+            .glassSheetBackground()
         }
     }
 
@@ -81,6 +83,7 @@ struct GoalDetailView: View {
 
                 Text("\(Int((goal.progress * 100).rounded())) %")
                     .font(Typo.amountLarge)
+                    .tracking(-0.5)
                     .foregroundStyle(Palette.ink)
                     .monospacedDigit()
 
@@ -273,6 +276,5 @@ private struct GoalAmountSheet: View {
         }
         .padding(.horizontal, Space.l)
         .padding(.bottom, Space.l)
-        .background(Palette.bg)
     }
 }

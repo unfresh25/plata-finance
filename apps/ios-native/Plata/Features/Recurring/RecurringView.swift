@@ -147,9 +147,14 @@ private struct RecurrentesRow: View {
                 VStack(alignment: .trailing, spacing: 3) {
                     AmountText(amount: event.amount, currency: app.currency, font: Typo.amount)
                     if !event.isActive {
+                        // Badge de estado sobre Card glass → capa teñida sutil, no glass.
                         Text("Pausada")
                             .font(Typo.caption)
                             .foregroundStyle(Palette.warning)
+                            .padding(.horizontal, Space.s)
+                            .padding(.vertical, 2)
+                            .background(Palette.warning.opacity(0.14), in: Capsule())
+                            .overlay(Capsule().strokeBorder(Palette.warning.opacity(0.28), lineWidth: 0.5))
                     }
                 }
             }

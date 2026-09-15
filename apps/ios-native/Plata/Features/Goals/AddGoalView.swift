@@ -37,7 +37,8 @@ struct AddGoalView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
             .navigationTitle("Nueva meta")
@@ -48,11 +49,10 @@ struct AddGoalView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
         .alert("No se pudo guardar", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
         } message: {
@@ -89,7 +89,9 @@ struct AddGoalView: View {
                     .foregroundStyle(Palette.bg)
                     .padding(.horizontal, Space.l)
                     .padding(.vertical, Space.l)
-                    .background(tint, in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous))
+                    // Píldora de acento con Liquid Glass teñido, concéntrica con el
+                    // PrimaryButton (ambos cápsula) — reemplaza el relleno plano.
+                    .liquidGlassTinted(tint, cornerRadius: Radius.pill)
                 }
                 .pressable()
 
@@ -121,6 +123,7 @@ struct AddGoalView: View {
             Text(CurrencyFormatter.string(amountValue, currency: app.currency))
                 .font(Typo.amountHero(amountFontSize))
                 .monospacedDigit()
+                .tracking(-0.5) // tracking negativo sutil en cifra display grande
                 .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
@@ -211,12 +214,12 @@ struct AddGoalView: View {
         .sheet(isPresented: $showIconPicker) {
             AddGoalIconSheet(selection: $preset)
                 .presentationDetents([.medium, .large])
-                .presentationBackground(Palette.bg)
+                .glassSheetBackground()
         }
         .sheet(isPresented: $showAccountPicker) {
             AddGoalAccountSheet(accounts: app.accounts, selection: $accountId)
                 .presentationDetents([.medium])
-                .presentationBackground(Palette.bg)
+                .glassSheetBackground()
         }
     }
 
@@ -347,7 +350,8 @@ private struct AddGoalLeadingIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 
@@ -362,7 +366,7 @@ private struct AddGoalIconSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Space.m) {
                         ForEach(AddGoalPreset.all) { p in
@@ -385,7 +389,6 @@ private struct AddGoalIconSheet: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }
@@ -419,7 +422,7 @@ private struct AddGoalAccountSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: Space.s) {
                         // Ninguna
@@ -463,7 +466,6 @@ private struct AddGoalAccountSheet: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }

@@ -57,7 +57,8 @@ struct TransactionDetailView: View {
                 .tint(Palette.pink)
             }
         }
-        .toolbarBackground(Palette.bg, for: .navigationBar)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .tint(Palette.accent)
         .confirmationDialog(
             "¿Eliminar este movimiento?",
@@ -108,9 +109,12 @@ struct TransactionDetailView: View {
                 .foregroundStyle(Palette.bg)
                 .frame(width: 44, height: 44)
                 .background(TransactionVisual.color(for: category), in: Circle())
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(creatorName)
                     .font(Typo.headline)
+                    .tracking(-0.2)
                     .foregroundStyle(Palette.ink)
                 Text("Miembro del hogar")
                     .font(Typo.caption)
@@ -147,6 +151,7 @@ struct TransactionDetailView: View {
 
         return text
             .font(.system(size: 26, weight: .medium))
+            .tracking(-0.4)
             .lineSpacing(6)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -154,19 +159,21 @@ struct TransactionDetailView: View {
     // MARK: - Píldoras
 
     private var pills: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            TransactionDetailPill(
-                symbol: "calendar",
-                text: TransactionDetailDate.short(transaction.date)
-            )
-            TransactionDetailPill(
-                symbol: "wallet.pass",
-                text: isIncome ? "Ingreso" : (transaction.type == .transfer ? "Transferencia" : "Gasto")
-            )
-            TransactionDetailPill(
-                symbol: "folder",
-                text: category?.name ?? "General"
-            )
+        GlassGroup(spacing: Space.s) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                TransactionDetailPill(
+                    symbol: "calendar",
+                    text: TransactionDetailDate.short(transaction.date)
+                )
+                TransactionDetailPill(
+                    symbol: "wallet.pass",
+                    text: isIncome ? "Ingreso" : (transaction.type == .transfer ? "Transferencia" : "Gasto")
+                )
+                TransactionDetailPill(
+                    symbol: "folder",
+                    text: category?.name ?? "General"
+                )
+            }
         }
     }
 
@@ -212,17 +219,18 @@ private struct TransactionDetailPill: View {
         HStack(spacing: Space.s) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.inkTertiary)
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 18)
             Text(text)
                 .font(Typo.callout)
+                .fontWeight(.semibold)
                 .foregroundStyle(Palette.ink)
         }
         .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.s)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
+        .padding(.vertical, Space.s + 2)
+        .liquidGlassCapsule()
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
-                .strokeBorder(Palette.stroke, lineWidth: 1)
+            Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1)
         )
     }
 }

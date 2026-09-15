@@ -46,7 +46,8 @@ struct AddDebtView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
             .navigationTitle("Nueva deuda")
@@ -57,11 +58,10 @@ struct AddDebtView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
         .onChange(of: direction) { _, _ in
             // La categoría debe coincidir con el nuevo tipo de movimiento.
             if let c = selectedCategory, c.type == (isOwed ? .income : .expense) { return }
@@ -119,6 +119,7 @@ struct AddDebtView: View {
             Text(CurrencyFormatter.string(amountValue, currency: app.currency))
                 .font(Typo.amountHero(amountFontSize))
                 .monospacedDigit()
+                .tracking(-0.5) // tracking negativo sutil en cifra display grande
                 .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
@@ -238,7 +239,7 @@ struct AddDebtView: View {
                 filterLabel: isOwed ? "Ingresos" : "Gastos"
             )
             .presentationDetents([.medium, .large])
-            .presentationBackground(Palette.bg)
+            .glassSheetBackground()
         }
     }
 
@@ -361,7 +362,8 @@ private struct AddDebtLeadingIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 
@@ -379,7 +381,7 @@ private struct AddDebtCategorySheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 if categories.isEmpty {
                     VStack(spacing: Space.s) {
                         Image(systemName: "square.grid.2x2")
@@ -425,7 +427,6 @@ private struct AddDebtCategorySheet: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }

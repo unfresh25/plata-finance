@@ -2,7 +2,7 @@ name: Plata
 options:
   bundleIdPrefix: com.plata
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 
 settings:

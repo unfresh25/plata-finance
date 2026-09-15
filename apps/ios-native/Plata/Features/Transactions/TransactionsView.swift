@@ -46,7 +46,10 @@ struct TransactionsView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "Buscar movimiento"
             )
-            .toolbarBackground(Palette.bg, for: .navigationBar)
+            // Header translúcido: el contenido se ve pasar por debajo (Apple §12),
+            // y en iOS 26 el campo de búsqueda adopta Liquid Glass nativo.
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .sheet(isPresented: $showingAdd) {

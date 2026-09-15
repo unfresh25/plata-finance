@@ -153,6 +153,7 @@ struct ReportsView: View {
     // MARK: - Selector de mes
 
     private var monthSelector: some View {
+        // Selector pill flotante (chrome) sobre el fondo → Liquid Glass en cápsula.
         HStack(spacing: Space.s) {
             Button {
                 withAnimation(Motion.value) {
@@ -169,7 +170,7 @@ struct ReportsView: View {
             Text(ReportsCalendar.monthLabel(monthAnchor))
                 .font(Typo.overline)
                 .tracking(1.4)
-                .foregroundStyle(Palette.inkSecondary)
+                .foregroundStyle(Palette.ink)
                 .monospacedDigit()
                 .frame(minWidth: 78)
                 .contentTransition(.numericText())
@@ -186,6 +187,10 @@ struct ReportsView: View {
             }
             .pressable(scale: 0.85)
         }
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, Space.xs)
+        .liquidGlassCapsule()
+        .overlay(Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 0.5))
     }
 
     // MARK: - Balance neto (hero)
@@ -204,6 +209,8 @@ struct ReportsView: View {
                 font: Typo.amountHero(42),
                 signed: true
             )
+            // Cifra hero: tracking negativo sutil para que respire mejor a gran tamaño.
+            .tracking(-0.8)
             .contentTransition(.numericText(value: balance))
             .animation(Motion.value, value: balance)
             .padding(.bottom, Space.xl)

@@ -107,18 +107,30 @@ private struct FinanzashubSectionHeader: View {
                         .foregroundStyle(Palette.accent)
                 }
                 .buttonStyle(.plain)
-                .pressable(scale: 0.94)
+                .pressable(scale: 0.96)
             }
 
             if let addAction {
                 Button(action: addAction) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Palette.accent)
-                        .frame(width: 26, height: 26)
-                        .background(Palette.accent.opacity(0.14), in: Circle())
+                        .frame(width: 28, height: 28)
+                        .liquidGlassTinted(Palette.accent.opacity(0.16), cornerRadius: 14, interactive: true)
+                        .clipShape(Circle())
+                        // Borde superior luminoso (luz sobre el material), no un aro plano.
+                        .overlay(
+                            Circle().strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.20), .white.opacity(0.04)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 0.75
+                            )
+                        )
                 }
-                .pressable(scale: 0.9)
+                .pressable(scale: 0.96)
                 .accessibilityLabel("Añadir")
             }
         }

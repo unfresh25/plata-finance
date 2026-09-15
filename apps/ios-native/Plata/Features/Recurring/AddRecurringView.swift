@@ -31,7 +31,8 @@ struct AddRecurringView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
             .navigationTitle("Nueva suscripción")
@@ -42,11 +43,10 @@ struct AddRecurringView: View {
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
+        .glassSheetBackground()
         .onAppear(perform: seedDefaults)
     }
 
@@ -89,12 +89,12 @@ struct AddRecurringView: View {
                 }
             }
             .presentationDetents([.large])
-            .presentationBackground(Palette.bg)
+            .glassSheetBackground()
         }
         .sheet(isPresented: $showCategoryPicker) {
             RecurrentesCategoryPicker(categories: expenseCategories, selection: $categoryId)
                 .presentationDetents([.medium, .large])
-                .presentationBackground(Palette.bg)
+                .glassSheetBackground()
         }
         .alert("No se pudo guardar", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
@@ -156,6 +156,7 @@ struct AddRecurringView: View {
                 Text(formattedAmount)
                     .font(Typo.amountHero(amountFontSize))
                     .monospacedDigit()
+                    .tracking(-0.5) // tracking negativo sutil en cifra display grande
                     .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
@@ -395,7 +396,7 @@ struct RecurrentesLogoPicker: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Space.m) {
                         noneCell
@@ -414,7 +415,6 @@ struct RecurrentesLogoPicker: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }
@@ -494,7 +494,7 @@ struct RecurrentesCategoryPicker: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Palette.bg.ignoresSafeArea()
+                Palette.bg.opacity(0.6).ignoresSafeArea()
                 if categories.isEmpty {
                     VStack(spacing: Space.s) {
                         Image(systemName: "square.grid.2x2")
@@ -529,7 +529,6 @@ struct RecurrentesCategoryPicker: View {
                     Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
                 }
             }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
         }
         .tint(Palette.accent)
     }
@@ -569,7 +568,8 @@ struct RecurrentesSmallIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 

@@ -101,9 +101,12 @@ struct ShoppingStatusBadge: View {
         Text(ShoppingStatusStyle.label(for: status))
             .font(Typo.caption)
             .foregroundStyle(tint)
-            .padding(.horizontal, Space.s)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.16), in: Capsule())
+            // Badge sobre una Card glass → NO glass sobre glass: capa teñida sutil
+            // con borde luminoso superior (luz sobre el material).
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.14), in: Capsule())
+            .overlay(Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 0.5))
     }
 }
 

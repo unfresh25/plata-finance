@@ -41,6 +41,8 @@ struct AccountDetailView: View {
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Detalle de cuenta")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .sheet(item: $selectedTransaction) { tx in
             NavigationStack {
                 TransactionDetailView(transaction: tx)
@@ -59,6 +61,7 @@ struct AccountDetailView: View {
             HStack(alignment: .top) {
                 Text(acc.name)
                     .font(Typo.headline)
+                    .tracking(-0.2)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer()
@@ -77,6 +80,7 @@ struct AccountDetailView: View {
 
             Text(CurrencyFormatter.string(acc.balance, currency: app.currency))
                 .font(Typo.amountLarge)
+                .tracking(-0.5)
                 .monospacedDigit()
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
@@ -95,8 +99,17 @@ struct AccountDetailView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
-                .strokeBorder(tint.opacity(0.3), lineWidth: 1)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.16), Palette.stroke.opacity(0.4)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
         )
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
     }
 
     // MARK: - Historial
