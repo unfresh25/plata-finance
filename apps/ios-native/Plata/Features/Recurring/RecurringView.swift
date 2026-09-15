@@ -254,21 +254,37 @@ enum RecurrentesVisual {
 
     /// Normaliza el nombre del servicio a un slug del catálogo (Netflix → netflix).
     static func slug(for name: String) -> String? {
+        // Normaliza sin acentos, en minúsculas y con "+" → "plus" (Disney+ → disney+plus)
+        // para poder probar la variante con "-plus".
         let normalized = name
             .folding(options: .diacriticInsensitive, locale: .current)
             .lowercased()
+            .replacingOccurrences(of: "+", with: " plus ")
             .trimmingCharacters(in: .whitespaces)
         guard !normalized.isEmpty else { return nil }
+
+        // Compacta: quita guiones, espacios y cualquier separador no alfanumérico.
+        func compact(_ value: String) -> String {
+            String(value.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+        }
+        let target = compact(normalized)          // "disneyplus", "applemusicfamiliar"
+        guard !target.isEmpty else { return nil }
+
         // Coincidencia exacta por slug (con y sin espacios → guiones).
         let dashed = normalized.replacingOccurrences(of: " ", with: "-")
         if SubscriptionLogo.all.contains(normalized) { return normalized }
         if SubscriptionLogo.all.contains(dashed) { return dashed }
-        // Coincidencia laxa: el slug empieza con el nombre o viceversa.
-        return SubscriptionLogo.all.first { slug in
-            let base = slug.replacingOccurrences(of: "-", with: "")
-            let target = normalized.replacingOccurrences(of: " ", with: "")
-            return base == target || base.hasPrefix(target) && target.count >= 3
-        }
+
+        // Elige el slug MÁS LARGO cuya versión compacta sea prefijo del nombre compacto.
+        // Ej.: "applemusic" es prefijo de "applemusicfamiliar" → apple-music.
+        //      "disney" es prefijo de "disneyplus" → disney- (slug del catálogo).
+        // El slug más largo gana para evitar falsos positivos (apple-, disney-, etc.).
+        return SubscriptionLogo.all
+            .filter { slug in
+                let base = compact(slug)
+                return base.count >= 3 && target.hasPrefix(base)
+            }
+            .max { compact($0).count < compact($1).count }
     }
 
     static func tint(for event: RecurringEvent, category: Category?) -> Color {

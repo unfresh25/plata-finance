@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Paleta
 
@@ -7,19 +8,35 @@ import SwiftUI
 /// las formas del onboarding original. La saturación se mantiene alta pero el
 /// uso es disciplinado: un acento por contexto, nunca color al azar.
 enum Palette {
-    // Fondos (del más profundo al más elevado)
-    static let bg = Color(hex: 0x09090B)          // fondo base, casi negro
-    static let surface = Color(hex: 0x151518)     // tarjetas
-    static let surfaceElevated = Color(hex: 0x1E1E23) // tarjetas sobre tarjetas
-    static let stroke = Color(hex: 0x2A2A31)      // bordes hairline
+    // Fondos (dinámicos: adaptan a claro/oscuro automáticamente según el
+    // colorScheme del entorno). El look oscuro conserva los valores originales;
+    // el claro usa neutros con un leve sesgo frío para coherencia con el acento.
+    static let bg = dynamic(light: 0xF6F7F9, dark: 0x09090B)               // fondo base
+    static let surface = dynamic(light: 0xFFFFFF, dark: 0x151518)          // tarjetas
+    static let surfaceElevated = dynamic(light: 0xF0F1F4, dark: 0x1E1E23)  // tarjetas elevadas
+    static let stroke = dynamic(light: 0xE3E5EA, dark: 0x2A2A31)           // bordes hairline
 
     // Tinta
-    static let ink = Color(hex: 0xFAFAFA)         // texto primario
-    static let inkSecondary = Color(hex: 0xA1A1AA) // texto secundario
-    static let inkTertiary = Color(hex: 0x6B6B74)  // texto terciario / hints
+    static let ink = dynamic(light: 0x0E0E11, dark: 0xFAFAFA)          // texto primario
+    static let inkSecondary = dynamic(light: 0x62636B, dark: 0xA1A1AA) // texto secundario
+    static let inkTertiary = dynamic(light: 0x9A9BA3, dark: 0x6B6B74)  // texto terciario
 
-    // Acento primario de marca (índigo del onboarding)
-    static let accent = Color(hex: 0x818CF8)
+    // Acento primario de marca (índigo del onboarding). Un poco más saturado en
+    // claro para mantener contraste sobre fondos blancos.
+    static let accent = dynamic(light: 0x5B63E0, dark: 0x818CF8)
+
+    /// Construye un Color que resuelve distinto en claro y oscuro (UIKit trait).
+    static func dynamic(light: UInt, dark: UInt) -> Color {
+        Color(UIColor { traits in
+            let hex = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(
+                red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: 1
+            )
+        })
+    }
 
     // Acentos coloridos con propósito (categorías, estados)
     static let green = Color(hex: 0x34D399)   // ingresos, éxito, "safe"

@@ -24,7 +24,11 @@ struct MainTabView: View {
         }
         return .home
     }()
-    @State private var showingAdd = false
+    @State private var showingAddMenu = false
+    // Destino elegido en el menú "+", promovido tras cerrar el menú para evitar
+    // presentar un sheet mientras otro se está descartando.
+    @State private var pendingDestination: AddDestination?
+    @State private var activeDestination: AddDestination?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -51,7 +55,7 @@ struct MainTabView: View {
             }
 
             MainTabBar(selection: $selection) {
-                showingAdd = true
+                showingAddMenu = true
             }
         }
         .task {
@@ -60,10 +64,39 @@ struct MainTabView: View {
                 await app.refreshAll()
             }
         }
-        .sheet(isPresented: $showingAdd) {
-            NavigationStack { AddTransactionView() }
+        // Menú "+": las 7 acciones de creación. Al elegir una se cierra el menú
+        // y, en su onDismiss, se promueve el destino elegido para presentar el
+        // add correspondiente (evita presentar mientras otro sheet se descarta).
+        .sheet(isPresented: $showingAddMenu, onDismiss: {
+            if let pending = pendingDestination {
+                pendingDestination = nil
+                activeDestination = pending
+            }
+        }) {
+            AddMenuView { destination in
+                pendingDestination = destination
+                showingAddMenu = false
+            }
+        }
+        .sheet(item: $activeDestination) { destination in
+            addView(for: destination)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Palette.bg)
+        }
+    }
+
+    // Presenta el add correspondiente al destino elegido. Cada AddXView ya
+    // incorpora su propio NavigationStack, por eso aquí se devuelve directa.
+    @ViewBuilder
+    private func addView(for destination: AddDestination) -> some View {
+        switch destination {
+        case .transaction: AddTransactionView()
+        case .budget: AddBudgetView()
+        case .shoppingList: AddShoppingListView()
+        case .goal: AddGoalView()
+        case .debt: AddDebtView()
+        case .account: AddAccountView()
+        case .recurring: AddRecurringView()
         }
     }
 }
@@ -120,15 +153,11 @@ private struct MainTabBar: View {
         }
         .padding(.horizontal, Space.s)
         .padding(.vertical, Space.s)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Palette.surface)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .strokeBorder(Palette.stroke, lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
+        .liquidGlassCapsule()
+        .overlay(
+            Capsule(style: .continuous).strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.25), radius: 24, x: 0, y: 8)
         .padding(.horizontal, Space.xl)
         .padding(.bottom, Space.s)
     }

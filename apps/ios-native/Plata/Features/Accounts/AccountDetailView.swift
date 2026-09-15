@@ -42,9 +42,12 @@ struct AccountDetailView: View {
         .navigationTitle("Detalle de cuenta")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedTransaction) { tx in
-            TransactionDetailView(transaction: tx)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Palette.bg)
+            NavigationStack {
+                TransactionDetailView(transaction: tx)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Palette.bg)
         }
     }
 

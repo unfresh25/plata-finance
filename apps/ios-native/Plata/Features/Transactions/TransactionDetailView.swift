@@ -41,32 +41,24 @@ struct TransactionDetailView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Palette.bg.ignoresSafeArea()
-                content
-            }
-            .navigationTitle("Movimiento")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cerrar") { dismiss() }
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) {
-                        showDeleteConfirm = true
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .tint(Palette.pink)
-                }
-            }
-            .toolbarBackground(Palette.bg, for: .navigationBar)
+        ZStack {
+            Palette.bg.ignoresSafeArea()
+            content
         }
+        .navigationTitle("Movimiento")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .tint(Palette.pink)
+            }
+        }
+        .toolbarBackground(Palette.bg, for: .navigationBar)
         .tint(Palette.accent)
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Palette.bg)
         .confirmationDialog(
             "¿Eliminar este movimiento?",
             isPresented: $showDeleteConfirm,

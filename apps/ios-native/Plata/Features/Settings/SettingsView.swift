@@ -242,6 +242,7 @@ private struct SettingsPreferencesSection: View {
     let currencies: [(code: String, label: String)]
     let selectedCurrency: String
     let onSelectCurrency: (String) -> Void
+    @Environment(ThemeManager.self) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -278,21 +279,32 @@ private struct SettingsPreferencesSection: View {
                     Divider().overlay(Palette.stroke)
 
                     SettingsRow(
-                        icon: "moon.stars.fill",
+                        icon: theme.preference.sfSymbol,
                         tint: Palette.purple,
                         title: "Tema"
                     ) {
-                        Text("Oscuro")
-                            .font(Typo.callout)
-                            .foregroundStyle(Palette.inkSecondary)
+                        Menu {
+                            ForEach(ThemePreference.allCases) { option in
+                                Button {
+                                    withAnimation(Motion.ui) { theme.preference = option }
+                                } label: {
+                                    Label(option.label, systemImage: option.sfSymbol)
+                                    if theme.preference == option { Image(systemName: "checkmark") }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: Space.xs) {
+                                Text(theme.preference.label)
+                                    .font(Typo.callout)
+                                    .foregroundStyle(Palette.inkSecondary)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Palette.inkTertiary)
+                            }
+                        }
                     }
                 }
             }
-
-            Text("Plata está diseñada para lucir mejor en modo oscuro.")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkTertiary)
-                .padding(.horizontal, Space.xs)
         }
     }
 }

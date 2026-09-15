@@ -130,7 +130,11 @@ final class SupabaseClient {
     // MARK: - Bajo nivel
 
     private func request<T: Decodable>(path: String, method: String, body: Any?, authed: Bool) async throws -> T {
-        let url = SupabaseConfig.url.appendingPathComponent(path)
+        // Construir con string directo: appendingPathComponent ESCAPA el '?' del
+        // query (lo vuelve %3F → 404). Concatenar sobre la URL base lo respeta.
+        guard let url = URL(string: SupabaseConfig.url.absoluteString + path) else {
+            throw SupabaseError(message: "URL inválida.")
+        }
         let data = body.map { try? JSONSerialization.data(withJSONObject: $0) } ?? nil
         return try await requestRaw(url: url, method: method, body: data, authed: authed, single: true)
     }

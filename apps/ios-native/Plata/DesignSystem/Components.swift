@@ -2,20 +2,35 @@ import SwiftUI
 
 // MARK: - Card
 
-/// Superficie base de la app. Fondo elevado, radio grande, borde hairline sutil.
+/// Superficie base de la app. En iOS 26 usa Liquid Glass; el borde hairline se
+/// conserva para definir el contorno. Radio grande, continuo.
 struct Card<Content: View>: View {
     var padding: CGFloat = Space.l
+    var glass: Bool = true
     @ViewBuilder var content: Content
 
     var body: some View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .strokeBorder(Palette.stroke, lineWidth: 1)
-            )
+            .modifier(CardSurface(glass: glass))
+    }
+}
+
+/// Fondo de tarjeta: Liquid Glass o superficie sólida.
+private struct CardSurface: ViewModifier {
+    var glass: Bool
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+        if glass {
+            content
+                .liquidGlass(cornerRadius: Radius.m)
+                .overlay(shape.strokeBorder(Palette.stroke.opacity(0.6), lineWidth: 1))
+        } else {
+            content
+                .background(Palette.surface, in: shape)
+                .overlay(shape.strokeBorder(Palette.stroke, lineWidth: 1))
+        }
     }
 }
 
@@ -56,7 +71,7 @@ struct PrimaryButton: View {
             .foregroundStyle(fg)
             .frame(maxWidth: .infinity)
             .padding(.vertical, Space.l)
-            .background(tint, in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous))
+            .liquidGlassTinted(tint, cornerRadius: Radius.pill)
         }
         .pressable()
     }
@@ -76,11 +91,7 @@ struct SecondaryButton: View {
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity)
             .padding(.vertical, Space.l)
-            .background(Palette.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
-                    .strokeBorder(Palette.stroke, lineWidth: 1)
-            )
+            .liquidGlassCapsule(interactive: true)
         }
         .pressable()
     }

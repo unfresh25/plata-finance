@@ -788,7 +788,7 @@ private struct CalendarEmptyRow: View {
 // MARK: - Modelo/helpers de fecha del calendario (privado del feature)
 
 private enum CalendarModel {
-    static let cellHeight: CGFloat = 62
+    static let cellHeight: CGFloat = 72
 
     static let weekdays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
 

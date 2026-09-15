@@ -299,8 +299,8 @@ private struct DashboardRecentSection: View {
                 Card(padding: Space.xs) {
                     VStack(spacing: 0) {
                         ForEach(Array(transactions.enumerated()), id: \.element.id) { index, tx in
-                            Button {
-                                // Navegación al detalle del movimiento (pendiente de router).
+                            NavigationLink {
+                                TransactionDetailView(transaction: tx)
                             } label: {
                                 DashboardTransactionRow(
                                     transaction: tx,

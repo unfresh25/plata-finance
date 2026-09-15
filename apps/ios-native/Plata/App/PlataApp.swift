@@ -5,6 +5,7 @@ struct PlataApp: App {
     @State private var app: AppState = ProcessInfo.processInfo.arguments.contains("-uiPreview")
         ? .previewMocked
         : AppState()
+    @State private var theme = ThemeManager()
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.arguments.contains("-uiPreview")
@@ -14,7 +15,8 @@ struct PlataApp: App {
         WindowGroup {
             RootView()
                 .environment(app)
-                .preferredColorScheme(.dark)
+                .environment(theme)
+                .preferredColorScheme(theme.colorScheme)
                 .tint(Palette.accent)
                 .task { if !isPreview { await app.bootstrap() } }
         }

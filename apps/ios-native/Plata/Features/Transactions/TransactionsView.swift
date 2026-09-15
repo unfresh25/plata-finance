@@ -79,7 +79,13 @@ struct TransactionsView: View {
 
                         VStack(spacing: 0) {
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
-                                TransactionRow(transaction: tx)
+                                NavigationLink {
+                                    TransactionDetailView(transaction: tx)
+                                } label: {
+                                    TransactionRow(transaction: tx)
+                                }
+                                .buttonStyle(.plain)
+                                .pressable()
                                 if index < group.items.count - 1 {
                                     Divider()
                                         .overlay(Palette.stroke)
@@ -178,6 +184,7 @@ private struct TransactionRow: View {
             )
         }
         .padding(Space.l)
+        .contentShape(Rectangle())
     }
 
     private var category: Category? { app.category(for: transaction.categoryId) }
