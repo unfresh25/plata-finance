@@ -40,6 +40,14 @@ extension AppState {
             Debt(id: "d1", householdId: "h1", createdBy: "u1", direction: .owedToUs, personName: "Camila", amount: 300_000, amountPaid: 100_000, dueDate: nil, description: "Préstamo", status: .active),
             Debt(id: "d2", householdId: "h1", createdBy: "u1", direction: .weOwe, personName: "David", amount: 150_000, amountPaid: 0, dueDate: nil, description: "Cena", status: .active),
         ]
+        app.shoppingLists = [
+            ShoppingList(id: "s1", householdId: "h1", createdBy: "u1", name: "Mercado semanal", store: "Éxito", estimatedTotal: 250_000, actualTotal: nil, status: .open, date: today),
+        ]
+        app.recurringEvents = [
+            RecurringEvent(id: "r1", householdId: "h1", name: "Spotify", amount: 16_900, frequency: .monthly, nextDate: today, categoryId: "c4", accountId: "a2", isActive: true),
+            RecurringEvent(id: "r2", householdId: "h1", name: "Netflix", amount: 38_900, frequency: .monthly, nextDate: today, categoryId: "c4", accountId: "a2", isActive: true),
+            RecurringEvent(id: "r3", householdId: "h1", name: "Arriendo", amount: 1_800_000, frequency: .monthly, nextDate: today, categoryId: "c3", accountId: "a2", isActive: true),
+        ]
         app.phase = .ready
         return app
     }

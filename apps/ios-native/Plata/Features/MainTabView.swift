@@ -11,7 +11,19 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AppState.self) private var app
 
-    @State private var selection: MainTab = .home
+    @State private var selection: MainTab = {
+        // Permite arrancar en una tab concreta para previsualización (-startTab finanzas).
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-startTab"), i + 1 < args.count {
+            switch args[i + 1] {
+            case "finanzas": return .finances
+            case "movim": return .transactions
+            case "ajustes": return .settings
+            default: return .home
+            }
+        }
+        return .home
+    }()
     @State private var showingAdd = false
 
     var body: some View {
@@ -26,8 +38,8 @@ struct MainTabView: View {
                     NavigationStack { DashboardView() }
                 case .transactions:
                     NavigationStack { TransactionsView() }
-                case .accounts:
-                    NavigationStack { AccountsView() }
+                case .finances:
+                    NavigationStack { FinancesView() }
                 case .settings:
                     NavigationStack { SettingsView() }
                 }
@@ -59,13 +71,13 @@ struct MainTabView: View {
 // MARK: - Modelo de pestañas
 
 private enum MainTab: Hashable, CaseIterable {
-    case home, transactions, accounts, settings
+    case home, transactions, finances, settings
 
     var title: String {
         switch self {
         case .home: "Inicio"
         case .transactions: "Movim."
-        case .accounts: "Cuentas"
+        case .finances: "Finanzas"
         case .settings: "Ajustes"
         }
     }
@@ -74,7 +86,7 @@ private enum MainTab: Hashable, CaseIterable {
         switch self {
         case .home: "house"
         case .transactions: "list.bullet"
-        case .accounts: "creditcard"
+        case .finances: "chart.pie"
         case .settings: "gearshape"
         }
     }
@@ -83,7 +95,7 @@ private enum MainTab: Hashable, CaseIterable {
         switch self {
         case .home: "house.fill"
         case .transactions: "list.bullet"
-        case .accounts: "creditcard.fill"
+        case .finances: "chart.pie.fill"
         case .settings: "gearshape.fill"
         }
     }
@@ -103,7 +115,7 @@ private struct MainTabBar: View {
             MainTabAddButton(action: onAdd)
                 .padding(.horizontal, Space.s)
 
-            MainTabBarButton(tab: .accounts, selection: $selection)
+            MainTabBarButton(tab: .finances, selection: $selection)
             MainTabBarButton(tab: .settings, selection: $selection)
         }
         .padding(.horizontal, Space.s)

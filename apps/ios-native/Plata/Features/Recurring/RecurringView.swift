@@ -1,0 +1,338 @@
+import SwiftUI
+
+// Suscripciones y pagos recurrentes del hogar. Cada fila muestra el logo de la
+// app (si el nombre coincide con un slug del catálogo) o el ícono de su
+// categoría, junto al nombre, la frecuencia (Frequency.label), el próximo cobro
+// y el monto. Tap abre el detalle (sheet) con el flujo de confirmar pago.
+// Paridad con app/recurring en la app RN original.
+
+struct RecurringView: View {
+    @Environment(AppState.self) private var app
+
+    @State private var showAdd = false
+    @State private var selected: RecurringEvent?
+
+    private var events: [RecurringEvent] {
+        // El mismo orden que trae el Repository (next_date asc), activos primero.
+        app.recurringEvents.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive { return lhs.isActive && !rhs.isActive }
+            return lhs.nextDate < rhs.nextDate
+        }
+    }
+
+    private var monthlyTotal: Double {
+        app.recurringEvents
+            .filter { $0.isActive }
+            .reduce(0) { $0 + RecurrentesMath.monthlyEquivalent(amount: $1.amount, frequency: $1.frequency) }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: Space.m) {
+                if events.isEmpty {
+                    RecurrentesEmptyState { showAdd = true }
+                        .padding(.top, Space.xxxl)
+                } else {
+                    RecurrentesSummaryCard(monthlyTotal: monthlyTotal, count: events.filter(\.isActive).count)
+                        .padding(.top, Space.s)
+
+                    SectionLabel(text: "Suscripciones")
+                        .padding(.horizontal, Space.xs)
+
+                    ForEach(events) { event in
+                        Button {
+                            selected = event
+                        } label: {
+                            RecurrentesRow(event: event)
+                        }
+                        .buttonStyle(.plain)
+                        .pressable()
+                    }
+                }
+            }
+            .padding(.horizontal, Space.l)
+            .padding(.bottom, Space.xxxl)
+        }
+        .background(Palette.bg.ignoresSafeArea())
+        .navigationTitle("Recurrentes")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAdd = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+        }
+        .sheet(isPresented: $showAdd) {
+            AddRecurringView()
+                .presentationBackground(Palette.bg)
+        }
+        .sheet(item: $selected) { event in
+            RecurringDetailView(event: event)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Palette.bg)
+        }
+    }
+}
+
+// MARK: - Tarjeta resumen (total mensual estimado)
+
+private struct RecurrentesSummaryCard: View {
+    @Environment(AppState.self) private var app
+    let monthlyTotal: Double
+    let count: Int
+
+    var body: some View {
+        Card {
+            HStack(alignment: .center, spacing: Space.l) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("Gasto mensual estimado")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                    AmountText(amount: monthlyTotal, currency: app.currency, font: Typo.amountMedium)
+                    Text(count == 1 ? "1 suscripción activa" : "\(count) suscripciones activas")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Palette.accent)
+                    .frame(width: 52, height: 52)
+                    .background(Palette.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+        }
+    }
+}
+
+// MARK: - Fila de recurrente
+
+private struct RecurrentesRow: View {
+    @Environment(AppState.self) private var app
+    let event: RecurringEvent
+
+    private var category: Category? { app.category(for: event.categoryId) }
+    private var tint: Color { RecurrentesVisual.tint(for: event, category: category) }
+
+    var body: some View {
+        Card {
+            HStack(spacing: Space.l) {
+                RecurrentesAvatar(event: event, category: category, size: 46)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.name)
+                        .font(Typo.headline)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+
+                    HStack(spacing: Space.xs) {
+                        Text(event.frequency.label)
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Text("·")
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.inkTertiary)
+                        Text(RecurrentesDate.nextLabel(event.nextDate))
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    AmountText(amount: event.amount, currency: app.currency, font: Typo.amount)
+                    if !event.isActive {
+                        Text("Pausada")
+                            .font(Typo.caption)
+                            .foregroundStyle(Palette.warning)
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(tint)
+                .frame(width: 3, height: 26)
+                .padding(.leading, 1)
+                .opacity(event.isActive ? 1 : 0.4)
+        }
+    }
+}
+
+// MARK: - Estado vacío
+
+private struct RecurrentesEmptyState: View {
+    var onAdd: () -> Void
+
+    var body: some View {
+        VStack(spacing: Space.l) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 34))
+                .foregroundStyle(Palette.inkTertiary)
+                .frame(width: 84, height: 84)
+                .background(Palette.surface, in: Circle())
+                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
+
+            VStack(spacing: Space.xs) {
+                Text("Sin recurrentes")
+                    .font(Typo.title)
+                    .foregroundStyle(Palette.ink)
+                Text("Agrega tus suscripciones y pagos fijos para no perder de vista lo que se cobra cada mes.")
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Space.xl)
+            }
+
+            Button(action: onAdd) {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "plus")
+                    Text("Nueva suscripción").font(Typo.headline)
+                }
+                .foregroundStyle(Palette.bg)
+                .padding(.horizontal, Space.xl)
+                .padding(.vertical, Space.m)
+                .background(Palette.ink, in: Capsule())
+            }
+            .pressable()
+        }
+        .padding(Space.xl)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Avatar compartido (logo de app o ícono de categoría)
+
+struct RecurrentesAvatar: View {
+    @Environment(AppState.self) private var app
+    let event: RecurringEvent
+    let category: Category?
+    var size: CGFloat = 46
+
+    private var tint: Color { RecurrentesVisual.tint(for: event, category: category) }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.30, style: .continuous)
+                .fill(logo == nil ? tint.opacity(0.16) : Palette.surfaceElevated)
+                .frame(width: size, height: size)
+
+            if let logo {
+                logo
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.62, height: size * 0.62)
+            } else {
+                Image(systemName: RecurrentesVisual.symbol(for: event, category: category))
+                    .font(.system(size: size * 0.42, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.30, style: .continuous)
+                .strokeBorder(Palette.stroke.opacity(logo == nil ? 0 : 1), lineWidth: 1)
+        )
+    }
+
+    private var logo: Image? {
+        RecurrentesVisual.logo(for: event)
+    }
+}
+
+// MARK: - Resolución de logo / ícono / color (compartida en la feature)
+
+enum RecurrentesVisual {
+    /// Busca un logo del catálogo cuyo slug coincida con el nombre del evento.
+    static func logo(for event: RecurringEvent) -> Image? {
+        SubscriptionLogo.image(for: slug(for: event.name))
+    }
+
+    /// Normaliza el nombre del servicio a un slug del catálogo (Netflix → netflix).
+    static func slug(for name: String) -> String? {
+        let normalized = name
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces)
+        guard !normalized.isEmpty else { return nil }
+        // Coincidencia exacta por slug (con y sin espacios → guiones).
+        let dashed = normalized.replacingOccurrences(of: " ", with: "-")
+        if SubscriptionLogo.all.contains(normalized) { return normalized }
+        if SubscriptionLogo.all.contains(dashed) { return dashed }
+        // Coincidencia laxa: el slug empieza con el nombre o viceversa.
+        return SubscriptionLogo.all.first { slug in
+            let base = slug.replacingOccurrences(of: "-", with: "")
+            let target = normalized.replacingOccurrences(of: " ", with: "")
+            return base == target || base.hasPrefix(target) && target.count >= 3
+        }
+    }
+
+    static func tint(for event: RecurringEvent, category: Category?) -> Color {
+        TransactionVisual.color(for: category)
+    }
+
+    static func symbol(for event: RecurringEvent, category: Category?) -> String {
+        if let category {
+            return TransactionVisual.symbol(for: category, fallbackType: .expense)
+        }
+        return "arrow.triangle.2.circlepath"
+    }
+}
+
+// MARK: - Fechas y matemática de frecuencia (compartidas en la feature)
+
+enum RecurrentesDate {
+    /// "Hoy", "Mañana", "en 3 días" o la fecha corta para el próximo cobro.
+    static func nextLabel(_ isoDate: String) -> String {
+        guard let date = parse(isoDate) else { return isoDate }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: Date())
+        let target = cal.startOfDay(for: date)
+        let days = cal.dateComponents([.day], from: start, to: target).day ?? 0
+        switch days {
+        case ..<0: return "Vencido"
+        case 0: return "Hoy"
+        case 1: return "Mañana"
+        case 2...6: return "en \(days) días"
+        default: return shortDate(date)
+        }
+    }
+
+    static func fullLabel(_ isoDate: String) -> String {
+        guard let date = parse(isoDate) else { return isoDate }
+        return shortDate(date)
+    }
+
+    static func parse(_ isoDate: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: String(isoDate.prefix(10)))
+    }
+
+    static func shortDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        f.setLocalizedDateFormatFromTemplate("d MMM")
+        let s = f.string(from: date)
+        return s.prefix(1).uppercased() + s.dropFirst()
+    }
+}
+
+enum RecurrentesMath {
+    /// Equivalente mensual aproximado del monto según su frecuencia.
+    static func monthlyEquivalent(amount: Double, frequency: Frequency) -> Double {
+        switch frequency {
+        case .daily: return amount * 30
+        case .weekly: return amount * 52 / 12
+        case .biweekly: return amount * 26 / 12
+        case .monthly: return amount
+        case .yearly: return amount / 12
+        }
+    }
+}

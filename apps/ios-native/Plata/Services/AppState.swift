@@ -29,6 +29,7 @@ final class AppState {
     var debts: [Debt] = []
     var goals: [SavingsGoal] = []
     var shoppingLists: [ShoppingList] = []
+    var recurringEvents: [RecurringEvent] = []
 
     var errorMessage: String?
 
@@ -123,6 +124,7 @@ final class AppState {
         async let debts = repo.fetchDebts(household: hh)
         async let goals = repo.fetchGoals(household: hh)
         async let lists = repo.fetchShoppingLists(household: hh)
+        async let recurring = repo.fetchRecurring(household: hh)
         self.accounts = (try? await accounts) ?? []
         self.transactions = (try? await transactions) ?? []
         self.categories = (try? await categories) ?? []
@@ -130,6 +132,7 @@ final class AppState {
         self.debts = (try? await debts) ?? []
         self.goals = (try? await goals) ?? []
         self.shoppingLists = (try? await lists) ?? []
+        self.recurringEvents = (try? await recurring) ?? []
     }
 
     // MARK: Derivados para la UI

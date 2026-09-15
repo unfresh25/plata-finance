@@ -84,6 +84,13 @@ struct Repository {
         ])
     }
 
+    func fetchRecurring(household: String) async throws -> [RecurringEvent] {
+        try await client.from("recurring_events", query: [
+            "household_id": "eq.\(household)", "select": "*",
+            "is_active": "eq.true", "order": "next_date",
+        ])
+    }
+
     // MARK: Mutaciones
 
     /// Crea una transacción y ajusta el saldo de la cuenta atómicamente vía RPC.

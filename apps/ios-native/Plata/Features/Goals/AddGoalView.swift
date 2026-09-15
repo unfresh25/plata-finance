@@ -1,0 +1,538 @@
+import SwiftUI
+
+// Crear una meta de ahorro. Paridad con app RN add-savings-goal.tsx: monto meta
+// GIGANTE teñido con el color del ícono elegido, nombre, selector de ícono +
+// color (presets), fecha límite opcional y cuenta vinculada opcional. Inserta en
+// `savings_goals` vía SupabaseClient y refresca AppState.
+
+struct AddGoalView: View {
+    @Environment(AppState.self) private var app
+    @Environment(\.dismiss) private var dismiss
+
+    // Formulario
+    @State private var amountDigits = ""
+    @State private var name = ""
+    @State private var preset: AddGoalPreset = AddGoalPreset.all[7] // Ahorro
+    @State private var accountId: String?
+    @State private var deadline = Date()
+    @State private var hasDeadline = false
+
+    @State private var showIconPicker = false
+    @State private var showAccountPicker = false
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    private var tint: Color { preset.color }
+
+    private var amountValue: Double { Double(amountDigits) ?? 0 }
+
+    private var canSave: Bool {
+        amountValue > 0 && !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var selectedAccount: Account? {
+        app.accounts.first { $0.id == accountId }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.bg.ignoresSafeArea()
+                content
+            }
+            .navigationTitle("Nueva meta")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .toolbarBackground(Palette.bg, for: .navigationBar)
+        }
+        .tint(Palette.accent)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Palette.bg)
+        .alert("No se pudo guardar", isPresented: errorBinding) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "Inténtalo de nuevo.")
+        }
+    }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: Space.xl) {
+                    amountDisplay
+                        .padding(.top, Space.l)
+
+                    selectors
+                }
+                .padding(.horizontal, Space.l)
+                .padding(.bottom, Space.l)
+            }
+
+            keypad
+
+            HStack(spacing: Space.m) {
+                // Píldora de ícono (abre el selector visual)
+                Button {
+                    showIconPicker = true
+                } label: {
+                    HStack(spacing: Space.s) {
+                        Image(systemName: preset.symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(preset.name)
+                            .font(Typo.callout)
+                    }
+                    .foregroundStyle(Palette.bg)
+                    .padding(.horizontal, Space.l)
+                    .padding(.vertical, Space.l)
+                    .background(tint, in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous))
+                }
+                .pressable()
+
+                PrimaryButton(
+                    title: isSaving ? "Guardando…" : "Guardar",
+                    icon: isSaving ? nil : "checkmark",
+                    tint: canSave ? Palette.ink : Palette.surfaceElevated,
+                    fg: canSave ? Palette.bg : Palette.inkTertiary
+                ) {
+                    save()
+                }
+                .disabled(!canSave || isSaving)
+            }
+            .padding(.horizontal, Space.l)
+            .padding(.top, Space.s)
+            .padding(.bottom, Space.s)
+        }
+    }
+
+    // MARK: - Monto meta gigante
+
+    private var amountDisplay: some View {
+        VStack(spacing: Space.xs) {
+            Text("META DESEADA")
+                .font(Typo.overline)
+                .tracking(1.2)
+                .foregroundStyle(tint)
+
+            Text(CurrencyFormatter.string(amountValue, currency: app.currency))
+                .font(Typo.amountHero(amountFontSize))
+                .monospacedDigit()
+                .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .contentTransition(.numericText(value: amountValue))
+                .animation(Motion.value, value: amountValue)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var amountFontSize: CGFloat {
+        switch CurrencyFormatter.string(amountValue, currency: app.currency).count {
+        case ...9: return 56
+        case 10...12: return 46
+        case 13...15: return 38
+        default: return 30
+        }
+    }
+
+    // MARK: - Selectores
+
+    private var selectors: some View {
+        VStack(spacing: Space.m) {
+            // Nombre
+            Card(padding: Space.m) {
+                HStack(spacing: Space.m) {
+                    AddGoalLeadingIcon(symbol: "target", tint: tint)
+                    TextField(
+                        "",
+                        text: $name,
+                        prompt: Text("¿Qué quieres lograr?").foregroundColor(Palette.inkTertiary)
+                    )
+                    .font(Typo.callout)
+                    .foregroundStyle(Palette.ink)
+                    .submitLabel(.done)
+                }
+            }
+
+            // Cuenta vinculada (opcional)
+            Button {
+                showAccountPicker = true
+            } label: {
+                Card(padding: Space.m) {
+                    HStack(spacing: Space.m) {
+                        AddGoalLeadingIcon(symbol: "building.columns.fill", tint: Palette.sky)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Cuenta vinculada")
+                                .font(Typo.caption)
+                                .foregroundStyle(Palette.inkTertiary)
+                            Text(selectedAccount?.name ?? "Solo referencial")
+                                .font(Typo.callout)
+                                .foregroundStyle(Palette.ink)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+            }
+            .pressable()
+
+            // Fecha límite (opcional)
+            Card(padding: Space.m) {
+                VStack(spacing: Space.m) {
+                    HStack(spacing: Space.m) {
+                        AddGoalLeadingIcon(symbol: "calendar", tint: Palette.purple)
+                        Text("Fecha límite")
+                            .font(Typo.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Toggle("", isOn: $hasDeadline)
+                            .labelsHidden()
+                            .tint(tint)
+                    }
+                    if hasDeadline {
+                        HStack {
+                            Spacer()
+                            DatePicker("", selection: $deadline, in: Date()..., displayedComponents: .date)
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                                .tint(Palette.accent)
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showIconPicker) {
+            AddGoalIconSheet(selection: $preset)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Palette.bg)
+        }
+        .sheet(isPresented: $showAccountPicker) {
+            AddGoalAccountSheet(accounts: app.accounts, selection: $accountId)
+                .presentationDetents([.medium])
+                .presentationBackground(Palette.bg)
+        }
+    }
+
+    // MARK: - Teclado numérico
+
+    private var keypad: some View {
+        VStack(spacing: Space.s) {
+            ForEach(keypadRows, id: \.self) { row in
+                HStack(spacing: Space.s) {
+                    ForEach(row, id: \.self) { key in
+                        AddGoalKeypadButton(key: key) { tap(key) }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, Space.l)
+        .padding(.vertical, Space.m)
+    }
+
+    private let keypadRows: [[KeypadKey]] = [
+        [.digit("1"), .digit("2"), .digit("3")],
+        [.digit("4"), .digit("5"), .digit("6")],
+        [.digit("7"), .digit("8"), .digit("9")],
+        [.clear, .digit("0"), .delete],
+    ]
+
+    private func tap(_ key: KeypadKey) {
+        switch key {
+        case .digit(let d):
+            guard amountDigits.count < 12 else { return }
+            if amountDigits.isEmpty && d == "0" { return }
+            amountDigits.append(d)
+        case .delete:
+            if !amountDigits.isEmpty { amountDigits.removeLast() }
+        case .clear:
+            amountDigits = ""
+        }
+    }
+
+    // MARK: - Guardar
+
+    private func save() {
+        guard canSave, let hh = app.household?.id else { return }
+        isSaving = true
+        saveError = nil
+
+        let payload = AddGoalInsert(
+            household_id: hh,
+            name: name.trimmingCharacters(in: .whitespaces),
+            target_amount: amountValue,
+            current_amount: 0,
+            deadline: hasDeadline ? Self.isoDate(deadline) : nil,
+            icon: preset.symbol,
+            color: preset.hex,
+            account_id: accountId,
+            status: "active"
+        )
+
+        Task {
+            do {
+                let _: [SavingsGoal] = try await SupabaseClient.shared.insert("savings_goals", values: payload)
+                await app.refreshAll()
+                isSaving = false
+                dismiss()
+            } catch {
+                isSaving = false
+                saveError = error.localizedDescription
+            }
+        }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })
+    }
+
+    private static func isoDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Presets de ícono + color (paridad con GOAL_ICONS del original)
+
+struct AddGoalPreset: Identifiable, Hashable {
+    let id: String
+    let symbol: String
+    let name: String
+    let color: Color
+    let hex: String
+
+    static let all: [AddGoalPreset] = [
+        .init(id: "1", symbol: "airplane", name: "Viaje", color: Color(hex: 0x3B82F6), hex: "#3B82F6"),
+        .init(id: "2", symbol: "house.fill", name: "Vivienda", color: Color(hex: 0x8B5CF6), hex: "#8B5CF6"),
+        .init(id: "3", symbol: "car.fill", name: "Vehículo", color: Color(hex: 0xF59E0B), hex: "#F59E0B"),
+        .init(id: "4", symbol: "laptopcomputer", name: "Tecnología", color: Color(hex: 0x10B981), hex: "#10B981"),
+        .init(id: "5", symbol: "heart.fill", name: "Salud", color: Color(hex: 0xEF4444), hex: "#EF4444"),
+        .init(id: "6", symbol: "book.fill", name: "Estudios", color: Color(hex: 0x06B6D4), hex: "#06B6D4"),
+        .init(id: "7", symbol: "star.fill", name: "Retiro", color: Color(hex: 0xEC4899), hex: "#EC4899"),
+        .init(id: "8", symbol: "banknote.fill", name: "Ahorro", color: Color(hex: 0x22C55E), hex: "#22C55E"),
+    ]
+}
+
+// MARK: - Payload de inserción
+
+private struct AddGoalInsert: Encodable {
+    let household_id: String
+    let name: String
+    let target_amount: Double
+    let current_amount: Double
+    let deadline: String?
+    let icon: String
+    let color: String
+    let account_id: String?
+    let status: String
+}
+
+// MARK: - Ícono principal de fila
+
+private struct AddGoalLeadingIcon: View {
+    let symbol: String
+    var tint: Color = Palette.accent
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 36, height: 36)
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+}
+
+// MARK: - Selector de ícono visual
+
+private struct AddGoalIconSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selection: AddGoalPreset
+
+    private let columns = [GridItem(.adaptive(minimum: 96), spacing: Space.m)]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.bg.ignoresSafeArea()
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: Space.m) {
+                        ForEach(AddGoalPreset.all) { p in
+                            Button {
+                                selection = p
+                                dismiss()
+                            } label: {
+                                cell(p)
+                            }
+                            .pressable()
+                        }
+                    }
+                    .padding(Space.l)
+                }
+            }
+            .navigationTitle("Elige un ícono")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
+                }
+            }
+            .toolbarBackground(Palette.bg, for: .navigationBar)
+        }
+        .tint(Palette.accent)
+    }
+
+    private func cell(_ p: AddGoalPreset) -> some View {
+        let isSelected = selection.id == p.id
+        return VStack(spacing: Space.s) {
+            CategoryIcon(systemName: p.symbol, color: p.color, size: 48)
+            Text(p.name)
+                .font(Typo.caption)
+                .foregroundStyle(isSelected ? Palette.ink : Palette.inkSecondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Space.m)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                .strokeBorder(isSelected ? p.color : Palette.stroke, lineWidth: isSelected ? 1.5 : 1)
+        )
+    }
+}
+
+// MARK: - Selector de cuenta vinculada
+
+private struct AddGoalAccountSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let accounts: [Account]
+    @Binding var selection: String?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.bg.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: Space.s) {
+                        // Ninguna
+                        Button {
+                            selection = nil
+                            dismiss()
+                        } label: {
+                            Card(padding: Space.m) {
+                                HStack(spacing: Space.m) {
+                                    AddGoalLeadingIcon(symbol: "circle.slash", tint: Palette.inkSecondary)
+                                    Text("Ninguna (solo referencial)")
+                                        .font(Typo.callout)
+                                        .foregroundStyle(Palette.inkSecondary)
+                                    Spacer()
+                                    if selection == nil {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Palette.accent)
+                                    }
+                                }
+                            }
+                        }
+                        .pressable()
+
+                        ForEach(accounts) { account in
+                            Button {
+                                selection = account.id
+                                dismiss()
+                            } label: {
+                                accountRow(account)
+                            }
+                            .pressable()
+                        }
+                    }
+                    .padding(Space.l)
+                }
+            }
+            .navigationTitle("Cuenta vinculada")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Listo") { dismiss() }.foregroundStyle(Palette.accent)
+                }
+            }
+            .toolbarBackground(Palette.bg, for: .navigationBar)
+        }
+        .tint(Palette.accent)
+    }
+
+    private func accountRow(_ account: Account) -> some View {
+        let isSelected = selection == account.id
+        let tint = Color(hexString: account.color) ?? Palette.sky
+        return Card(padding: Space.m) {
+            HStack(spacing: Space.m) {
+                Image(systemName: account.type.sfSymbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 40, height: 40)
+                    .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.name)
+                        .font(Typo.callout)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    Text(account.type.label)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                .strokeBorder(isSelected ? Palette.accent : .clear, lineWidth: 1.5)
+        )
+    }
+}
+
+// MARK: - Botón de teclado (prefijo único)
+
+private struct AddGoalKeypadButton: View {
+    let key: KeypadKey
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            content
+                .font(.system(size: 24, weight: .medium, design: .rounded))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .contentShape(Rectangle())
+        }
+        .pressable(scale: 0.94)
+    }
+
+    @ViewBuilder private var content: some View {
+        switch key {
+        case .digit(let d): Text(d).monospacedDigit()
+        case .delete: Image(systemName: "delete.left")
+        case .clear: Image(systemName: "xmark")
+        }
+    }
+
+    private var foreground: Color {
+        switch key {
+        case .digit: return Palette.ink
+        case .delete: return Palette.inkSecondary
+        case .clear: return Palette.inkTertiary
+        }
+    }
+}

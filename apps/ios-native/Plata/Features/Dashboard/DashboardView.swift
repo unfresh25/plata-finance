@@ -65,13 +65,31 @@ private struct DashboardHeader: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
             Spacer(minLength: Space.m)
-            avatar
+            HStack(spacing: Space.s) {
+                DashboardHeaderIcon(systemName: "calendar", destination: AnyView(CalendarView()))
+                DashboardHeaderIcon(systemName: "chart.bar.fill", destination: AnyView(ReportsView()))
+                avatar
+            }
         }
     }
 
     private var greeting: String {
         if let name, !name.isEmpty { return "Hola, \(name)" }
         return "Hola"
+    }
+
+    @ViewBuilder
+    private func DashboardHeaderIcon(systemName: String, destination: AnyView) -> some View {
+        NavigationLink {
+            destination
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Palette.inkSecondary)
+                .frame(width: 40, height: 40)
+                .background(Palette.surfaceElevated, in: Circle())
+                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
+        }
     }
 
     private var avatar: some View {
