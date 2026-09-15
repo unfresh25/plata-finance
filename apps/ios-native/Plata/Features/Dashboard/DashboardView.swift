@@ -10,22 +10,25 @@ struct DashboardView: View {
     /// Cuántos movimientos mostramos en la vista previa del inicio.
     private let recentCount = 6
 
+    // Long-press en un movimiento reciente → editar (reutiliza la pantalla de alta).
+    @State private var editTarget: Transaction?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 DashboardHeader(name: app.profile?.name, avatarUrl: app.profile?.avatarUrl)
 
-                DashboardBalanceCard(
+                // Balance total + ingresos/gastos del mes, todo plano y alineado
+                // a la izquierda. Sin cards: la jerarquía es puro tipo + espacio.
+                DashboardBalanceBlock(
                     balance: app.totalBalance,
-                    currency: app.currency
-                )
-
-                DashboardKPIRow(
                     income: app.monthIncome,
                     expense: app.monthExpense,
                     currency: app.currency
                 )
 
+                // ÚNICA excepción a "sin cards": el carrusel de tarjetas de cuenta
+                // estilo crédito (AccountCreditCard) — esas sí son tarjetas de verdad.
                 if !app.accounts.isEmpty {
                     DashboardAccountsCarousel(
                         accounts: app.accounts,
@@ -37,7 +40,8 @@ struct DashboardView: View {
                     transactions: Array(app.transactions.prefix(recentCount)),
                     hasAnyData: !app.transactions.isEmpty,
                     resolveCategory: { app.category(for: $0) },
-                    currency: app.currency
+                    currency: app.currency,
+                    onEdit: { editTarget = $0 }
                 )
             }
             .padding(.horizontal, Space.l)
@@ -46,6 +50,10 @@ struct DashboardView: View {
         }
         .background(Palette.bg.ignoresSafeArea())
         .scrollIndicators(.hidden)
+        .sheet(item: $editTarget) { _ in
+            // Edición reutiliza la pantalla de alta (ver nota en el resumen).
+            AddTransactionView()
+        }
     }
 }
 
@@ -115,89 +123,57 @@ private struct DashboardHeader: View {
     }
 }
 
-// MARK: - Balance total gigante
+// MARK: - Balance total + ingresos/gastos del mes (bloque plano)
 
-private struct DashboardBalanceCard: View {
+/// Bloque de cabecera del dashboard, completamente plano (sin cards):
+/// - overline "Balance total"
+/// - monto grande (~42pt) con tracking negativo sutil y tabular-nums
+/// - fila de InlineStat con ingresos (verde) y gastos (pink) del mes
+/// Todo alineado a la izquierda, como el diseño legacy.
+private struct DashboardBalanceBlock: View {
     let balance: Double
-    let currency: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            SectionLabel(text: "Balance total")
-            AmountText(
-                amount: balance,
-                currency: currency,
-                font: Typo.amountHero(52)
-            )
-            .tracking(-0.8)
-            .lineLimit(1)
-            .minimumScaleFactor(0.5)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, Space.s)
-    }
-}
-
-// MARK: - Fila de KPIs (ingreso / gasto del mes)
-
-private struct DashboardKPIRow: View {
     let income: Double
     let expense: Double
     let currency: String
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            DashboardKPICard(
-                title: "Ingresos del mes",
-                amount: income,
-                tint: Palette.green,
-                icon: "arrow.up.right",
-                currency: currency
-            )
-            DashboardKPICard(
-                title: "Gastos del mes",
-                amount: expense,
-                tint: Palette.pink,
-                icon: "arrow.down.right",
-                currency: currency
-            )
-        }
-    }
-}
+        VStack(alignment: .leading, spacing: Space.l) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text("Balance total".uppercased())
+                    .font(Typo.overline)
+                    .tracking(0.8)
+                    .foregroundStyle(Palette.inkTertiary)
 
-private struct DashboardKPICard: View {
-    let title: String
-    let amount: Double
-    let tint: Color
-    let icon: String
-    let currency: String
+                AmountText(
+                    amount: balance,
+                    currency: currency,
+                    font: Typo.amountHero(42)
+                )
+                // Tracking negativo sutil: aprieta el número grande sin estirarlo.
+                .tracking(-1)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+            }
 
-    var body: some View {
-        Card(padding: Space.l) {
-            VStack(alignment: .leading, spacing: Space.m) {
-                HStack(spacing: Space.s) {
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(tint)
-                        .frame(width: 24, height: 24)
-                        .background(tint.opacity(0.16), in: Circle())
-                        // Hairline del propio color: define el chip sin glow (coherente con CategoryIcon).
-                        .overlay(Circle().strokeBorder(tint.opacity(0.22), lineWidth: 0.5))
-                    Spacer(minLength: 0)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(CurrencyFormatter.string(amount, currency: currency))
-                        .font(Typo.amountMedium)
-                        .monospacedDigit()
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Text(title)
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
+            // Ingresos / Gastos del mes, en fila, planos, a la izquierda.
+            HStack(alignment: .top, spacing: Space.xxl) {
+                InlineStat(
+                    label: "Ingresos del mes",
+                    amount: income,
+                    currency: currency,
+                    tint: Palette.green,
+                    icon: "arrow.up.right"
+                )
+                InlineStat(
+                    label: "Gastos del mes",
+                    amount: expense,
+                    currency: currency,
+                    tint: Palette.pink,
+                    icon: "arrow.down.right"
+                )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -247,36 +223,66 @@ private struct DashboardRecentSection: View {
     let hasAnyData: Bool
     let resolveCategory: (String?) -> Category?
     let currency: String
+    var onEdit: (Transaction) -> Void = { _ in }
+
+    // Destino de detalle disparado desde el long-press "Ver detalle".
+    @State private var detailTarget: Transaction?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionLabel(text: "Movimientos recientes")
+        VStack(alignment: .leading, spacing: Space.s) {
+            // Header plano: overline + acción "Ver todos" que navega a Movimientos.
+            HStack {
+                Text("Movimientos recientes".uppercased())
+                    .font(Typo.overline)
+                    .tracking(0.8)
+                    .foregroundStyle(Palette.inkTertiary)
+                Spacer()
+                if !transactions.isEmpty {
+                    NavigationLink {
+                        TransactionsView()
+                    } label: {
+                        Text("Ver todos")
+                            .font(Typo.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Palette.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.94)
+                }
+            }
 
             if transactions.isEmpty {
                 DashboardEmptyState(hasAnyData: hasAnyData)
             } else {
-                Card(padding: Space.xs) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(transactions.enumerated()), id: \.element.id) { index, tx in
-                            NavigationLink {
-                                TransactionDetailView(transaction: tx)
-                            } label: {
-                                DashboardTransactionRow(
-                                    transaction: tx,
-                                    category: resolveCategory(tx.categoryId),
-                                    currency: currency
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .pressable()
-
-                            if index < transactions.count - 1 {
-                                Divider()
-                                    .overlay(Palette.stroke)
-                                    .padding(.leading, 44 + Space.m + Space.m)
-                            }
+                // Lista plana con separadores hairline (no card). El divisor arranca
+                // tras el logo/ícono de 40 + gap para alinearse con el texto.
+                PlainList(transactions, dividerInset: 40 + Space.m) { tx in
+                    NavigationLink {
+                        TransactionDetailView(transaction: tx)
+                    } label: {
+                        DashboardTransactionRow(
+                            transaction: tx,
+                            category: resolveCategory(tx.categoryId),
+                            currency: currency
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .pressable()
+                    .contextMenu {
+                        Button {
+                            detailTarget = tx
+                        } label: {
+                            Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
+                        }
+                        Button {
+                            onEdit(tx)
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
                         }
                     }
+                }
+                .navigationDestination(item: $detailTarget) { tx in
+                    TransactionDetailView(transaction: tx)
                 }
             }
         }
@@ -289,37 +295,34 @@ private struct DashboardTransactionRow: View {
     let currency: String
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            CategoryIcon(
-                systemName: iconName,
-                color: tint,
-                size: 44
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(DashboardStyle.relativeDate(from: transaction.date))
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: logo,
+                    systemName: iconName,
+                    color: tint,
+                    size: 40
+                )
+            },
+            title: title,
+            subtitle: subtitle,
+            trailing: {
+                AmountText(
+                    amount: signedAmount,
+                    currency: currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
+                .lineLimit(1)
             }
+        )
+    }
 
-            Spacer(minLength: Space.s)
-
-            AmountText(
-                amount: signedAmount,
-                currency: currency,
-                font: Typo.amount,
-                signed: true,
-                tintBySign: true
-            )
-            .lineLimit(1)
-        }
-        .padding(.vertical, Space.s)
-        .padding(.horizontal, Space.m)
-        .contentShape(Rectangle())
+    /// Logo de app si la descripción coincide con una suscripción conocida
+    /// (Netflix, Spotify…); si no, `nil` y se usa el ícono de categoría en color.
+    private var logo: Image? {
+        SubscriptionLogo.image(for: DashboardStyle.logoSlug(from: transaction.description))
     }
 
     /// Ingreso positivo, gasto/transferencia negativo — coherente con el color por signo.
@@ -331,6 +334,16 @@ private struct DashboardTransactionRow: View {
         if let desc = transaction.description, !desc.isEmpty { return desc }
         if let category, !category.name.isEmpty { return category.name }
         return transaction.type.label
+    }
+
+    /// Subtítulo: categoría (si hay descripción distinta) + fecha relativa.
+    private var subtitle: String {
+        let relative = DashboardStyle.relativeDate(from: transaction.date)
+        if let category, !category.name.isEmpty,
+           let desc = transaction.description, !desc.isEmpty {
+            return "\(category.name) · \(relative)"
+        }
+        return relative
     }
 
     private var tint: Color {
@@ -358,27 +371,26 @@ private struct DashboardEmptyState: View {
     let hasAnyData: Bool
 
     var body: some View {
-        Card {
-            VStack(spacing: Space.m) {
-                Image(systemName: "tray")
-                    .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(Palette.inkTertiary)
-                    .frame(width: 56, height: 56)
-                    .background(Palette.surfaceElevated, in: Circle())
+        // Estado vacío plano (sin card): ícono suave centrado + mensaje amable.
+        VStack(spacing: Space.m) {
+            Image(systemName: "tray")
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(Palette.inkTertiary)
+                .frame(width: 56, height: 56)
+                .background(Palette.surfaceElevated, in: Circle())
 
-                Text("Aún no hay movimientos")
-                    .font(Typo.headline)
-                    .foregroundStyle(Palette.ink)
+            Text("Aún no hay movimientos")
+                .font(Typo.headline)
+                .foregroundStyle(Palette.ink)
 
-                Text("Registra tu primer ingreso o gasto y lo verás aquí.")
-                    .font(Typo.subhead)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Space.l)
+            Text("Registra tu primer ingreso o gasto y lo verás aquí.")
+                .font(Typo.subhead)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Space.xl)
     }
 }
 
@@ -394,6 +406,28 @@ private enum DashboardStyle {
         startPoint: .top,
         endPoint: .bottom
     )
+
+    /// Deriva un slug de logo de app a partir de la descripción de un movimiento
+    /// (p.ej. "Netflix febrero" → "netflix"). Devuelve `nil` si no hay match en el
+    /// catálogo, para caer al ícono de categoría. Prueba la descripción completa
+    /// normalizada y cada palabra suelta.
+    static func logoSlug(from description: String?) -> String? {
+        guard let raw = description?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !raw.isEmpty else { return nil }
+
+        // "youtube music" / "apple music" → "youtube-music" / "apple-music".
+        let joined = raw.replacingOccurrences(of: " ", with: "-")
+        if SubscriptionLogo.all.contains(joined) { return joined }
+
+        // Palabra a palabra: la primera que coincida exactamente con un logo.
+        for word in raw.split(separator: " ") {
+            let w = String(word)
+            if SubscriptionLogo.all.contains(w) { return w }
+        }
+        return nil
+    }
 
     /// Convierte un color hex de datos (`"#RRGGBB"` o `"RRGGBB"`) a `Color`.
     /// Fallback al acento de marca si no se puede parsear.

@@ -2,67 +2,87 @@ import SwiftUI
 
 // Hub de finanzas (era la tab "finances" de la app RN). Centro de navegación de
 // todo lo que no es dashboard ni transacciones: cuentas, deudas, metas de ahorro,
-// listas de compra, presupuestos y suscripciones/recurrentes. Cada sección tiene
-// su SectionLabel, un acceso "Ver todas" que empuja la vista de lista completa, y
-// un "+" para crear. Los ítems individuales navegan a su detalle cuando existe.
+// presupuestos, suscripciones/recurrentes y listas de compra.
 //
-// Datos desde app.* (accounts, debts, goals, shoppingLists, budgets,
-// recurringEvents, transactions, categories). Nada de red aquí salvo el conteo de
-// ítems de las listas de compra, que se carga bajo demanda con el Repository.
+// Rediseño FLAT (Monarch/YNAB): NADA de cards. Título grande "Finanzas", y cada
+// bloque es una sección plana (header overline + "Ver todas" + "+") con filas
+// separadas por hairlines. La jerarquía se construye con tipografía y espaciado,
+// no con contenedores. Progreso siempre inline y legible.
+//
+// Datos desde app.* (accounts, debts, goals, budgets, recurringEvents,
+// shoppingLists, transactions, categories). Sin red aquí.
 
 struct FinancesView: View {
     @Environment(AppState.self) private var app
 
     @State private var showingAddAccount = false
+    @State private var showingAddDebt = false
+    @State private var showingAddGoal = false
+    @State private var showingAddBudget = false
+    @State private var showingAddRecurring = false
+    @State private var showingAddShopping = false
+    @State private var selectedRecurring: RecurringEvent?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
-                FinanzashubAccountsSection(
+            VStack(alignment: .leading, spacing: Space.xxl) {
+                // Título grande, tracking negativo sutil.
+                Text("Finanzas")
+                    .font(Typo.titleXL)
+                    .tracking(-0.6)
+                    .foregroundStyle(Palette.ink)
+                    .padding(.bottom, Space.xs)
+
+                FinHubAccountsSection(
                     accounts: app.accounts,
                     total: app.totalBalance,
                     currency: app.currency,
                     onAdd: { showingAddAccount = true }
                 )
 
-                FinanzashubDebtsSection(
+                FinHubDebtsSection(
                     debts: app.debts.filter { $0.status == .active },
-                    currency: app.currency
+                    currency: app.currency,
+                    onAdd: { showingAddDebt = true }
                 )
 
-                FinanzashubGoalsSection(
+                FinHubGoalsSection(
                     goals: app.goals.filter { $0.status == .active },
-                    currency: app.currency
+                    currency: app.currency,
+                    onAdd: { showingAddGoal = true }
                 )
 
-                FinanzashubShoppingSection(
-                    lists: app.shoppingLists.filter { $0.status != .completed },
-                    currency: app.currency
-                )
-
-                FinanzashubBudgetsSection(
+                FinHubBudgetsSection(
                     budgets: app.budgets,
                     resolveCategory: { app.category(for: $0) },
-                    spent: { FinanzashubMath.spent(for: $0, in: app.transactions) },
-                    currency: app.currency
+                    spent: { FinHubMath.spent(for: $0, in: app.transactions) },
+                    currency: app.currency,
+                    onAdd: { showingAddBudget = true }
                 )
 
-                FinanzashubRecurringSection(
+                FinHubRecurringSection(
                     events: app.recurringEvents.filter { $0.isActive },
                     resolveCategory: { app.category(for: $0) },
-                    currency: app.currency
+                    currency: app.currency,
+                    onSelect: { selectedRecurring = $0 },
+                    onAdd: { showingAddRecurring = true }
+                )
+
+                FinHubShoppingSection(
+                    lists: app.shoppingLists.filter { $0.status != .completed },
+                    onAdd: { showingAddShopping = true }
                 )
             }
             .padding(.horizontal, Space.l)
-            .padding(.top, Space.s)
+            .padding(.top, Space.l)
             .padding(.bottom, Space.xxxl)
         }
         .background(Palette.bg.ignoresSafeArea())
         .scrollIndicators(.hidden)
-        .navigationTitle("Finanzas")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: SavingsGoal.self) { GoalDetailView(goal: $0) }
         .navigationDestination(for: ShoppingList.self) { ShoppingListDetailView(list: $0) }
-        .navigationDestination(for: FinanzashubRoute.self) { route in
+        .navigationDestination(for: FinHubRoute.self) { route in
             switch route {
             case .accounts: AccountsView()
             case .debts: DebtsView()
@@ -72,23 +92,27 @@ struct FinancesView: View {
             case .recurring: RecurringView()
             }
         }
-        .sheet(isPresented: $showingAddAccount) {
-            AddAccountView()
-        }
+        .sheet(isPresented: $showingAddAccount) { AddAccountView() }
+        .sheet(isPresented: $showingAddDebt) { AddDebtView() }
+        .sheet(isPresented: $showingAddGoal) { AddGoalView() }
+        .sheet(isPresented: $showingAddBudget) { AddBudgetView() }
+        .sheet(isPresented: $showingAddRecurring) { AddRecurringView() }
+        .sheet(isPresented: $showingAddShopping) { AddShoppingListView() }
+        .sheet(item: $selectedRecurring) { RecurringDetailView(event: $0) }
     }
 }
 
 // MARK: - Rutas de sección (vistas de lista completas)
 
-private enum FinanzashubRoute: Hashable {
+private enum FinHubRoute: Hashable {
     case accounts, debts, goals, shopping, budgets, recurring
 }
 
-// MARK: - Encabezado de sección del hub (label + "ver todas" + "+")
+// MARK: - Encabezado de sección plano (label + "ver todas" + "+")
 
-private struct FinanzashubSectionHeader: View {
+private struct FinHubHeader: View {
     let title: String
-    var route: FinanzashubRoute? = nil
+    var route: FinHubRoute? = nil
     var addAction: (() -> Void)? = nil
 
     var body: some View {
@@ -98,7 +122,7 @@ private struct FinanzashubSectionHeader: View {
                 .tracking(0.8)
                 .foregroundStyle(Palette.inkTertiary)
 
-            Spacer()
+            Spacer(minLength: Space.s)
 
             if let route {
                 NavigationLink(value: route) {
@@ -113,33 +137,45 @@ private struct FinanzashubSectionHeader: View {
             if let addAction {
                 Button(action: addAction) {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Palette.accent)
-                        .frame(width: 28, height: 28)
-                        .liquidGlassTinted(Palette.accent.opacity(0.16), cornerRadius: 14, interactive: true)
-                        .clipShape(Circle())
-                        // Borde superior luminoso (luz sobre el material), no un aro plano.
-                        .overlay(
-                            Circle().strokeBorder(
-                                LinearGradient(
-                                    colors: [.white.opacity(0.20), .white.opacity(0.04)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.75
-                            )
-                        )
+                        .frame(width: 26, height: 26)
+                        .background(Palette.accent.opacity(0.14), in: Circle())
                 }
-                .pressable(scale: 0.96)
-                .accessibilityLabel("Añadir")
+                .buttonStyle(.plain)
+                .pressable(scale: 0.94)
+                .accessibilityLabel("Añadir \(title)")
             }
         }
     }
 }
 
+// MARK: - Estado vacío plano (sin card)
+
+private struct FinHubEmptyRow: View {
+    let icon: String
+    let tint: Color
+    let text: String
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            Text(text)
+                .font(Typo.subhead)
+                .foregroundStyle(Palette.inkSecondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, Space.s)
+    }
+}
+
 // MARK: - Cuentas
 
-private struct FinanzashubAccountsSection: View {
+private struct FinHubAccountsSection: View {
     let accounts: [Account]
     let total: Double
     let currency: String
@@ -147,42 +183,31 @@ private struct FinanzashubAccountsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Cuentas", route: .accounts, addAction: onAdd)
+            FinHubHeader(title: "Cuentas", route: .accounts, addAction: onAdd)
 
             if accounts.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "creditcard",
-                    tint: Palette.sky,
-                    text: "Sin cuentas todavía. Usa el “+” para crear una."
-                )
+                FinHubEmptyRow(icon: "creditcard", tint: Palette.sky,
+                               text: "Sin cuentas todavía. Usa el “+” para crear una.")
             } else {
-                Card {
-                    VStack(spacing: 0) {
-                        // Total del hogar arriba.
-                        HStack {
-                            Text("Balance total")
-                                .font(Typo.callout)
-                                .foregroundStyle(Palette.inkSecondary)
-                            Spacer()
-                            AmountText(amount: total, currency: currency, font: Typo.amountMedium)
+                VStack(spacing: 0) {
+                    // Balance total como fila destacada arriba.
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Balance total")
+                            .font(Typo.headline)
+                            .foregroundStyle(Palette.ink)
+                        Spacer(minLength: Space.s)
+                        AmountText(amount: total, currency: currency, font: Typo.amountMedium)
+                    }
+                    .padding(.vertical, Space.m)
+
+                    RowDivider()
+
+                    PlainList(accounts, dividerInset: 40 + Space.m) { account in
+                        NavigationLink(value: FinHubRoute.accounts) {
+                            FinHubAccountRow(account: account, currency: currency)
                         }
-                        .padding(.bottom, Space.m)
-
-                        Divider().overlay(Palette.stroke)
-                            .padding(.bottom, Space.s)
-
-                        ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
-                            NavigationLink(value: FinanzashubRoute.accounts) {
-                                FinanzashubAccountRow(account: account, currency: currency)
-                            }
-                            .buttonStyle(.plain)
-                            .pressable()
-
-                            if index < accounts.count - 1 {
-                                Divider().overlay(Palette.stroke)
-                                    .padding(.leading, 40 + Space.m)
-                            }
-                        }
+                        .buttonStyle(.plain)
+                        .pressable()
                     }
                 }
             }
@@ -190,69 +215,72 @@ private struct FinanzashubAccountsSection: View {
     }
 }
 
-private struct FinanzashubAccountRow: View {
+private struct FinHubAccountRow: View {
     let account: Account
     let currency: String
 
-    private var tint: Color { FinanzashubHex.color(account.color, fallbackFor: account.id) }
+    private var tint: Color { FinHubHex.color(account.color, fallbackFor: account.id) }
 
     var body: some View {
         HStack(spacing: Space.m) {
-            CategoryIcon(systemName: account.type.sfSymbol, color: tint, size: 40)
+            RowLeadingIcon(systemName: account.type.sfSymbol, color: tint, size: 40)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(account.name)
-                    .font(Typo.callout)
+                    .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(account.type.label)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: Space.s)
 
             AmountText(amount: account.balance, currency: currency, font: Typo.amount)
         }
-        .padding(.vertical, Space.s)
+        .padding(.vertical, Space.m)
         .contentShape(Rectangle())
     }
 }
 
-// MARK: - Deudas
+// MARK: - Deudas (Nos deben / Debemos)
 
-private struct FinanzashubDebtsSection: View {
+private struct FinHubDebtsSection: View {
     let debts: [Debt]
     let currency: String
+    let onAdd: () -> Void
 
     private var owedToUs: [Debt] { debts.filter { $0.direction == .owedToUs } }
     private var weOwe: [Debt] { debts.filter { $0.direction == .weOwe } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Deudas", route: .debts)
+            FinHubHeader(title: "Deudas", route: .debts, addAction: onAdd)
 
             if debts.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "hand.thumbsup.fill",
-                    tint: Palette.green,
-                    text: "Sin deudas registradas."
-                )
+                FinHubEmptyRow(icon: "hand.thumbsup.fill", tint: Palette.green,
+                               text: "Sin deudas registradas. Todo en paz.")
             } else {
-                Card {
-                    VStack(spacing: 0) {
-                        let rows = owedToUs + weOwe
-                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, debt in
-                            NavigationLink(value: FinanzashubRoute.debts) {
-                                FinanzashubDebtRow(debt: debt, currency: currency)
-                            }
-                            .buttonStyle(.plain)
-                            .pressable()
-
-                            if index < rows.count - 1 {
-                                Divider().overlay(Palette.stroke)
-                            }
-                        }
+                VStack(alignment: .leading, spacing: Space.l) {
+                    if !owedToUs.isEmpty {
+                        FinHubDebtGroup(
+                            label: "Nos deben",
+                            debts: owedToUs,
+                            tint: Palette.green,
+                            positive: true,
+                            currency: currency
+                        )
+                    }
+                    if !weOwe.isEmpty {
+                        FinHubDebtGroup(
+                            label: "Debemos",
+                            debts: weOwe,
+                            tint: Palette.pink,
+                            positive: false,
+                            currency: currency
+                        )
                     }
                 }
             }
@@ -260,103 +288,128 @@ private struct FinanzashubDebtsSection: View {
     }
 }
 
-private struct FinanzashubDebtRow: View {
-    let debt: Debt
+private struct FinHubDebtGroup: View {
+    let label: String
+    let debts: [Debt]
+    let tint: Color
+    let positive: Bool
     let currency: String
 
-    private var isOwedToUs: Bool { debt.direction == .owedToUs }
-    private var tint: Color { isOwedToUs ? Palette.green : Palette.pink }
+    private var total: Double { debts.reduce(0) { $0 + $1.remaining } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            // Etiqueta de subsección con total al lado, en el color de la dirección.
+            HStack(spacing: Space.s) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 7, height: 7)
+                Text(label)
+                    .font(Typo.caption)
+                    .tracking(0.4)
+                    .foregroundStyle(tint)
+                Spacer(minLength: Space.s)
+                Text((positive ? "+" : "−") + CurrencyFormatter.string(total, currency: currency))
+                    .font(Typo.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+            }
+            .padding(.top, Space.xs)
+
+            PlainList(debts, dividerInset: 0) { debt in
+                NavigationLink(value: FinHubRoute.debts) {
+                    FinHubDebtRow(debt: debt, tint: tint, positive: positive, currency: currency)
+                }
+                .buttonStyle(.plain)
+                .pressable()
+            }
+        }
+    }
+}
+
+private struct FinHubDebtRow: View {
+    let debt: Debt
+    let tint: Color
+    let positive: Bool
+    let currency: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            HStack(alignment: .top, spacing: Space.m) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(debt.description?.isEmpty == false ? debt.description! : "Deuda")
-                        .font(Typo.callout)
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(debt.personName.isEmpty ? "Sin nombre" : debt.personName)
+                        .font(Typo.headline)
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    Text(subtitle)
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                        .lineLimit(1)
+                    if let note = debt.description, !note.isEmpty {
+                        Text(note)
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: Space.s)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text((isOwedToUs ? "+" : "−") + CurrencyFormatter.string(debt.remaining, currency: currency))
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text((positive ? "+" : "−") + CurrencyFormatter.string(debt.remaining, currency: currency))
                         .font(Typo.amount)
                         .monospacedDigit()
                         .foregroundStyle(tint)
-                    Text("Restante")
+                    Text("de \(CurrencyFormatter.compact(debt.amount))")
                         .font(Typo.caption)
+                        .monospacedDigit()
                         .foregroundStyle(Palette.inkTertiary)
                 }
             }
 
+            // Progreso inline delgado + porcentaje, muy legible.
             HStack(spacing: Space.s) {
-                FinanzashubProgressBar(progress: debt.progress, tint: tint)
+                FinHubProgressBar(progress: debt.progress, tint: tint, height: 5)
                 Text("\(Int((debt.progress * 100).rounded())) %")
                     .font(Typo.caption)
                     .monospacedDigit()
                     .foregroundStyle(Palette.inkTertiary)
-                    .frame(width: 34, alignment: .trailing)
+                    .frame(width: 36, alignment: .trailing)
             }
         }
         .padding(.vertical, Space.m)
         .contentShape(Rectangle())
     }
-
-    private var subtitle: String {
-        let base = isOwedToUs ? "Nos deben" : "Debemos"
-        return debt.personName.isEmpty ? base : "\(base) • \(debt.personName)"
-    }
 }
 
 // MARK: - Metas de ahorro
 
-private struct FinanzashubGoalsSection: View {
+private struct FinHubGoalsSection: View {
     let goals: [SavingsGoal]
     let currency: String
+    let onAdd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Metas de ahorro", route: .goals)
+            FinHubHeader(title: "Metas", route: .goals, addAction: onAdd)
 
             if goals.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "target",
-                    tint: Palette.accent,
-                    text: "Sin metas establecidas."
-                )
+                FinHubEmptyRow(icon: "target", tint: Palette.accent,
+                               text: "Sin metas de ahorro todavía.")
             } else {
-                Card {
-                    VStack(spacing: 0) {
-                        ForEach(Array(goals.enumerated()), id: \.element.id) { index, goal in
-                            NavigationLink(value: goal) {
-                                FinanzashubGoalRow(goal: goal, index: index, currency: currency)
-                            }
-                            .buttonStyle(.plain)
-                            .pressable()
-
-                            if index < goals.count - 1 {
-                                Divider().overlay(Palette.stroke)
-                                    .padding(.leading, 44 + Space.m)
-                            }
-                        }
+                PlainList(goals, dividerInset: 44 + Space.m) { goal in
+                    NavigationLink(value: goal) {
+                        FinHubGoalRow(goal: goal, currency: currency)
                     }
+                    .buttonStyle(.plain)
+                    .pressable()
                 }
             }
         }
     }
 }
 
-private struct FinanzashubGoalRow: View {
+private struct FinHubGoalRow: View {
     let goal: SavingsGoal
-    let index: Int
     let currency: String
 
-    private var tint: Color { FinanzashubHex.color(goal.color, fallbackIndex: index) }
+    private var tint: Color { FinHubHex.color(goal.color, fallbackFor: goal.id) }
     private var symbol: String {
         goal.icon.contains(".") ? goal.icon : IconMapping.sfSymbol(for: goal.icon)
     }
@@ -364,26 +417,27 @@ private struct FinanzashubGoalRow: View {
     var body: some View {
         HStack(spacing: Space.m) {
             ZStack {
-                ProgressRing(progress: goal.progress, color: tint, lineWidth: 5, size: 44)
-                Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
+                ProgressRing(progress: goal.progress, color: tint, lineWidth: 4, size: 44)
+                Text("\(Int((goal.progress * 100).rounded()))")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .monospacedDigit()
                     .foregroundStyle(tint)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(goal.name)
-                    .font(Typo.callout)
+                    .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
 
             Spacer(minLength: Space.s)
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 1) {
                 Text(CurrencyFormatter.string(goal.currentAmount, currency: currency))
                     .font(Typo.amount)
                     .monospacedDigit()
@@ -394,145 +448,72 @@ private struct FinanzashubGoalRow: View {
                     .foregroundStyle(Palette.inkTertiary)
             }
         }
-        .padding(.vertical, Space.s)
+        .padding(.vertical, Space.m)
         .contentShape(Rectangle())
     }
 
     private var subtitle: String {
         if let deadline = goal.deadline, !deadline.isEmpty {
-            return "Objetivo: \(FinanzashubDate.short(deadline))"
+            return "Objetivo: \(FinHubDate.short(deadline))"
         }
         return "Ahorro libre"
     }
 }
 
-// MARK: - Listas de compra
-
-private struct FinanzashubShoppingSection: View {
-    let lists: [ShoppingList]
-    let currency: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Listas de compra", route: .shopping)
-
-            if lists.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "cart",
-                    tint: Palette.sky,
-                    text: "Sin listas de compra."
-                )
-            } else {
-                Card {
-                    VStack(spacing: 0) {
-                        ForEach(Array(lists.enumerated()), id: \.element.id) { index, list in
-                            NavigationLink(value: list) {
-                                FinanzashubShoppingRow(list: list)
-                            }
-                            .buttonStyle(.plain)
-                            .pressable()
-
-                            if index < lists.count - 1 {
-                                Divider().overlay(Palette.stroke)
-                                    .padding(.leading, 40 + Space.m)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct FinanzashubShoppingRow: View {
-    let list: ShoppingList
-
-    private var tint: Color { ShoppingStatusStyle.tint(for: list.status) }
-
-    var body: some View {
-        HStack(spacing: Space.m) {
-            CategoryIcon(systemName: "cart.fill", color: tint, size: 40)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(list.name)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: Space.s)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.inkTertiary)
-        }
-        .padding(.vertical, Space.s)
-        .contentShape(Rectangle())
-    }
-
-    private var subtitle: String {
-        ShoppingStatusStyle.label(for: list.status)
-            + ((list.store?.isEmpty == false) ? " • \(list.store!)" : "")
-    }
-}
-
 // MARK: - Presupuestos
 
-private struct FinanzashubBudgetsSection: View {
+private struct FinHubBudgetsSection: View {
     let budgets: [Budget]
     let resolveCategory: (String?) -> Category?
     let spent: (Budget) -> Double
     let currency: String
+    let onAdd: () -> Void
 
     private var totalSpent: Double { budgets.reduce(0) { $0 + spent($1) } }
     private var totalLimit: Double { budgets.reduce(0) { $0 + $1.amount } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Presupuestos", route: .budgets)
+            FinHubHeader(title: "Presupuestos", route: .budgets, addAction: onAdd)
 
             if budgets.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "chart.pie.fill",
-                    tint: Palette.amber,
-                    text: "Sin presupuestos este mes."
-                )
+                FinHubEmptyRow(icon: "chart.pie.fill", tint: Palette.amber,
+                               text: "Sin presupuestos este mes.")
             } else {
-                Card {
-                    VStack(alignment: .leading, spacing: Space.l) {
-                        // Resumen mensual arriba.
+                VStack(spacing: 0) {
+                    // Resumen del mes como fila destacada arriba.
+                    VStack(alignment: .leading, spacing: Space.s) {
                         HStack(alignment: .firstTextBaseline) {
                             Text("Gasto del mes")
-                                .font(Typo.callout)
-                                .foregroundStyle(Palette.inkSecondary)
-                            Spacer()
-                            Text("\(CurrencyFormatter.string(totalSpent, currency: currency)) / \(CurrencyFormatter.compact(totalLimit))")
-                                .font(Typo.callout)
-                                .monospacedDigit()
+                                .font(Typo.headline)
                                 .foregroundStyle(Palette.ink)
+                            Spacer(minLength: Space.s)
+                            Text("\(CurrencyFormatter.string(totalSpent, currency: currency)) / \(CurrencyFormatter.compact(totalLimit))")
+                                .font(Typo.subhead)
+                                .monospacedDigit()
+                                .foregroundStyle(Palette.inkSecondary)
                         }
-
-                        FinanzashubProgressBar(
+                        FinHubProgressBar(
                             progress: totalLimit > 0 ? totalSpent / totalLimit : 0,
-                            tint: FinanzashubMath.color(for: totalLimit > 0 ? totalSpent / totalLimit : 0),
-                            height: 8
+                            tint: FinHubMath.color(for: totalLimit > 0 ? totalSpent / totalLimit : 0),
+                            height: 6
                         )
+                    }
+                    .padding(.vertical, Space.m)
 
-                        Divider().overlay(Palette.stroke)
+                    RowDivider()
 
-                        ForEach(Array(budgets.enumerated()), id: \.element.id) { index, budget in
-                            FinanzashubBudgetRow(
+                    PlainList(budgets, dividerInset: 0) { budget in
+                        NavigationLink(value: FinHubRoute.budgets) {
+                            FinHubBudgetRow(
                                 budget: budget,
                                 category: resolveCategory(budget.categoryId),
                                 spent: spent(budget),
-                                index: index,
                                 currency: currency
                             )
                         }
+                        .buttonStyle(.plain)
+                        .pressable()
                     }
                 }
             }
@@ -540,26 +521,25 @@ private struct FinanzashubBudgetsSection: View {
     }
 }
 
-private struct FinanzashubBudgetRow: View {
+private struct FinHubBudgetRow: View {
     let budget: Budget
     let category: Category?
     let spent: Double
-    let index: Int
     let currency: String
 
     private var ratio: Double { budget.amount > 0 ? spent / budget.amount : 0 }
-    private var tint: Color { FinanzashubHex.color(category?.color, fallbackIndex: index) }
-    private var barColor: Color { FinanzashubMath.color(for: ratio) }
+    private var tint: Color { FinHubHex.color(category?.color, fallbackFor: budget.id) }
+    private var barColor: Color { FinHubMath.color(for: ratio) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
                 Image(systemName: IconMapping.sfSymbol(for: category?.icon))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(tint)
-                    .frame(width: 20)
+                    .frame(width: 22)
                 Text(category?.name ?? "Sin categoría")
-                    .font(Typo.callout)
+                    .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: Space.s)
@@ -569,44 +549,68 @@ private struct FinanzashubBudgetRow: View {
                     .foregroundStyle(Palette.inkSecondary)
             }
 
-            FinanzashubProgressBar(progress: ratio, tint: barColor)
+            HStack(spacing: Space.s) {
+                FinHubProgressBar(progress: ratio, tint: barColor, height: 5)
+                    .padding(.leading, 22 + Space.s)
+                Text("\(Int((min(1, ratio) * 100).rounded())) %")
+                    .font(Typo.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.inkTertiary)
+                    .frame(width: 36, alignment: .trailing)
+            }
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 
 // MARK: - Suscripciones / Recurrentes
 
-private struct FinanzashubRecurringSection: View {
+private struct FinHubRecurringSection: View {
     let events: [RecurringEvent]
     let resolveCategory: (String?) -> Category?
     let currency: String
+    let onSelect: (RecurringEvent) -> Void
+    let onAdd: () -> Void
+
+    // Total mensual normalizado (todas las frecuencias a base mensual).
+    private var monthlyTotal: Double {
+        events.reduce(0) { $0 + FinHubMath.monthlyEquivalent(event: $1) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            FinanzashubSectionHeader(title: "Suscripciones", route: .recurring)
+            FinHubHeader(title: "Suscripciones", route: .recurring, addAction: onAdd)
 
             if events.isEmpty {
-                FinanzashubEmptyCard(
-                    icon: "repeat",
-                    tint: Palette.purple,
-                    text: "Sin pagos recurrentes."
-                )
+                FinHubEmptyRow(icon: "repeat", tint: Palette.purple,
+                               text: "Sin pagos recurrentes.")
             } else {
-                Card {
-                    VStack(spacing: 0) {
-                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                            FinanzashubRecurringRow(
+                VStack(spacing: 0) {
+                    // Total mensual como fila destacada arriba.
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Total mensual")
+                            .font(Typo.headline)
+                            .foregroundStyle(Palette.ink)
+                        Spacer(minLength: Space.s)
+                        AmountText(amount: monthlyTotal, currency: currency, font: Typo.amountMedium)
+                    }
+                    .padding(.vertical, Space.m)
+
+                    RowDivider()
+
+                    PlainList(events, dividerInset: 40 + Space.m) { event in
+                        Button {
+                            onSelect(event)
+                        } label: {
+                            FinHubRecurringRow(
                                 event: event,
                                 category: resolveCategory(event.categoryId),
-                                index: index,
                                 currency: currency
                             )
-
-                            if index < events.count - 1 {
-                                Divider().overlay(Palette.stroke)
-                                    .padding(.leading, 40 + Space.m)
-                            }
                         }
+                        .buttonStyle(.plain)
+                        .pressable()
                     }
                 }
             }
@@ -614,60 +618,111 @@ private struct FinanzashubRecurringSection: View {
     }
 }
 
-private struct FinanzashubRecurringRow: View {
+private struct FinHubRecurringRow: View {
     let event: RecurringEvent
     let category: Category?
-    let index: Int
     let currency: String
 
-    // Slug de logo derivado del nombre del evento (Spotify, Netflix, …).
-    private var logo: Image? { SubscriptionLogo.image(for: FinanzashubLogo.slug(for: event.name)) }
-    private var tint: Color { FinanzashubHex.color(category?.color, fallbackIndex: index) }
+    // Prioriza el logo real guardado; si no, deriva del nombre; si no, ícono.
+    private var logo: Image? {
+        SubscriptionLogo.imageForStoredId(event.logoId)
+            ?? SubscriptionLogo.image(for: FinHubLogo.slug(for: event.name))
+    }
+    private var tint: Color { FinHubHex.color(category?.color, fallbackFor: event.id) }
     private var symbol: String { IconMapping.sfSymbol(for: category?.icon ?? "repeat") }
 
     var body: some View {
         HStack(spacing: Space.m) {
-            // Logo de la app si lo tenemos; si no, ícono de categoría en círculo.
-            if let logo {
-                logo
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .frame(width: 40, height: 40)
-                    .background(Palette.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
-            } else {
-                CategoryIcon(systemName: symbol, color: tint, size: 40)
-            }
+            RowLeadingIcon(logo: logo, systemName: symbol, color: tint, size: 40)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(event.name)
-                    .font(Typo.callout)
+                    .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-                Text("\(event.frequency.label) • Próximo: \(FinanzashubDate.short(event.nextDate))")
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                Text("\(event.frequency.label) • \(FinHubDate.short(event.nextDate))")
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
             }
 
             Spacer(minLength: Space.s)
 
-            Text(CurrencyFormatter.string(event.amount, currency: currency))
-                .font(Typo.amount)
-                .monospacedDigit()
-                .foregroundStyle(Palette.ink)
+            AmountText(amount: event.amount, currency: currency, font: Typo.amount)
         }
-        .padding(.vertical, Space.s)
+        .padding(.vertical, Space.m)
         .contentShape(Rectangle())
     }
 }
 
-// MARK: - Barra de progreso reutilizable del hub
+// MARK: - Listas de compra
 
-private struct FinanzashubProgressBar: View {
+private struct FinHubShoppingSection: View {
+    let lists: [ShoppingList]
+    let onAdd: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            FinHubHeader(title: "Listas de compra", route: .shopping, addAction: onAdd)
+
+            if lists.isEmpty {
+                FinHubEmptyRow(icon: "cart", tint: Palette.sky,
+                               text: "Sin listas de compra activas.")
+            } else {
+                PlainList(lists, dividerInset: 40 + Space.m) { list in
+                    NavigationLink(value: list) {
+                        FinHubShoppingRow(list: list)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable()
+                }
+            }
+        }
+    }
+}
+
+private struct FinHubShoppingRow: View {
+    let list: ShoppingList
+
+    private var tint: Color { ShoppingStatusStyle.tint(for: list.status) }
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            RowLeadingIcon(systemName: "cart.fill", color: tint, size: 40)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(list.name)
+                    .font(Typo.headline)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: Space.s)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.inkTertiary)
+        }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
+    }
+
+    private var subtitle: String {
+        ShoppingStatusStyle.label(for: list.status)
+            + ((list.store?.isEmpty == false) ? " • \(list.store!)" : "")
+    }
+}
+
+// MARK: - Barra de progreso inline (plana, delgada)
+
+private struct FinHubProgressBar: View {
     var progress: Double
     var tint: Color
-    var height: CGFloat = 6
+    var height: CGFloat = 5
 
     var body: some View {
         GeometryReader { geo in
@@ -684,34 +739,10 @@ private struct FinanzashubProgressBar: View {
     }
 }
 
-// MARK: - Tarjeta de estado vacío del hub
+// MARK: - Helpers privados del hub (nombres únicos)
 
-private struct FinanzashubEmptyCard: View {
-    let icon: String
-    let tint: Color
-    let text: String
-
-    var body: some View {
-        Card {
-            HStack(spacing: Space.m) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
-                Text(text)
-                    .font(Typo.subhead)
-                    .foregroundStyle(Palette.inkSecondary)
-                Spacer(minLength: 0)
-            }
-        }
-    }
-}
-
-// MARK: - Helpers privados del hub (nombres únicos para evitar colisiones)
-
-/// Cálculo de gasto por presupuesto y color de riesgo. Réplica local para el hub.
-private enum FinanzashubMath {
+/// Cálculo de gasto por presupuesto, color de riesgo y normalización mensual.
+private enum FinHubMath {
     static func spent(for budget: Budget, in transactions: [Transaction]) -> Double {
         let prefix = String(ISO8601DateFormatter().string(from: Date()).prefix(budget.period == .weekly ? 10 : 7))
         return transactions
@@ -731,6 +762,17 @@ private enum FinanzashubMath {
         }
     }
 
+    /// Aproxima el costo mensual de un evento recurrente según su frecuencia.
+    static func monthlyEquivalent(event: RecurringEvent) -> Double {
+        switch event.frequency {
+        case .daily: return event.amount * 30
+        case .weekly: return event.amount * 52 / 12
+        case .biweekly: return event.amount * 2
+        case .monthly: return event.amount
+        case .yearly: return event.amount / 12
+        }
+    }
+
     private static func matches(date: String, period: BudgetPeriod, prefix: String) -> Bool {
         switch period {
         case .monthly:
@@ -743,18 +785,19 @@ private enum FinanzashubMath {
     private static func sameWeek(_ dateString: String) -> Bool {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withFullDate]
-        guard let date = iso.date(from: String(dateString.prefix(10))) else { return false }
+        guard iso.date(from: String(dateString.prefix(10))) != nil else { return false }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(identifier: "UTC")
+        df.dateFormat = "yyyy-MM-dd"
+        guard let date = df.date(from: String(dateString.prefix(10))) else { return false }
         let cal = Calendar(identifier: .iso8601)
         return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
     }
 }
 
 /// Parseo de color hex del backend ("#RRGGBB" / "RRGGBB") con fallback estable.
-private enum FinanzashubHex {
-    static func color(_ hex: String?, fallbackIndex: Int) -> Color {
-        parse(hex) ?? Palette.categoryColor(for: fallbackIndex)
-    }
-
+private enum FinHubHex {
     static func color(_ hex: String?, fallbackFor id: String) -> Color {
         parse(hex) ?? Palette.categoryColor(for: abs(id.hashValue))
     }
@@ -770,7 +813,7 @@ private enum FinanzashubHex {
 }
 
 /// Fecha corta "d MMM" en español para deadlines y próximos pagos.
-private enum FinanzashubDate {
+private enum FinHubDate {
     static func short(_ raw: String) -> String {
         guard let date = parse(raw) else { return raw }
         let f = DateFormatter()
@@ -796,17 +839,14 @@ private enum FinanzashubDate {
     }
 }
 
-/// Deriva el slug de logo de suscripción a partir del nombre del evento
-/// recurrente (ej. "Spotify Premium" → "spotify"), comparando contra el catálogo.
-private enum FinanzashubLogo {
+/// Deriva el slug de logo de suscripción a partir del nombre del evento.
+private enum FinHubLogo {
     static func slug(for name: String) -> String? {
         let n = name
             .folding(options: .diacriticInsensitive, locale: .current)
             .lowercased()
             .trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return nil }
-
-        // Coincidencia por palabra clave: el slug (sin guiones) contenido en el nombre.
         for slug in SubscriptionLogo.all {
             let key = slug.replacingOccurrences(of: "-", with: "").trimmingCharacters(in: .whitespaces)
             guard key.count >= 2 else { continue }

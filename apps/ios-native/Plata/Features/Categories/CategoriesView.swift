@@ -84,49 +84,23 @@ private struct CategorasSection: View {
     let onEdit: (Category) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            SectionLabel(text: title)
-                .padding(.horizontal, Space.xs)
-
+        PlainSection(title: title) {
             if categories.isEmpty {
                 Text("No hay categorías aquí.")
                     .font(Typo.subhead)
                     .foregroundStyle(Palette.inkTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Space.xl)
-                    .background(
-                        Palette.surface,
-                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                            .strokeBorder(Palette.stroke, lineWidth: 1)
-                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, Space.l)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(categories.enumerated()), id: \.element.id) { index, cat in
-                        NavigationLink {
-                            CategoryDetailView(category: cat, onEdit: { onEdit(cat) })
-                        } label: {
-                            CategorasRow(category: cat)
-                        }
-                        .pressable()
-
-                        if index < categories.count - 1 {
-                            Divider()
-                                .overlay(Palette.stroke)
-                                .padding(.leading, 44 + Space.m + Space.l)
-                        }
+                PlainList(categories, dividerInset: 44 + Space.m) { cat in
+                    NavigationLink {
+                        CategoryDetailView(category: cat, onEdit: { onEdit(cat) })
+                    } label: {
+                        CategorasRow(category: cat)
                     }
+                    .buttonStyle(.plain)
+                    .pressable()
                 }
-                .background(
-                    Palette.surface,
-                    in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                        .strokeBorder(Palette.stroke, lineWidth: 1)
-                )
             }
         }
     }
@@ -156,7 +130,7 @@ private struct CategorasRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Palette.inkTertiary)
         }
-        .padding(Space.l)
+        .padding(.vertical, Space.m)
         .contentShape(Rectangle())
     }
 }

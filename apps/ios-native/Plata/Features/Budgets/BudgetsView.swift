@@ -9,18 +9,17 @@ struct BudgetsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: Space.m) {
+            VStack(alignment: .leading, spacing: 0) {
                 if app.budgets.isEmpty {
                     BudgetsEmptyState()
                         .padding(.top, Space.xxxl)
                 } else {
-                    SectionLabel(text: "Presupuestos del mes")
-                        .padding(.horizontal, Space.xs)
-                        .padding(.top, Space.s)
-
-                    ForEach(Array(app.budgets.enumerated()), id: \.element.id) { index, budget in
-                        BudgetRowCard(budget: budget, index: index)
+                    PlainSection(title: "Presupuestos del mes") {
+                        PlainList(indexed(app.budgets), dividerInset: 0) { pair in
+                            BudgetPlainRow(budget: pair.budget, index: pair.index)
+                        }
                     }
+                    .padding(.top, Space.s)
                 }
             }
             .padding(.horizontal, Space.l)
@@ -29,11 +28,21 @@ struct BudgetsView: View {
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Presupuestos")
     }
+
+    private func indexed(_ budgets: [Budget]) -> [BudgetIndexPair] {
+        budgets.enumerated().map { BudgetIndexPair(index: $0.offset, budget: $0.element) }
+    }
 }
 
-// MARK: - Fila de presupuesto
+private struct BudgetIndexPair: Identifiable {
+    let index: Int
+    let budget: Budget
+    var id: String { budget.id }
+}
 
-private struct BudgetRowCard: View {
+// MARK: - Fila de presupuesto (plana, sin card)
+
+private struct BudgetPlainRow: View {
     @Environment(AppState.self) private var app
     let budget: Budget
     let index: Int
@@ -53,52 +62,52 @@ private struct BudgetRowCard: View {
     }
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Space.m) {
-                HStack(spacing: Space.m) {
-                    CategoryIcon(
-                        systemName: BudgetPalette.symbol(for: category),
-                        color: tint,
-                        size: 40
-                    )
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.m) {
+                CategoryIcon(
+                    systemName: BudgetPalette.symbol(for: category),
+                    color: tint,
+                    size: 40
+                )
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(category?.name ?? "Sin categoría")
-                            .font(Typo.headline)
-                            .foregroundStyle(Palette.ink)
-                        Text(budget.period == .weekly ? "Semanal" : "Mensual")
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        AmountText(amount: spent, currency: app.currency, font: Typo.amount)
-                        Text("de \(CurrencyFormatter.compact(budget.amount))")
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                            .monospacedDigit()
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(category?.name ?? "Sin categoría")
+                        .font(Typo.headline)
+                        .foregroundStyle(Palette.ink)
+                    Text(budget.period == .weekly ? "Semanal" : "Mensual")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
 
-                BudgetProgressBar(ratio: ratio, color: barColor)
+                Spacer(minLength: Space.s)
 
-                HStack {
-                    Text("\(Int((ratio * 100).rounded())) % usado")
+                VStack(alignment: .trailing, spacing: 2) {
+                    AmountText(amount: spent, currency: app.currency, font: Typo.amount)
+                    Text("de \(CurrencyFormatter.compact(budget.amount))")
                         .font(Typo.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .monospacedDigit()
-                    Spacer()
-                    Text(remaining >= 0
-                         ? "Quedan \(CurrencyFormatter.string(remaining, currency: app.currency))"
-                         : "Excedido \(CurrencyFormatter.string(-remaining, currency: app.currency))")
-                        .font(Typo.caption)
-                        .foregroundStyle(remaining >= 0 ? Palette.inkSecondary : Palette.negative)
+                        .foregroundStyle(Palette.inkTertiary)
                         .monospacedDigit()
                 }
             }
+
+            BudgetProgressBar(ratio: ratio, color: barColor)
+
+            HStack {
+                Text("\(Int((ratio * 100).rounded())) % usado")
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .monospacedDigit()
+                Spacer()
+                Text(remaining >= 0
+                     ? "Quedan \(CurrencyFormatter.string(remaining, currency: app.currency))"
+                     : "Excedido \(CurrencyFormatter.string(-remaining, currency: app.currency))")
+                    .font(Typo.caption)
+                    .foregroundStyle(remaining >= 0 ? Palette.inkSecondary : Palette.negative)
+                    .monospacedDigit()
+            }
         }
+        .padding(.vertical, Space.l)
+        .contentShape(Rectangle())
     }
 }
 

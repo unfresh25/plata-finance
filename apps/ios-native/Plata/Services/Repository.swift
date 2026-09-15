@@ -84,6 +84,12 @@ struct Repository {
         ])
     }
 
+    func fetchMembers(household: String) async throws -> [Profile] {
+        try await client.from("profiles", query: [
+            "household_id": "eq.\(household)", "select": "id,name,avatar_url,currency,household_id",
+        ])
+    }
+
     func fetchRecurring(household: String) async throws -> [RecurringEvent] {
         try await client.from("recurring_events", query: [
             "household_id": "eq.\(household)", "select": "*",

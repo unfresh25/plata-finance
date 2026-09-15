@@ -30,6 +30,7 @@ final class AppState {
     var goals: [SavingsGoal] = []
     var shoppingLists: [ShoppingList] = []
     var recurringEvents: [RecurringEvent] = []
+    var members: [Profile] = []   // miembros del hogar (para resolver created_by)
 
     var errorMessage: String?
 
@@ -125,6 +126,7 @@ final class AppState {
         async let goals = repo.fetchGoals(household: hh)
         async let lists = repo.fetchShoppingLists(household: hh)
         async let recurring = repo.fetchRecurring(household: hh)
+        async let members = repo.fetchMembers(household: hh)
         self.accounts = (try? await accounts) ?? []
         self.transactions = (try? await transactions) ?? []
         self.categories = (try? await categories) ?? []
@@ -133,6 +135,7 @@ final class AppState {
         self.goals = (try? await goals) ?? []
         self.shoppingLists = (try? await lists) ?? []
         self.recurringEvents = (try? await recurring) ?? []
+        self.members = (try? await members) ?? []
     }
 
     // MARK: Derivados para la UI
@@ -144,6 +147,18 @@ final class AppState {
     func category(for id: String?) -> Category? {
         guard let id else { return nil }
         return categories.first { $0.id == id }
+    }
+
+    /// Perfil de un miembro del hogar por su id (para resolver created_by).
+    func member(for id: String?) -> Profile? {
+        guard let id else { return nil }
+        if let p = members.first(where: { $0.id == id }) { return p }
+        return profile?.id == id ? profile : nil
+    }
+
+    func account(for id: String?) -> Account? {
+        guard let id else { return nil }
+        return accounts.first { $0.id == id }
     }
 
     /// Gasto e ingreso del mes en curso.

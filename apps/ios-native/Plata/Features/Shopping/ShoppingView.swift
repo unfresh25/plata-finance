@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Listas de compra de la pareja. Cada lista es una tarjeta tappable que abre
-// su detalle con los ítems chequeables.
+// Listas de compra de la pareja. Diseño PLANO: una sección con filas separadas
+// por hairlines (sin cards). Cada fila abre el detalle con los ítems chequeables.
 
 struct ShoppingView: View {
     @Environment(AppState.self) private var app
@@ -9,21 +9,21 @@ struct ShoppingView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Space.m) {
+                VStack(alignment: .leading, spacing: 0) {
                     if app.shoppingLists.isEmpty {
                         ShoppingEmptyState()
                             .padding(.top, Space.xxxl)
                     } else {
-                        SectionLabel(text: "Listas")
-                            .padding(.bottom, Space.xs)
-                        ForEach(app.shoppingLists) { list in
-                            NavigationLink {
-                                ShoppingListDetailView(list: list)
-                            } label: {
-                                ShoppingListCard(list: list, currency: app.currency)
+                        PlainSection(title: "Listas") {
+                            PlainList(app.shoppingLists) { list in
+                                NavigationLink {
+                                    ShoppingListDetailView(list: list)
+                                } label: {
+                                    ShoppingListRow(list: list, currency: app.currency)
+                                }
+                                .buttonStyle(.plain)
+                                .pressable()
                             }
-                            .buttonStyle(.plain)
-                            .pressable()
                         }
                     }
                 }
@@ -36,58 +36,58 @@ struct ShoppingView: View {
     }
 }
 
-// MARK: - Tarjeta de lista
+// MARK: - Fila de lista (plana, sin card)
 
-private struct ShoppingListCard: View {
+private struct ShoppingListRow: View {
     let list: ShoppingList
     let currency: String
 
     var body: some View {
-        Card {
-            HStack(spacing: Space.m) {
-                CategoryIcon(
-                    systemName: "cart.fill",
-                    color: ShoppingStatusStyle.tint(for: list.status),
-                    size: 44
-                )
+        HStack(spacing: Space.m) {
+            CategoryIcon(
+                systemName: "cart.fill",
+                color: ShoppingStatusStyle.tint(for: list.status),
+                size: 44
+            )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(list.name)
-                        .font(Typo.headline)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(list.name)
+                    .font(Typo.headline)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
 
-                    HStack(spacing: Space.s) {
-                        ShoppingStatusBadge(status: list.status)
-                        if let store = list.store, !store.isEmpty {
-                            Label(store, systemImage: "storefront")
-                                .labelStyle(.titleAndIcon)
-                                .font(Typo.caption)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-
-                Spacer(minLength: Space.s)
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    if let estimated = list.estimatedTotal, estimated > 0 {
-                        Text(CurrencyFormatter.string(estimated, currency: currency))
-                            .font(Typo.amount)
-                            .monospacedDigit()
-                            .foregroundStyle(Palette.ink)
-                        Text("estimado")
+                HStack(spacing: Space.s) {
+                    ShoppingStatusBadge(status: list.status)
+                    if let store = list.store, !store.isEmpty {
+                        Label(store, systemImage: "storefront")
+                            .labelStyle(.titleAndIcon)
                             .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
                     }
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Palette.inkTertiary)
-                        .padding(.top, 2)
                 }
             }
+
+            Spacer(minLength: Space.s)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                if let estimated = list.estimatedTotal, estimated > 0 {
+                    Text(CurrencyFormatter.string(estimated, currency: currency))
+                        .font(Typo.amount)
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.ink)
+                    Text("estimado")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkTertiary)
+                    .padding(.top, 2)
+            }
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 

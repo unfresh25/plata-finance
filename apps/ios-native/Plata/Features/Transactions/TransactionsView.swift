@@ -11,6 +11,10 @@ struct TransactionsView: View {
 
     @State private var query = ""
     @State private var showingAdd = false
+    // Movimiento pendiente de mostrar en detalle desde el long-press "Ver detalle".
+    @State private var detailTarget: Transaction?
+    // Movimiento pendiente de editar desde el long-press "Editar".
+    @State private var editTarget: Transaction?
 
     var body: some View {
         NavigationStack {
@@ -30,9 +34,17 @@ struct TransactionsView: View {
             // Sin navigation bar: el título vive en el header custom, así se
             // elimina el espacio fantasma sobre el buscador.
             .toolbar(.hidden, for: .navigationBar)
+            // Destino de detalle disparado desde el long-press "Ver detalle".
+            .navigationDestination(item: $detailTarget) { tx in
+                TransactionDetailView(transaction: tx)
+            }
         }
         .tint(Palette.accent)
         .sheet(isPresented: $showingAdd) {
+            AddTransactionView()
+        }
+        .sheet(item: $editTarget) { _ in
+            // Edición reutiliza la pantalla de alta (ver nota en el resumen).
             AddTransactionView()
         }
     }
@@ -111,6 +123,18 @@ struct TransactionsView: View {
                             }
                             .buttonStyle(.plain)
                             .pressable()
+                            .contextMenu {
+                                Button {
+                                    detailTarget = tx
+                                } label: {
+                                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
+                                }
+                                Button {
+                                    editTarget = tx
+                                } label: {
+                                    Label("Editar", systemImage: "pencil")
+                                }
+                            }
                             if index < group.items.count - 1 {
                                 Divider()
                                     .overlay(Palette.stroke)

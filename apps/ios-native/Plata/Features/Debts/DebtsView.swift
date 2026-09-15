@@ -1,191 +1,209 @@
 import SwiftUI
 
 // Pantalla de deudas de la pareja: qué nos deben y qué debemos, con progreso.
-// Verde para lo que nos deben (a favor), pink para lo que debemos (en contra).
+// Rediseño FLAT (Monarch/YNAB): sin cards. Dos secciones planas "Nos deben"
+// (verde, a favor) y "Debemos" (pink, en contra), cada una con su total y filas
+// separadas por hairlines. Progreso inline delgado y muy legible por fila.
 
 struct DebtsView: View {
     @Environment(AppState.self) private var app
 
+    @State private var showAdd = false
+
     private var owedToUs: [Debt] {
-        app.debts.filter { $0.direction == .owedToUs }
+        app.debts.filter { $0.direction == .owedToUs && $0.status == .active }
     }
     private var weOwe: [Debt] {
-        app.debts.filter { $0.direction == .weOwe }
+        app.debts.filter { $0.direction == .weOwe && $0.status == .active }
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Space.xl) {
-                    if app.debts.isEmpty {
-                        DebtsEmptyState()
-                            .padding(.top, Space.xxxl)
-                    } else {
-                        DebtsSection(
-                            title: "Nos deben",
-                            debts: owedToUs,
-                            tint: Palette.green,
-                            emptyHint: "Nadie te debe por ahora.",
-                            currency: app.currency
-                        )
-                        DebtsSection(
-                            title: "Debemos",
-                            debts: weOwe,
-                            tint: Palette.pink,
-                            emptyHint: "No deben nada. Bien ahí.",
-                            currency: app.currency
-                        )
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.xxl) {
+                // Título grande, tracking negativo sutil.
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Deudas")
+                        .font(Typo.titleXL)
+                        .tracking(-0.6)
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    Button {
+                        showAdd = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Palette.accent)
+                            .frame(width: 32, height: 32)
+                            .background(Palette.accent.opacity(0.14), in: Circle())
                     }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.94)
+                    .accessibilityLabel("Añadir deuda")
                 }
-                .padding(.horizontal, Space.l)
-                .padding(.vertical, Space.l)
+
+                if owedToUs.isEmpty && weOwe.isEmpty {
+                    DebtsEmptyState()
+                        .padding(.top, Space.xxl)
+                } else {
+                    DebtsSection(
+                        title: "Nos deben",
+                        debts: owedToUs,
+                        tint: Palette.green,
+                        positive: true,
+                        emptyHint: "Nadie te debe por ahora.",
+                        currency: app.currency
+                    )
+                    DebtsSection(
+                        title: "Debemos",
+                        debts: weOwe,
+                        tint: Palette.pink,
+                        positive: false,
+                        emptyHint: "No deben nada. Bien ahí.",
+                        currency: app.currency
+                    )
+                }
             }
-            .background(Palette.bg.ignoresSafeArea())
-            .navigationTitle("Deudas")
+            .padding(.horizontal, Space.l)
+            .padding(.top, Space.l)
+            .padding(.bottom, Space.xxxl)
         }
+        .background(Palette.bg.ignoresSafeArea())
+        .scrollIndicators(.hidden)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showAdd) { AddDebtView() }
     }
 }
 
-// MARK: - Sección (nos deben / debemos)
+// MARK: - Sección plana (nos deben / debemos)
 
 private struct DebtsSection: View {
     let title: String
     let debts: [Debt]
     let tint: Color
+    let positive: Bool
     let emptyHint: String
     let currency: String
 
-    private var total: Double {
-        debts.reduce(0) { $0 + $1.remaining }
-    }
+    private var total: Double { debts.reduce(0) { $0 + $1.remaining } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionLabel(text: title)
-                Spacer()
+        VStack(alignment: .leading, spacing: Space.s) {
+            // Header: label con punto de color + total a la derecha.
+            HStack(spacing: Space.s) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 7, height: 7)
+                Text(title.uppercased())
+                    .font(Typo.overline)
+                    .tracking(0.8)
+                    .foregroundStyle(tint)
+                Spacer(minLength: Space.s)
                 if !debts.isEmpty {
-                    Text(CurrencyFormatter.string(total, currency: currency))
-                        .font(Typo.caption)
+                    Text((positive ? "+" : "−") + CurrencyFormatter.string(total, currency: currency))
+                        .font(Typo.callout)
                         .monospacedDigit()
                         .foregroundStyle(tint)
                 }
             }
 
             if debts.isEmpty {
-                Card {
-                    Text(emptyHint)
-                        .font(Typo.subhead)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
+                Text(emptyHint)
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkTertiary)
+                    .padding(.vertical, Space.s)
             } else {
-                VStack(spacing: Space.m) {
-                    ForEach(debts) { debt in
-                        DebtsRowCard(debt: debt, tint: tint, currency: currency)
-                    }
+                PlainList(debts, dividerInset: 0) { debt in
+                    DebtsRow(debt: debt, tint: tint, positive: positive, currency: currency)
                 }
             }
         }
     }
 }
 
-// MARK: - Tarjeta de deuda
+// MARK: - Fila de deuda plana (progreso inline legible)
 
-private struct DebtsRowCard: View {
+private struct DebtsRow: View {
     let debt: Debt
     let tint: Color
+    let positive: Bool
     let currency: String
 
     private var isSettled: Bool { debt.status == .paid || debt.remaining <= 0 }
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Space.m) {
-                HStack(spacing: Space.m) {
-                    CategoryIcon(
-                        systemName: "person.fill",
-                        color: tint,
-                        size: 44
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(debt.personName)
-                            .font(Typo.headline)
-                            .foregroundStyle(Palette.ink)
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(debt.personName.isEmpty ? "Sin nombre" : debt.personName)
+                        .font(Typo.headline)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                    if let note = debt.description, !note.isEmpty {
+                        Text(note)
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
-                        if let description = debt.description, !description.isEmpty {
-                            Text(description)
-                                .font(Typo.subhead)
-                                .foregroundStyle(Palette.inkSecondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer(minLength: Space.s)
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        AmountText(
-                            amount: debt.remaining,
-                            currency: currency,
-                            font: Typo.amount
-                        )
-                        .foregroundStyle(isSettled ? Palette.inkSecondary : tint)
-                        // Badge de estado sobre Card glass → capa teñida sutil, no glass.
-                        Text(isSettled ? "Saldado" : "Pendiente")
-                            .font(Typo.caption)
-                            .foregroundStyle(isSettled ? Palette.inkTertiary : tint)
-                            .padding(.horizontal, Space.s)
-                            .padding(.vertical, 2)
-                            .background(
-                                (isSettled ? Palette.inkTertiary : tint).opacity(0.14),
-                                in: Capsule()
-                            )
-                            .overlay(
-                                Capsule().strokeBorder(
-                                    (isSettled ? Palette.inkTertiary : tint).opacity(0.26),
-                                    lineWidth: 0.5
-                                )
-                            )
+                    } else if let due = debt.dueDate, !due.isEmpty {
+                        Text("Vence \(DebtsDate.short(due))")
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
                     }
                 }
 
-                DebtsProgressBar(progress: debt.progress, tint: tint)
+                Spacer(minLength: Space.s)
 
-                HStack {
-                    Text("Pagado \(CurrencyFormatter.string(debt.amountPaid, currency: currency))")
-                        .font(Typo.caption)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text((positive ? "+" : "−") + CurrencyFormatter.string(debt.remaining, currency: currency))
+                        .font(Typo.amount)
                         .monospacedDigit()
-                        .foregroundStyle(Palette.inkSecondary)
-                    Spacer()
-                    Text("de \(CurrencyFormatter.string(debt.amount, currency: currency))")
+                        .foregroundStyle(isSettled ? Palette.inkSecondary : tint)
+                    Text(isSettled ? "Saldado" : "de \(CurrencyFormatter.compact(debt.amount))")
                         .font(Typo.caption)
                         .monospacedDigit()
                         .foregroundStyle(Palette.inkTertiary)
                 }
             }
+
+            // Progreso inline delgado + monto pagado, muy legible.
+            HStack(spacing: Space.s) {
+                DebtsProgressBar(progress: debt.progress, tint: tint, height: 5)
+                Text("\(Int((debt.progress * 100).rounded())) %")
+                    .font(Typo.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.inkTertiary)
+                    .frame(width: 36, alignment: .trailing)
+            }
+
+            Text("Pagado \(CurrencyFormatter.string(debt.amountPaid, currency: currency)) de \(CurrencyFormatter.string(debt.amount, currency: currency))")
+                .font(Typo.caption)
+                .monospacedDigit()
+                .foregroundStyle(Palette.inkTertiary)
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 
-// MARK: - Barra de progreso de deuda
+// MARK: - Barra de progreso inline (plana)
 
 private struct DebtsProgressBar: View {
     let progress: Double
     let tint: Color
+    var height: CGFloat = 5
 
     var body: some View {
         GeometryReader { geo in
             let clamped = max(0, min(1, progress))
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Palette.surfaceElevated)
+                Capsule().fill(Palette.surfaceElevated)
                 Capsule()
                     .fill(tint)
-                    .frame(width: max(6, geo.size.width * clamped))
+                    .frame(width: max(height, geo.size.width * clamped))
                     .animation(Motion.value, value: clamped)
             }
         }
-        .frame(height: 6)
+        .frame(height: height)
     }
 }
 
@@ -207,5 +225,33 @@ private struct DebtsEmptyState: View {
                 .padding(.horizontal, Space.xl)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Fecha corta local
+
+private enum DebtsDate {
+    static func short(_ raw: String) -> String {
+        guard let date = parse(raw) else { return raw }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        let cal = Calendar.current
+        f.dateFormat = cal.component(.year, from: date) == cal.component(.year, from: Date())
+            ? "d 'de' MMM" : "d MMM yyyy"
+        return f.string(from: date).replacingOccurrences(of: ".", with: "")
+    }
+
+    private static func parse(_ raw: String) -> Date? {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = iso.date(from: raw) { return d }
+        iso.formatOptions = [.withInternetDateTime]
+        if let d = iso.date(from: raw) { return d }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(identifier: "UTC")
+        df.dateFormat = "yyyy-MM-dd"
+        if raw.count >= 10 { return df.date(from: String(raw.prefix(10))) }
+        return nil
     }
 }

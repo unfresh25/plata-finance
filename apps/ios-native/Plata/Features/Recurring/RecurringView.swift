@@ -28,25 +28,27 @@ struct RecurringView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: Space.m) {
+            VStack(alignment: .leading, spacing: 0) {
                 if events.isEmpty {
                     RecurrentesEmptyState { showAdd = true }
                         .padding(.top, Space.xxxl)
                 } else {
-                    RecurrentesSummaryCard(monthlyTotal: monthlyTotal, count: events.filter(\.isActive).count)
+                    RecurrentesSummaryHeader(monthlyTotal: monthlyTotal, count: events.filter(\.isActive).count)
                         .padding(.top, Space.s)
 
-                    SectionLabel(text: "Suscripciones")
-                        .padding(.horizontal, Space.xs)
+                    RowDivider()
+                        .padding(.vertical, Space.l)
 
-                    ForEach(events) { event in
-                        Button {
-                            selected = event
-                        } label: {
-                            RecurrentesRow(event: event)
+                    PlainSection(title: "Suscripciones") {
+                        PlainList(events, dividerInset: 46 + Space.l) { event in
+                            Button {
+                                selected = event
+                            } label: {
+                                RecurrentesRow(event: event)
+                            }
+                            .buttonStyle(.plain)
+                            .pressable()
                         }
-                        .buttonStyle(.plain)
-                        .pressable()
                     }
                 }
             }
@@ -79,32 +81,32 @@ struct RecurringView: View {
     }
 }
 
-// MARK: - Tarjeta resumen (total mensual estimado)
+// MARK: - Resumen (total mensual estimado) — plano, sin card
 
-private struct RecurrentesSummaryCard: View {
+private struct RecurrentesSummaryHeader: View {
     @Environment(AppState.self) private var app
     let monthlyTotal: Double
     let count: Int
 
     var body: some View {
-        Card {
-            HStack(alignment: .center, spacing: Space.l) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Text("Gasto mensual estimado")
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                    AmountText(amount: monthlyTotal, currency: app.currency, font: Typo.amountMedium)
-                    Text(count == 1 ? "1 suscripción activa" : "\(count) suscripciones activas")
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
-                Spacer()
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
-                    .frame(width: 52, height: 52)
-                    .background(Palette.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        HStack(alignment: .center, spacing: Space.l) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text("GASTO MENSUAL ESTIMADO")
+                    .font(Typo.overline)
+                    .tracking(0.8)
+                    .foregroundStyle(Palette.inkTertiary)
+                AmountText(amount: monthlyTotal, currency: app.currency, font: Typo.amountLarge)
+                    .tracking(-0.5)
+                Text(count == 1 ? "1 suscripción activa" : "\(count) suscripciones activas")
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkSecondary)
             }
+            Spacer(minLength: Space.s)
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Palette.accent)
+                .frame(width: 48, height: 48)
+                .background(Palette.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 }
@@ -119,53 +121,54 @@ private struct RecurrentesRow: View {
     private var tint: Color { RecurrentesVisual.tint(for: event, category: category) }
 
     var body: some View {
-        Card {
-            HStack(spacing: Space.l) {
-                RecurrentesAvatar(event: event, category: category, size: 46)
+        HStack(spacing: Space.l) {
+            // Logo de la app (con aire, vía RowLeadingIcon) o el ícono de su
+            // categoría teñido si no hay logo conocido.
+            RowLeadingIcon(
+                logo: RecurrentesVisual.logo(for: event),
+                systemName: RecurrentesVisual.symbol(for: event, category: category),
+                color: tint,
+                size: 46
+            )
+            .opacity(event.isActive ? 1 : 0.55)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(event.name)
-                        .font(Typo.headline)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.name)
+                    .font(Typo.headline)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
 
-                    HStack(spacing: Space.xs) {
-                        Text(event.frequency.label)
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.inkSecondary)
-                        Text("·")
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                        Text(RecurrentesDate.nextLabel(event.nextDate))
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                    }
+                HStack(spacing: Space.xs) {
+                    Text(event.frequency.label)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Text("·")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                    Text(RecurrentesDate.nextLabel(event.nextDate))
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
+            }
 
-                Spacer()
+            Spacer(minLength: Space.s)
 
-                VStack(alignment: .trailing, spacing: 3) {
-                    AmountText(amount: event.amount, currency: app.currency, font: Typo.amount)
-                    if !event.isActive {
-                        // Badge de estado sobre Card glass → capa teñida sutil, no glass.
-                        Text("Pausada")
-                            .font(Typo.caption)
-                            .foregroundStyle(Palette.warning)
-                            .padding(.horizontal, Space.s)
-                            .padding(.vertical, 2)
-                            .background(Palette.warning.opacity(0.14), in: Capsule())
-                            .overlay(Capsule().strokeBorder(Palette.warning.opacity(0.28), lineWidth: 0.5))
-                    }
+            VStack(alignment: .trailing, spacing: 3) {
+                AmountText(amount: event.amount, currency: app.currency, font: Typo.amount)
+                if !event.isActive {
+                    // Badge de estado: capa teñida sutil con borde luminoso (sin glow).
+                    Text("Pausada")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.warning)
+                        .padding(.horizontal, Space.s)
+                        .padding(.vertical, 2)
+                        .background(Palette.warning.opacity(0.14), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Palette.warning.opacity(0.28), lineWidth: 0.5))
                 }
             }
         }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(tint)
-                .frame(width: 3, height: 26)
-                .padding(.leading, 1)
-                .opacity(event.isActive ? 1 : 0.4)
-        }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 

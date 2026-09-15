@@ -24,6 +24,7 @@ struct AddTransactionView: View {
     // Presentación
     @State private var showCategoryPicker = false
     @State private var showAccountPicker = false
+    @State private var showDatePicker = false
     @State private var isSaving = false
     @State private var saveError: String?
 
@@ -193,10 +194,10 @@ struct AddTransactionView: View {
         .animation(Motion.ui, value: isScanning)
     }
 
-    // MARK: - Selectores
+    // MARK: - Selectores (filas planas con separador, sin cards)
 
     private var selectors: some View {
-        VStack(spacing: Space.m) {
+        VStack(spacing: 0) {
             // Categoría
             Button {
                 showCategoryPicker = true
@@ -220,6 +221,8 @@ struct AddTransactionView: View {
             .pressable()
             .disabled(categoriesForType.isEmpty)
 
+            RowDivider(leadingInset: 36 + Space.m)
+
             // Cuenta
             Button {
                 showAccountPicker = true
@@ -237,35 +240,38 @@ struct AddTransactionView: View {
             }
             .pressable()
 
-            // Fecha
-            Card(padding: Space.m) {
-                HStack(spacing: Space.m) {
-                    SelectorPlaceholderIcon(symbol: "calendar", tint: Palette.purple)
-                    Text("Fecha")
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                    Spacer()
-                    DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .tint(Palette.accent)
-                }
+            RowDivider(leadingInset: 36 + Space.m)
+
+            // Fecha — la fila abre un DatePicker gráfico en un sheet (no un widget
+            // suelto que desentona). La fila muestra la fecha elegida.
+            Button {
+                showDatePicker = true
+            } label: {
+                SelectorRow(
+                    leading: {
+                        SelectorPlaceholderIcon(symbol: "calendar", tint: Palette.purple)
+                    },
+                    label: "Fecha",
+                    value: Self.displayDate(date)
+                )
             }
+            .pressable()
+
+            RowDivider(leadingInset: 36 + Space.m)
 
             // Descripción
-            Card(padding: Space.m) {
-                HStack(spacing: Space.m) {
-                    SelectorPlaceholderIcon(symbol: "text.alignleft", tint: Palette.orange)
-                    TextField(
-                        "",
-                        text: $note,
-                        prompt: Text("Descripción (opcional)").foregroundColor(Palette.inkTertiary)
-                    )
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .submitLabel(.done)
-                }
+            HStack(spacing: Space.m) {
+                SelectorPlaceholderIcon(symbol: "text.alignleft", tint: Palette.orange)
+                TextField(
+                    "",
+                    text: $note,
+                    prompt: Text("Descripción (opcional)").foregroundColor(Palette.inkTertiary)
+                )
+                .font(Typo.callout)
+                .foregroundStyle(Palette.ink)
+                .submitLabel(.done)
             }
+            .padding(.vertical, Space.m)
         }
         .sheet(isPresented: $showCategoryPicker) {
             CategoryPickerSheet(
@@ -279,6 +285,11 @@ struct AddTransactionView: View {
         .sheet(isPresented: $showAccountPicker) {
             AccountPickerSheet(accounts: app.accounts, selection: $accountId)
                 .presentationDetents([.medium])
+                .glassSheetBackground()
+        }
+        .sheet(isPresented: $showDatePicker) {
+            DatePickerSheet(date: $date)
+                .presentationDetents([.height(460)])
                 .glassSheetBackground()
         }
     }
@@ -533,6 +544,17 @@ struct AddTransactionView: View {
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
     }
+
+    /// Fecha amable para la fila: "Hoy", "Ayer" o "d MMM yyyy" en español.
+    private static func displayDate(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Hoy" }
+        if cal.isDateInYesterday(date) { return "Ayer" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        f.setLocalizedDateFormatFromTemplate("d MMM yyyy")
+        return f.string(from: date)
+    }
 }
 
 // MARK: - Teclado: modelo y botón
@@ -576,7 +598,7 @@ private struct KeypadButton: View {
     }
 }
 
-// MARK: - Fila selectora (Card) + ícono placeholder
+// MARK: - Fila selectora (plana, sin card) + ícono placeholder
 
 private struct SelectorRow<Leading: View>: View {
     @ViewBuilder var leading: () -> Leading
@@ -584,24 +606,24 @@ private struct SelectorRow<Leading: View>: View {
     let value: String
 
     var body: some View {
-        Card(padding: Space.m) {
-            HStack(spacing: Space.m) {
-                leading()
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(label)
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                    Text(value)
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+        HStack(spacing: Space.m) {
+            leading()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(Typo.caption)
                     .foregroundStyle(Palette.inkTertiary)
+                Text(value)
+                    .font(Typo.callout)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
             }
+            Spacer(minLength: Space.s)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Palette.inkTertiary)
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 
@@ -710,7 +732,8 @@ private struct AccountPickerSheet: View {
             ZStack {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
-                    VStack(spacing: Space.s) {
+                    VStack(spacing: 0) {
+                        let last = accounts.last?.id
                         ForEach(accounts) { account in
                             Button {
                                 selection = account.id
@@ -718,10 +741,15 @@ private struct AccountPickerSheet: View {
                             } label: {
                                 accountRow(account)
                             }
+                            .buttonStyle(.plain)
                             .pressable()
+                            if account.id != last {
+                                RowDivider(leadingInset: 40 + Space.m)
+                            }
                         }
                     }
-                    .padding(Space.l)
+                    .padding(.horizontal, Space.l)
+                    .padding(.vertical, Space.s)
                 }
             }
             .navigationTitle("Cuenta")
@@ -738,34 +766,69 @@ private struct AccountPickerSheet: View {
     private func accountRow(_ account: Account) -> some View {
         let isSelected = selection == account.id
         let tint = Color(hexString: account.color) ?? Palette.sky
-        return Card(padding: Space.m) {
-            HStack(spacing: Space.m) {
-                Image(systemName: account.type.sfSymbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(account.name)
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    Text(account.type.label)
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
+        return HStack(spacing: Space.m) {
+            Image(systemName: account.type.sfSymbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.name)
+                    .font(Typo.callout)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(account.type.label)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkTertiary)
+            }
+            Spacer(minLength: Space.s)
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Palette.accent)
+            }
+        }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Sheet de fecha (DatePicker gráfico, integrado — no un widget suelto)
+
+private struct DatePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var date: Date
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.bg.opacity(0.6).ignoresSafeArea()
+                VStack(spacing: 0) {
+                    DatePicker(
+                        "",
+                        selection: $date,
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.graphical)
+                    .tint(Palette.accent)
+                    .padding(.horizontal, Space.l)
+                    Spacer(minLength: 0)
                 }
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18))
+                .padding(.top, Space.m)
+            }
+            .navigationTitle("Fecha")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Listo") { dismiss() }
+                        .font(Typo.headline)
                         .foregroundStyle(Palette.accent)
                 }
             }
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                .strokeBorder(isSelected ? Palette.accent : .clear, lineWidth: 1.5)
-        )
+        .tint(Palette.accent)
     }
 }
 

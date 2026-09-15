@@ -93,16 +93,17 @@ struct GoalDetailView: View {
         .padding(.top, Space.s)
     }
 
-    // MARK: Stats
+    // MARK: Stats (filas planas con separador, sin cards)
 
     private var statsRow: some View {
-        HStack(spacing: Space.m) {
-            GoalStatTile(
+        VStack(spacing: 0) {
+            GoalStatRow(
                 label: "Objetivo",
                 value: CurrencyFormatter.string(goal.targetAmount, currency: app.currency),
                 color: Palette.ink
             )
-            GoalStatTile(
+            RowDivider()
+            GoalStatRow(
                 label: goal.status == .completed ? "Completada" : "Faltan",
                 value: goal.status == .completed
                     ? "¡Listo!"
@@ -110,7 +111,8 @@ struct GoalDetailView: View {
                 color: goal.status == .completed ? Palette.green : tint
             )
             if let deadline = formattedDeadline {
-                GoalStatTile(label: "Fecha límite", value: deadline, color: Palette.inkSecondary)
+                RowDivider()
+                GoalStatRow(label: "Fecha límite", value: deadline, color: Palette.inkSecondary)
             }
         }
     }
@@ -190,28 +192,29 @@ enum GoalMoveMode: Identifiable {
     var cta: String { self == .add ? "Aportar" : "Retirar" }
 }
 
-// MARK: - Tile de estadística
+// MARK: - Fila de estadística (plana, sin card)
 
-private struct GoalStatTile: View {
+private struct GoalStatRow: View {
     let label: String
     let value: String
     var color: Color = Palette.ink
 
     var body: some View {
-        Card(padding: Space.m) {
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(label.uppercased())
-                    .font(Typo.overline)
-                    .tracking(0.6)
-                    .foregroundStyle(Palette.inkTertiary)
-                Text(value)
-                    .font(Typo.callout)
-                    .foregroundStyle(color)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+        HStack {
+            Text(label.uppercased())
+                .font(Typo.overline)
+                .tracking(0.6)
+                .foregroundStyle(Palette.inkTertiary)
+            Spacer(minLength: Space.m)
+            Text(value)
+                .font(Typo.callout)
+                .foregroundStyle(color)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 

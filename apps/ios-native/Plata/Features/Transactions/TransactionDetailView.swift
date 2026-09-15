@@ -1,11 +1,12 @@
 import SwiftUI
 
-// Detalle de un movimiento. Paridad con app RN transaction/[id].tsx: una frase
-// narrativa ("X gastó $Y hoy por concepto de …") con el color del signo, píldoras
-// de fecha / tipo / categoría, y acción de eliminar. Los datos salen del propio
-// `Transaction` + AppState (categoría, cuenta). Al eliminar, borra la fila en
-// `transactions`, revierte el saldo de la cuenta vía RPC apply_account_delta y
-// refresca AppState.
+// Detalle de un movimiento. Rediseño FLAT (sin cards): encabezado con el MIEMBRO
+// REAL que registró el movimiento (AvatarView + nombre real vía app.member),
+// una frase narrativa en texto plano ("X gastó $Y hoy por concepto de …") y los
+// metadatos como filas planas separadas por hairlines (PlainSection/PlainList),
+// sin fondos de container. Acciones: Editar (abre AddTransaction) y Eliminar
+// (destructivo). Al eliminar, borra la fila en `transactions`, revierte el saldo
+// de la cuenta vía RPC apply_account_delta y refresca AppState.
 
 struct TransactionDetailView: View {
     @Environment(AppState.self) private var app
@@ -16,6 +17,7 @@ struct TransactionDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
     @State private var deleteError: String?
+    @State private var showEdit = false
 
     private var isIncome: Bool { transaction.type == .income }
 
@@ -27,17 +29,21 @@ struct TransactionDetailView: View {
 
     private var signColor: Color { isIncome ? Palette.green : Palette.pink }
 
-    // Nombre del autor: solo conocemos con certeza al usuario actual; para otros
-    // miembros mostramos un genérico amable.
+    // Miembro real del hogar que registró el movimiento (created_by). Si no se
+    // resuelve el perfil (miembro fuera de caché), caemos en un genérico amable.
+    private var creator: Profile? { app.member(for: transaction.createdBy) }
+
     private var creatorName: String {
-        if transaction.createdBy == app.profile?.id, let n = app.profile?.name, !n.isEmpty {
-            return n
-        }
-        return "Un miembro"
+        let name = creator?.name.trimmingCharacters(in: .whitespaces) ?? ""
+        return name.isEmpty ? "Un miembro" : name
     }
 
-    private var creatorInitial: String {
-        String(creatorName.prefix(1)).uppercased()
+    // Logo de app conocida (Spotify, Netflix…) si la descripción coincide.
+    private var appLogo: Image? {
+        let source = transaction.description?.isEmpty == false
+            ? transaction.description!
+            : (category?.name ?? "")
+        return SubscriptionLogo.image(for: TransactionDetailLogo.slug(for: source))
     }
 
     var body: some View {
@@ -49,17 +55,30 @@ struct TransactionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
+                Menu {
+                    Button {
+                        showEdit = true
+                    } label: {
+                        Label("Editar", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Eliminar", systemImage: "trash")
+                    }
                 } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: "ellipsis.circle")
                 }
-                .tint(Palette.pink)
             }
         }
         .toolbarBackground(.thinMaterial, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .tint(Palette.accent)
+        .sheet(isPresented: $showEdit) {
+            // Edición aún no soportada como flujo dedicado: reutilizamos la
+            // pantalla de alta (ver nota en el resumen). Al cerrarse, refrescamos.
+            AddTransactionView()
+        }
         .confirmationDialog(
             "¿Eliminar este movimiento?",
             isPresented: $showDeleteConfirm,
@@ -79,20 +98,11 @@ struct TransactionDetailView: View {
 
     private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
+            VStack(alignment: .leading, spacing: Space.xxl) {
                 header
                 sentence
-                pills
-
-                PrimaryButton(
-                    title: isDeleting ? "Eliminando…" : "Eliminar movimiento",
-                    icon: isDeleting ? nil : "trash",
-                    tint: Palette.pink.opacity(0.16),
-                    fg: Palette.pink
-                ) {
-                    showDeleteConfirm = true
-                }
-                .disabled(isDeleting)
+                details
+                actions
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.l)
@@ -100,31 +110,32 @@ struct TransactionDetailView: View {
         }
     }
 
-    // MARK: - Encabezado (autor)
+    // MARK: - Encabezado (autor real)
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            Text(creatorInitial)
-                .font(Typo.headline)
-                .foregroundStyle(Palette.bg)
-                .frame(width: 44, height: 44)
-                .background(TransactionVisual.color(for: category), in: Circle())
-                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+            AvatarView(name: creatorName, urlString: creator?.avatarUrl, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(creatorName)
                     .font(Typo.headline)
                     .tracking(-0.2)
                     .foregroundStyle(Palette.ink)
-                Text("Miembro del hogar")
+                Text(isIncome ? "Registró este ingreso" : "Registró este gasto")
                     .font(Typo.caption)
                     .foregroundStyle(Palette.inkTertiary)
             }
-            Spacer()
+            Spacer(minLength: Space.s)
+            // Logo de la app o ícono de categoría, con aire (RowLeadingIcon).
+            RowLeadingIcon(
+                logo: appLogo,
+                systemName: TransactionVisual.symbol(for: category, fallbackType: transaction.type),
+                color: TransactionVisual.color(for: category),
+                size: 44
+            )
         }
     }
 
-    // MARK: - Frase narrativa
+    // MARK: - Frase narrativa (texto plano, sin card)
 
     private var sentence: some View {
         // Compone la frase con tramos de distinto color/peso, como el original.
@@ -156,24 +167,51 @@ struct TransactionDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    // MARK: - Píldoras
+    // MARK: - Detalles (filas planas con hairlines, sin card)
 
-    private var pills: some View {
-        GlassGroup(spacing: Space.s) {
-            VStack(alignment: .leading, spacing: Space.s) {
-                TransactionDetailPill(
-                    symbol: "calendar",
-                    text: TransactionDetailDate.short(transaction.date)
-                )
-                TransactionDetailPill(
-                    symbol: "wallet.pass",
-                    text: isIncome ? "Ingreso" : (transaction.type == .transfer ? "Transferencia" : "Gasto")
-                )
-                TransactionDetailPill(
-                    symbol: "folder",
-                    text: category?.name ?? "General"
-                )
+    private var details: some View {
+        PlainSection(title: "Detalles") {
+            PlainList(detailRows, dividerInset: 0) { row in
+                TransactionDetailRow(symbol: row.symbol, label: row.label, value: row.value)
             }
+        }
+    }
+
+    private var detailRows: [TransactionDetailRowModel] {
+        var rows: [TransactionDetailRowModel] = [
+            .init(id: "fecha", symbol: "calendar", label: "Fecha",
+                  value: TransactionDetailDate.short(transaction.date)),
+            .init(id: "tipo", symbol: "arrow.left.arrow.right", label: "Tipo",
+                  value: typeLabel),
+            .init(id: "categoria", symbol: "folder", label: "Categoría",
+                  value: category?.name ?? "General"),
+        ]
+        if let account {
+            rows.append(.init(id: "cuenta", symbol: "creditcard", label: "Cuenta", value: account.name))
+        }
+        return rows
+    }
+
+    private var typeLabel: String {
+        isIncome ? "Ingreso" : (transaction.type == .transfer ? "Transferencia" : "Gasto")
+    }
+
+    // MARK: - Acciones (Editar + Eliminar)
+
+    private var actions: some View {
+        VStack(spacing: Space.m) {
+            SecondaryButton(title: "Editar movimiento", icon: "pencil") {
+                showEdit = true
+            }
+            PrimaryButton(
+                title: isDeleting ? "Eliminando…" : "Eliminar movimiento",
+                icon: isDeleting ? nil : "trash",
+                tint: Palette.pink.opacity(0.16),
+                fg: Palette.pink
+            ) {
+                showDeleteConfirm = true
+            }
+            .disabled(isDeleting)
         }
     }
 
@@ -209,29 +247,59 @@ struct TransactionDetailView: View {
     }
 }
 
-// MARK: - Píldora de metadato
+// MARK: - Fila de metadato plana (label a la izquierda, valor a la derecha)
 
-private struct TransactionDetailPill: View {
+private struct TransactionDetailRowModel: Identifiable {
+    let id: String
     let symbol: String
-    let text: String
+    let label: String
+    let value: String
+}
+
+private struct TransactionDetailRow: View {
+    let symbol: String
+    let label: String
+    let value: String
 
     var body: some View {
-        HStack(spacing: Space.s) {
+        HStack(spacing: Space.m) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Palette.inkTertiary)
+                .frame(width: 20)
+            Text(label)
+                .font(Typo.subhead)
                 .foregroundStyle(Palette.inkSecondary)
-                .frame(width: 18)
-            Text(text)
+            Spacer(minLength: Space.m)
+            Text(value)
                 .font(Typo.callout)
                 .fontWeight(.semibold)
                 .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .multilineTextAlignment(.trailing)
         }
-        .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.s + 2)
-        .liquidGlassCapsule()
-        .overlay(
-            Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1)
-        )
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Resolución de logo de app conocida por texto
+
+private enum TransactionDetailLogo {
+    /// Deriva el slug de logo (Spotify, Netflix…) del texto del movimiento,
+    /// comparando contra el catálogo de SubscriptionLogo. Nil si no hay match.
+    static func slug(for text: String) -> String? {
+        let n = text
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return nil }
+        for slug in SubscriptionLogo.all {
+            let key = slug.replacingOccurrences(of: "-", with: "").trimmingCharacters(in: .whitespaces)
+            guard key.count >= 3 else { continue }
+            if n.contains(key) { return slug }
+        }
+        return nil
     }
 }
 

@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-// Ajustes — perfil, hogar + código de invitación, preferencias (moneda, tema)
-// y cierre de sesión. ScrollView con secciones agrupadas en Cards, espaciado
-// generoso y colorido con propósito. Todo lee/escribe sobre AppState; no se
-// inventa API que no exista.
+// Ajustes — perfil (arriba), hogar + código de invitación, preferencias (moneda,
+// tema) y cierre de sesión. Diseño PLANO: secciones con header y filas separadas
+// por hairlines, sin cards. Todo lee/escribe sobre AppState; no se inventa API
+// que no exista.
 
 struct SettingsView: View {
     @Environment(AppState.self) private var app
@@ -26,8 +26,8 @@ struct SettingsView: View {
         @Bindable var app = app
 
         ScrollView {
-            VStack(spacing: Space.xl) {
-                SettingsProfileCard(
+            VStack(spacing: Space.xxl) {
+                SettingsProfileHeader(
                     name: app.profile?.name,
                     email: app.user?.email,
                     avatarUrl: app.profile?.avatarUrl
@@ -53,7 +53,7 @@ struct SettingsView: View {
                 SettingsFooter()
             }
             .padding(.horizontal, Space.l)
-            .padding(.top, Space.s)
+            .padding(.top, Space.m)
             .padding(.bottom, Space.xxxl)
         }
         .background(Palette.bg.ignoresSafeArea())
@@ -88,59 +88,32 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Perfil
+// MARK: - Perfil (encabezado plano, sin card)
 
-private struct SettingsProfileCard: View {
+private struct SettingsProfileHeader: View {
     let name: String?
     let email: String?
     var avatarUrl: String?
 
     var body: some View {
-        Card {
-            HStack(spacing: Space.l) {
-                AvatarView(name: name, urlString: avatarUrl, size: 64)
+        HStack(spacing: Space.l) {
+            AvatarView(name: name, urlString: avatarUrl, size: 64)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name?.isEmpty == false ? name! : "Sin nombre")
-                        .font(Typo.title)
-                        .tracking(-0.4)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name?.isEmpty == false ? name! : "Sin nombre")
+                    .font(Typo.title)
+                    .tracking(-0.4)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
 
-                    Text(email ?? "Sin correo")
-                        .font(Typo.subhead)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
+                Text(email ?? "Sin correo")
+                    .font(Typo.subhead)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
             }
+
+            Spacer(minLength: 0)
         }
-    }
-}
-
-private struct SettingsAvatar: View {
-    let name: String?
-    private let size: CGFloat = 64
-
-    var body: some View {
-        Text(initial)
-            .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-            .foregroundStyle(Palette.accent)
-            .frame(width: size, height: size)
-            .background(
-                Circle().fill(Palette.accent.opacity(0.16))
-            )
-            // Hairline luminoso del propio acento: define el avatar sin glow.
-            .overlay(
-                Circle().strokeBorder(Palette.accent.opacity(0.22), lineWidth: 0.5)
-            )
-    }
-
-    private var initial: String {
-        let trimmed = (name ?? "").trimmingCharacters(in: .whitespaces)
-        guard let first = trimmed.first else { return "?" }
-        return String(first).uppercased()
     }
 }
 
@@ -153,44 +126,39 @@ private struct SettingsHouseholdSection: View {
     let onCopy: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionLabel(text: "Hogar")
+        PlainSection(title: "Hogar") {
+            SettingsRow(
+                icon: "house.fill",
+                tint: Palette.sky,
+                title: "Nombre del hogar"
+            ) {
+                Text(displayHouseholdName)
+                    .font(Typo.callout)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+            }
 
-            Card {
-                VStack(spacing: Space.l) {
-                    SettingsRow(
-                        icon: "house.fill",
-                        tint: Palette.sky,
-                        title: "Nombre del hogar"
-                    ) {
-                        Text(displayHouseholdName)
-                            .font(Typo.callout)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                    }
+            RowDivider(leadingInset: 40 + Space.m)
 
-                    Divider().overlay(Palette.stroke)
-
-                    if let code = inviteCode, !code.isEmpty {
-                        SettingsInviteCodeRow(code: code, didCopy: didCopy, onCopy: onCopy)
-                    } else {
-                        SettingsRow(
-                            icon: "key.fill",
-                            tint: Palette.amber,
-                            title: "Código de invitación"
-                        ) {
-                            Text("Aún no disponible")
-                                .font(Typo.subhead)
-                                .foregroundStyle(Palette.inkTertiary)
-                        }
-                    }
+            if let code = inviteCode, !code.isEmpty {
+                SettingsInviteCodeRow(code: code, didCopy: didCopy, onCopy: onCopy)
+            } else {
+                SettingsRow(
+                    icon: "key.fill",
+                    tint: Palette.amber,
+                    title: "Código de invitación"
+                ) {
+                    Text("Aún no disponible")
+                        .font(Typo.subhead)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
             }
 
             Text("Comparte el código para que tu pareja se una a este hogar.")
                 .font(Typo.caption)
                 .foregroundStyle(Palette.inkTertiary)
-                .padding(.horizontal, Space.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Space.s)
         }
     }
 
@@ -242,6 +210,8 @@ private struct SettingsInviteCodeRow: View {
             }
             .pressable()
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
 
@@ -254,63 +224,57 @@ private struct SettingsPreferencesSection: View {
     @Environment(ThemeManager.self) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionLabel(text: "Preferencias")
-
-            Card {
-                VStack(spacing: Space.l) {
-                    SettingsRow(
-                        icon: "dollarsign.circle.fill",
-                        tint: Palette.green,
-                        title: "Moneda"
-                    ) {
-                        Menu {
-                            ForEach(currencies, id: \.code) { option in
-                                Button {
-                                    onSelectCurrency(option.code)
-                                } label: {
-                                    Text("\(option.label) · \(option.code)")
-                                }
-                            }
+        PlainSection(title: "Preferencias") {
+            SettingsRow(
+                icon: "dollarsign.circle.fill",
+                tint: Palette.green,
+                title: "Moneda"
+            ) {
+                Menu {
+                    ForEach(currencies, id: \.code) { option in
+                        Button {
+                            onSelectCurrency(option.code)
                         } label: {
-                            HStack(spacing: Space.xs) {
-                                Text(selectedCurrency)
-                                    .font(Typo.callout)
-                                    .foregroundStyle(Palette.ink)
-                                    .lineLimit(1)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Palette.inkTertiary)
-                            }
+                            Text("\(option.label) · \(option.code)")
                         }
                     }
+                } label: {
+                    HStack(spacing: Space.xs) {
+                        Text(selectedCurrency)
+                            .font(Typo.callout)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+            }
 
-                    Divider().overlay(Palette.stroke)
+            RowDivider(leadingInset: 40 + Space.m)
 
-                    SettingsRow(
-                        icon: theme.preference.sfSymbol,
-                        tint: Palette.purple,
-                        title: "Tema"
-                    ) {
-                        Menu {
-                            ForEach(ThemePreference.allCases) { option in
-                                Button {
-                                    withAnimation(Motion.ui) { theme.preference = option }
-                                } label: {
-                                    Label(option.label, systemImage: option.sfSymbol)
-                                    if theme.preference == option { Image(systemName: "checkmark") }
-                                }
-                            }
+            SettingsRow(
+                icon: theme.preference.sfSymbol,
+                tint: Palette.purple,
+                title: "Tema"
+            ) {
+                Menu {
+                    ForEach(ThemePreference.allCases) { option in
+                        Button {
+                            withAnimation(Motion.ui) { theme.preference = option }
                         } label: {
-                            HStack(spacing: Space.xs) {
-                                Text(theme.preference.label)
-                                    .font(Typo.callout)
-                                    .foregroundStyle(Palette.inkSecondary)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Palette.inkTertiary)
-                            }
+                            Label(option.label, systemImage: option.sfSymbol)
+                            if theme.preference == option { Image(systemName: "checkmark") }
                         }
+                    }
+                } label: {
+                    HStack(spacing: Space.xs) {
+                        Text(theme.preference.label)
+                            .font(Typo.callout)
+                            .foregroundStyle(Palette.inkSecondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.inkTertiary)
                     }
                 }
             }
@@ -376,5 +340,7 @@ private struct SettingsRow<Trailing: View>: View {
 
             trailing
         }
+        .padding(.vertical, Space.m)
+        .contentShape(Rectangle())
     }
 }
