@@ -23,51 +23,49 @@ struct CategoriesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Palette.bg.ignoresSafeArea()
+        // Sin NavigationStack propio: esta vista se presenta vía NavigationLink
+        // desde Ajustes (ya hay un stack). Anidar otro duplicaba la barra y
+        // producía un header/back descuadrado sobre material translúcido.
+        ZStack {
+            Palette.bg.ignoresSafeArea()
 
-                if app.categories.isEmpty {
-                    CategorasEmptyState { editor = .new }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: Space.xl) {
-                            CategorasSection(
-                                title: "Gastos",
-                                categories: expenses,
-                                onEdit: { editor = .edit($0) }
-                            )
-                            CategorasSection(
-                                title: "Ingresos",
-                                categories: incomes,
-                                onEdit: { editor = .edit($0) }
-                            )
-                        }
-                        .padding(.horizontal, Space.l)
-                        .padding(.top, Space.s)
-                        .padding(.bottom, Space.xxxl)
+            if app.categories.isEmpty {
+                CategorasEmptyState { editor = .new }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.xl) {
+                        CategorasSection(
+                            title: "Gastos",
+                            categories: expenses,
+                            onEdit: { editor = .edit($0) }
+                        )
+                        CategorasSection(
+                            title: "Ingresos",
+                            categories: incomes,
+                            onEdit: { editor = .edit($0) }
+                        )
                     }
+                    .padding(.horizontal, Space.l)
+                    .padding(.top, Space.s)
+                    .padding(.bottom, Space.xxxl)
                 }
             }
-            .navigationTitle("Categorías")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        editor = .new
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Palette.bg)
-                            .frame(width: 32, height: 32)
-                            .background(Palette.ink, in: Circle())
-                    }
-                    .pressable()
+        }
+        .navigationTitle("Categorías")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    editor = .new
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.bg)
+                        .frame(width: 32, height: 32)
+                        .background(Palette.ink, in: Circle())
                 }
+                .pressable()
             }
-            // Header translúcido: el contenido pasa por debajo (Apple §12).
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .sheet(item: $editor) { target in

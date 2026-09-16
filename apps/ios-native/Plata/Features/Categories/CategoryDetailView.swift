@@ -127,24 +127,15 @@ struct CategoryDetailView: View {
                         .foregroundStyle(Palette.inkTertiary)
                         .padding(.horizontal, Space.xs)
 
+                    // Filas planas con separador hairline, sin card (patrón flat).
                     VStack(spacing: 0) {
                         ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
                             CategoryDetailRow(transaction: tx, tint: tint, symbol: symbol, slug: category.icon, isIncome: isIncome)
                             if index < group.items.count - 1 {
-                                Divider()
-                                    .overlay(Palette.stroke)
-                                    .padding(.leading, 44 + Space.m + Space.l)
+                                RowDivider(leadingInset: 44 + Space.m)
                             }
                         }
                     }
-                    .background(
-                        Palette.surface,
-                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                            .strokeBorder(Palette.stroke, lineWidth: 1)
-                    )
                 }
             }
         }
