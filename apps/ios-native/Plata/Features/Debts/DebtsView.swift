@@ -118,13 +118,20 @@ private struct DebtsSection: View {
                     .padding(.vertical, Space.s)
             } else {
                 PlainList(debts, dividerInset: 0) { debt in
-                    Button {
-                        onEdit(debt)
+                    NavigationLink {
+                        DebtDetailView(debt: debt, tint: tint, positive: positive, onEdit: { onEdit(debt) })
                     } label: {
                         DebtsRow(debt: debt, tint: tint, positive: positive, currency: currency)
                     }
                     .buttonStyle(.plain)
                     .pressable()
+                    .contextMenu {
+                        Button {
+                            onEdit(debt)
+                        } label: {
+                            Label("Editar deuda", systemImage: "pencil")
+                        }
+                    }
                 }
             }
         }

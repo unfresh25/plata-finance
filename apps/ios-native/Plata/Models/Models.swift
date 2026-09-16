@@ -221,6 +221,21 @@ struct Debt: Codable, Identifiable, Hashable {
     var progress: Double { amount > 0 ? min(1, amountPaid / amount) : 0 }
 }
 
+// MARK: - Abono a deuda (historial)
+
+struct DebtPayment: Codable, Identifiable, Hashable {
+    let id: String
+    var debtId: String
+    var amount: Double
+    var date: String
+    var note: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, amount, date, note
+        case debtId = "debt_id"
+    }
+}
+
 // MARK: - Savings goal
 
 enum GoalStatus: String, Codable, Hashable { case active, completed, cancelled }

@@ -148,6 +148,75 @@ struct Repository {
         ])
     }
 
+    // MARK: - Deudas: abonos
+
+    /// Historial de abonos de una deuda, más reciente primero.
+    func fetchDebtPayments(debtId: String) async throws -> [DebtPayment] {
+        try await client.from("debt_payments", query: [
+            "debt_id": "eq.\(debtId)", "select": "*", "order": "date.desc",
+        ])
+    }
+
+    /// Registra un abono a una deuda, replicando el flujo de la app RN:
+    /// 1) inserta una transacción (income si "nos deben", expense si "debemos"),
+    /// 2) ajusta el saldo de la cuenta vía RPC atómica,
+    /// 3) inserta la fila en debt_payments (historial),
+    /// 4) actualiza amount_paid y el status (paid si se cubre el total).
+    func addDebtPayment(debt: Debt, accountId: String, amount: Double, userId: String) async throws {
+        let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+        let isIncome = debt.direction == .owedToUs
+
+        // 1) Transacción del abono.
+        struct TxInsert: Encodable {
+            let household_id: String
+            let account_id: String
+            let debt_id: String
+            let amount: Double
+            let type: String
+            let description: String
+            let date: String
+            let created_by: String
+        }
+        let desc = "Abono: \(debt.description?.isEmpty == false ? debt.description! : debt.personName)"
+        let _: [Transaction] = try await client.insert("transactions", values: TxInsert(
+            household_id: debt.householdId,
+            account_id: accountId,
+            debt_id: debt.id,
+            amount: amount,
+            type: (isIncome ? TransactionType.income : .expense).rawValue,
+            description: desc,
+            date: today,
+            created_by: userId
+        ))
+
+        // 2) Ajuste de saldo (income suma, expense resta).
+        let delta = isIncome ? amount : -amount
+        let _: EmptyResponse = try await client.rpc("apply_account_delta", params: [
+            "p_account_id": accountId, "p_delta": delta,
+        ])
+
+        // 3) Historial de abonos.
+        struct PayInsert: Encodable {
+            let debt_id: String
+            let amount: Double
+            let date: String
+        }
+        let _: [DebtPayment] = try await client.insert("debt_payments", values:
+            PayInsert(debt_id: debt.id, amount: amount, date: today))
+
+        // 4) Actualizar el progreso de la deuda.
+        let newPaid = debt.amountPaid + amount
+        let isPaid = newPaid >= debt.amount
+        struct DebtPatch: Encodable {
+            let amount_paid: Double
+            let status: String
+        }
+        try await client.update("debts", values: DebtPatch(
+            amount_paid: newPaid,
+            status: isPaid ? DebtStatus.paid.rawValue : DebtStatus.active.rawValue
+        ), match: ["id": debt.id])
+    }
+
     /// Edita un movimiento existente. Ajusta saldos de forma consistente:
     /// revierte el efecto del movimiento ORIGINAL en su cuenta original y aplica
     /// el efecto del movimiento NUEVO en su cuenta nueva (soporta cambio de
