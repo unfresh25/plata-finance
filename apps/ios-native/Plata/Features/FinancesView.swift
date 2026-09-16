@@ -633,7 +633,7 @@ private struct FinHubRecurringRow: View {
 
     var body: some View {
         HStack(spacing: Space.m) {
-            RowLeadingIcon(logo: logo, systemName: symbol, color: tint, size: 40)
+            RowLeadingIcon(logo: logo, categoryIcon: CategoryIconAsset.image(forSlug: category?.icon), systemName: symbol, color: tint, size: 40)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(event.name)

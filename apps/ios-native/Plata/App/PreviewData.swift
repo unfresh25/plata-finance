@@ -9,11 +9,13 @@ extension AppState {
         app.profile = Profile(id: "u1", householdId: "h1", name: "Jorge", avatarUrl: nil, currency: "COP")
         app.household = Household(id: "h1", name: "Hogar Plata", inviteCode: "PLATA7", createdAt: nil)
         app.categories = [
-            Category(id: "c1", householdId: "h1", name: "Alimentación", icon: "fork.knife", color: "#34D399", type: .expense),
-            Category(id: "c2", householdId: "h1", name: "Transporte", icon: "car.fill", color: "#38BDF8", type: .expense),
-            Category(id: "c3", householdId: "h1", name: "Vivienda", icon: "house.fill", color: "#818CF8", type: .expense),
-            Category(id: "c4", householdId: "h1", name: "Entretenimiento", icon: "tv.fill", color: "#C084FC", type: .expense),
-            Category(id: "c5", householdId: "h1", name: "Salario", icon: "dollarsign.circle.fill", color: "#34D399", type: .income),
+            // Íconos con slugs Hugeicons (como siembra la BD real) para que el
+            // preview refleje los assets de CategoryIcons, no SF Symbols.
+            Category(id: "c1", householdId: "h1", name: "Alimentación", icon: "hamburger-01", color: "#34D399", type: .expense),
+            Category(id: "c2", householdId: "h1", name: "Transporte", icon: "taxi", color: "#38BDF8", type: .expense),
+            Category(id: "c3", householdId: "h1", name: "Vivienda", icon: "home-01", color: "#818CF8", type: .expense),
+            Category(id: "c4", householdId: "h1", name: "Entretenimiento", icon: "tv-01", color: "#C084FC", type: .expense),
+            Category(id: "c5", householdId: "h1", name: "Salario", icon: "coins-01", color: "#34D399", type: .income),
         ]
         app.accounts = [
             Account(id: "a1", householdId: "h1", ownerId: "u1", name: "Efectivo", type: .cash, balance: 850_000, currency: "COP", color: "#34D399", icon: "banknote"),

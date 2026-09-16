@@ -635,6 +635,7 @@ private struct CalendarEventRow: View {
             leading: {
                 RowLeadingIcon(
                     logo: logo,
+                    categoryIcon: CategoryIconAsset.image(forSlug: event.category?.icon),
                     systemName: iconName,
                     color: tint,
                     size: 40
@@ -691,6 +692,7 @@ private struct CalendarTransactionRow: View {
             leading: {
                 RowLeadingIcon(
                     logo: logo,
+                    categoryIcon: CategoryIconAsset.image(forSlug: category?.icon),
                     systemName: iconName,
                     color: tint,
                     size: 40

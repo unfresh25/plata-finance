@@ -144,7 +144,11 @@ struct InlineStat: View {
 /// Da un tamaño generoso y consistente (legacy los mostraba pequeños y apretados;
 /// aquí respiran). Prioriza el logo de app; si no, el ícono de categoría en color.
 struct RowLeadingIcon: View {
+    /// Logo de app (Netflix, Spotify…): a color, sobre fondo neutro. Prioridad 1.
     var logo: Image? = nil
+    /// Ícono de categoría de Hugeicons (template, se tiñe con `color`). Prioridad 2.
+    var categoryIcon: Image? = nil
+    /// SF Symbol de respaldo si no hay logo ni Hugeicon. Prioridad 3.
     var systemName: String = "circle.grid.2x2.fill"
     var color: Color = Palette.accent
     var size: CGFloat = 40
@@ -158,6 +162,16 @@ struct RowLeadingIcon: View {
                     .padding(size * 0.16)         // aire alrededor del logo
                     .frame(width: size, height: size)
                     .background(Palette.surfaceElevated, in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            } else if let categoryIcon {
+                // Hugeicon outline teñido con el color de la categoría, mismo
+                // tratamiento (color + fondo tinte) que el SF Symbol de respaldo.
+                categoryIcon
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+                    .padding(size * 0.24)         // outline delgado: más aire
+                    .frame(width: size, height: size)
+                    .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
             } else {
                 Image(systemName: systemName)
                     .font(.system(size: size * 0.42, weight: .semibold))
