@@ -318,39 +318,53 @@ private struct TransactionsTopCategoryStat: View {
     let currency: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Text("Mayor gasto")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkSecondary)
-
+        // Misma estructura que InlineStat (label chico arriba + monto grande
+        // abajo) para que "Total gastado" y "Mayor gasto" compartan línea base.
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Space.xs) {
+                categoryGlyph
+                Text(labelText)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
             if let highlight {
-                HStack(spacing: Space.s) {
-                    RowLeadingIcon(
-                        categoryIcon: CategoryIconAsset.image(forSlug: highlight.category?.icon),
-                        systemName: TransactionVisual.symbol(for: highlight.category, fallbackType: .expense),
-                        color: TransactionVisual.color(for: highlight.category),
-                        size: 30
-                    )
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(highlight.category?.name ?? "Sin categoría")
-                            .font(Typo.subhead)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        AmountText(
-                            amount: highlight.amount,
-                            currency: currency,
-                            font: Typo.amount
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    }
-                }
+                Text(CurrencyFormatter.string(highlight.amount, currency: currency))
+                    .font(Typo.amount)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             } else {
-                Text("Sin gastos aún")
+                Text("—")
                     .font(Typo.amount)
                     .foregroundStyle(Palette.inkTertiary)
             }
+        }
+    }
+
+    /// Label: "Mayor gasto" + nombre de la categoría top si existe.
+    private var labelText: String {
+        guard let name = highlight?.category?.name, !name.isEmpty else { return "Mayor gasto" }
+        return "Mayor gasto · \(name)"
+    }
+
+    /// Glifo pequeño de la categoría (10px, tinte de su color), como el ícono
+    /// del InlineStat de "Total gastado".
+    @ViewBuilder
+    private var categoryGlyph: some View {
+        let tint = TransactionVisual.color(for: highlight?.category)
+        if let icon = CategoryIconAsset.image(forSlug: highlight?.category?.icon) {
+            icon
+                .resizable()
+                .scaledToFit()
+                .frame(width: 11, height: 11)
+                .foregroundStyle(tint)
+        } else {
+            Image(systemName: TransactionVisual.symbol(for: highlight?.category, fallbackType: .expense))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint)
         }
     }
 }
