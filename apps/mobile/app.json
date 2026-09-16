@@ -37,7 +37,12 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-web-browser",
-      "@sentry/react-native/expo"
+      [
+        "@sentry/react-native/expo",
+        {
+          "note": "org/project/authToken se configuran por variables de entorno cuando se active Sentry"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
