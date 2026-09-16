@@ -127,6 +127,7 @@ struct TransactionDetailView: View {
             // Logo de la app o ícono de categoría, con aire (RowLeadingIcon).
             RowLeadingIcon(
                 logo: appLogo,
+                categoryIcon: CategoryIconAsset.image(forSlug: category?.icon),
                 systemName: TransactionVisual.symbol(for: category, fallbackType: transaction.type),
                 color: TransactionVisual.color(for: category),
                 size: 44

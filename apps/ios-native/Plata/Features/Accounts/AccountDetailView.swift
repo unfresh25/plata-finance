@@ -128,6 +128,7 @@ private struct AccountDetailTxRow: View {
             leading: {
                 RowLeadingIcon(
                     logo: logo,
+                    categoryIcon: CategoryIconAsset.image(forSlug: category?.icon),
                     systemName: iconName,
                     color: tint,
                     size: 40

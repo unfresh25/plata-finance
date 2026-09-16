@@ -318,38 +318,53 @@ private struct TransactionsTopCategoryStat: View {
     let currency: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Text("Mayor gasto")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkSecondary)
-
+        // Misma estructura que InlineStat (label chico arriba + monto grande
+        // abajo) para que "Total gastado" y "Mayor gasto" compartan línea base.
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Space.xs) {
+                categoryGlyph
+                Text(labelText)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
             if let highlight {
-                HStack(spacing: Space.s) {
-                    RowLeadingIcon(
-                        systemName: TransactionVisual.symbol(for: highlight.category, fallbackType: .expense),
-                        color: TransactionVisual.color(for: highlight.category),
-                        size: 30
-                    )
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(highlight.category?.name ?? "Sin categoría")
-                            .font(Typo.subhead)
-                            .foregroundStyle(Palette.inkSecondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        AmountText(
-                            amount: highlight.amount,
-                            currency: currency,
-                            font: Typo.amount
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    }
-                }
+                Text(CurrencyFormatter.string(highlight.amount, currency: currency))
+                    .font(Typo.amount)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             } else {
-                Text("Sin gastos aún")
+                Text("—")
                     .font(Typo.amount)
                     .foregroundStyle(Palette.inkTertiary)
             }
+        }
+    }
+
+    /// Label: "Mayor gasto" + nombre de la categoría top si existe.
+    private var labelText: String {
+        guard let name = highlight?.category?.name, !name.isEmpty else { return "Mayor gasto" }
+        return "Mayor gasto · \(name)"
+    }
+
+    /// Glifo pequeño de la categoría (10px, tinte de su color), como el ícono
+    /// del InlineStat de "Total gastado".
+    @ViewBuilder
+    private var categoryGlyph: some View {
+        let tint = TransactionVisual.color(for: highlight?.category)
+        if let icon = CategoryIconAsset.image(forSlug: highlight?.category?.icon) {
+            icon
+                .resizable()
+                .scaledToFit()
+                .frame(width: 11, height: 11)
+                .foregroundStyle(tint)
+        } else {
+            Image(systemName: TransactionVisual.symbol(for: highlight?.category, fallbackType: .expense))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint)
         }
     }
 }
@@ -370,6 +385,7 @@ private struct TransactionsFlatRow: View {
             leading: {
                 RowLeadingIcon(
                     logo: logo,
+                    categoryIcon: categoryIcon,
                     systemName: iconName,
                     color: tint,
                     size: 40
@@ -394,6 +410,11 @@ private struct TransactionsFlatRow: View {
     /// (Netflix, Spotify…); si no, cae al ícono de categoría.
     private var logo: Image? {
         SubscriptionLogo.image(for: RecurrentesVisual.slug(for: transaction.description ?? ""))
+    }
+
+    /// Hugeicon real de la categoría (el mismo del picker legacy), teñible.
+    private var categoryIcon: Image? {
+        CategoryIconAsset.image(forSlug: category?.icon)
     }
 
     private var signedAmount: Double {
@@ -545,13 +566,24 @@ enum TransactionVisual {
         return Palette.categoryColor(for: abs(category.id.hashValue))
     }
 
-    /// SF Symbol para la categoría. Usa su `icon` si ya es un SF Symbol válido,
-    /// si no lo mapea por nombre, con un fallback por tipo de transacción.
+    /// SF Symbol para la categoría. La BD guarda íconos con slugs legacy
+    /// (Ionicons/Hugeicons: "restaurant", "cart", "gift"…) que NO son SF Symbols
+    /// válidos y renderizarían vacíos. Por eso se resuelven SIEMPRE por
+    /// `IconMapping` (tabla ~430 slugs→SF Symbol con fallback), igual que el
+    /// Calendario — nunca se usa `category.icon` crudo como systemName.
     static func symbol(for category: Category?, fallbackType: TransactionType) -> String {
         if let category {
-            if isLikelySFSymbol(category.icon) { return category.icon }
-            if let mapped = symbolByName(category.name) { return mapped }
-            return category.type == .income ? "dollarsign.circle.fill" : "tag.fill"
+            // Resuelve por el icon guardado; si viene vacío, por el nombre.
+            let key = category.icon.isEmpty ? category.name : category.icon
+            let resolved = IconMapping.sfSymbol(for: key)
+            // Si IconMapping no reconoció nada (fallback genérico), intenta por el
+            // nombre de la categoría antes de rendirse.
+            if resolved == "circle.grid.2x2.fill", !category.name.isEmpty {
+                let byName = IconMapping.sfSymbol(for: category.name)
+                if byName != "circle.grid.2x2.fill" { return byName }
+                return category.type == .income ? "dollarsign.circle.fill" : "tag.fill"
+            }
+            return resolved
         }
         switch fallbackType {
         case .income: return "arrow.down.circle.fill"
@@ -560,37 +592,6 @@ enum TransactionVisual {
         }
     }
 
-    private static func isLikelySFSymbol(_ raw: String) -> Bool {
-        // Los nombres de SF Symbols son ascii en minúscula con puntos; los emojis
-        // o strings vacíos no lo son.
-        guard !raw.isEmpty else { return false }
-        return raw.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." ) }
-            && raw.contains(where: { $0.isLetter })
-    }
-
-    private static func symbolByName(_ name: String) -> String? {
-        let n = name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
-        for (keys, symbol) in mapping {
-            if keys.contains(where: { n.contains($0) }) { return symbol }
-        }
-        return nil
-    }
-
-    private static let mapping: [(keys: [String], symbol: String)] = [
-        (["aliment", "comida", "restaurante", "mercado"], "fork.knife"),
-        (["transport", "carro", "auto", "gasolina", "uber", "taxi"], "car.fill"),
-        (["vivienda", "arriendo", "renta", "hogar", "casa"], "house.fill"),
-        (["salud", "medic", "farmacia"], "heart.fill"),
-        (["entreten", "ocio", "cine", "streaming"], "tv.fill"),
-        (["ropa", "vestuario"], "tshirt.fill"),
-        (["educac", "estudio", "curso"], "book.fill"),
-        (["salario", "sueldo", "nomina", "pago"], "dollarsign.circle.fill"),
-        (["ahorro", "inversion"], "banknote.fill"),
-        (["compra", "shopping"], "bag.fill"),
-        (["servicio", "factura", "luz", "agua", "internet"], "bolt.fill"),
-        (["regalo", "gift"], "gift.fill"),
-        (["viaje", "vacacion"], "airplane"),
-    ]
 }
 
 // MARK: - Parseo de color hex string ("#RRGGBB")

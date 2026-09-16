@@ -126,6 +126,7 @@ private struct RecurrentesRow: View {
             // categoría teñido si no hay logo conocido.
             RowLeadingIcon(
                 logo: RecurrentesVisual.logo(for: event),
+                categoryIcon: CategoryIconAsset.image(forSlug: category?.icon),
                 systemName: RecurrentesVisual.symbol(for: event, category: category),
                 color: tint,
                 size: 46

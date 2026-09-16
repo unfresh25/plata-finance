@@ -299,6 +299,7 @@ private struct DashboardTransactionRow: View {
             leading: {
                 RowLeadingIcon(
                     logo: logo,
+                    categoryIcon: CategoryIconAsset.image(forSlug: category?.icon),
                     systemName: iconName,
                     color: tint,
                     size: 40
@@ -444,10 +445,16 @@ private enum DashboardStyle {
     static func symbol(icon: String, name: String) -> String {
         let key = icon.trimmingCharacters(in: .whitespaces).lowercased()
         if let mapped = symbolMap[key] { return mapped }
-        // Si el icon ya parece un SF Symbol válido (contiene punto), úsalo tal cual.
+        // La BD guarda slugs legacy (Ionicons/Hugeicons) que NO son SF Symbols;
+        // se resuelven con IconMapping (tabla ~430 slugs → SF Symbol), igual que
+        // Movimientos/Calendario. Nunca se usa el icon crudo salvo que sea un SF
+        // Symbol real (contiene punto) y IconMapping no lo reconozca.
+        let resolved = IconMapping.sfSymbol(for: key.isEmpty ? name : key)
+        if resolved != "circle.grid.2x2.fill" { return resolved }
         if key.contains(".") { return icon }
         if let byName = matchByName(name.lowercased()) { return byName }
-        return "circle.grid.2x2.fill"
+        let byNameMap = IconMapping.sfSymbol(for: name)
+        return byNameMap
     }
 
     private static func matchByName(_ name: String) -> String? {
