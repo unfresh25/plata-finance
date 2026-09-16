@@ -60,10 +60,20 @@ struct CategoryDetailView: View {
 
     // MARK: Encabezado con total
 
-    private var header: some View {
-        VStack(spacing: Space.l) {
+    /// Glifo grande de la categoría: Hugeicon real si existe, si no SF Symbol.
+    @ViewBuilder
+    private var headerGlyph: some View {
+        if let hugeicon = CategoryIconAsset.image(forSlug: category.icon) {
+            hugeicon.resizable().scaledToFit().frame(width: 40, height: 40)
+        } else {
             Image(systemName: symbol)
                 .font(.system(size: 40, weight: .semibold))
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: Space.l) {
+            headerGlyph
                 .foregroundStyle(tint)
                 .frame(width: 96, height: 96)
                 .background(
@@ -119,7 +129,7 @@ struct CategoryDetailView: View {
 
                     VStack(spacing: 0) {
                         ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
-                            CategoryDetailRow(transaction: tx, tint: tint, symbol: symbol, isIncome: isIncome)
+                            CategoryDetailRow(transaction: tx, tint: tint, symbol: symbol, slug: category.icon, isIncome: isIncome)
                             if index < group.items.count - 1 {
                                 Divider()
                                     .overlay(Palette.stroke)
@@ -169,11 +179,12 @@ private struct CategoryDetailRow: View {
     let transaction: Transaction
     let tint: Color
     let symbol: String
+    let slug: String
     let isIncome: Bool
 
     var body: some View {
         HStack(spacing: Space.m) {
-            CategoryIcon(systemName: symbol, color: tint, size: 44)
+            CategoryIcon(systemName: symbol, color: tint, size: 44, slug: slug)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

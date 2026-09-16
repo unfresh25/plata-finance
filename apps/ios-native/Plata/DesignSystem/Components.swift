@@ -148,16 +148,30 @@ struct CategoryIcon: View {
     let systemName: String
     let color: Color
     var size: CGFloat = 44
+    /// Slug de la categoría (BD). Si tiene un Hugeicon real, se usa ese (teñido);
+    /// si no, cae al `systemName` (SF Symbol). Deja nil para forzar el SF Symbol.
+    var slug: String? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.32, style: .continuous)
-        Image(systemName: systemName)
-            .font(.system(size: size * 0.42, weight: .semibold))
-            .foregroundStyle(color)
-            .frame(width: size, height: size)
-            .background(color.opacity(0.16), in: shape)
-            // Borde luminoso hairline del propio color: define el chip sin glow.
-            .overlay(shape.strokeBorder(color.opacity(0.22), lineWidth: 0.5))
+        Group {
+            if let hugeicon = CategoryIconAsset.image(forSlug: slug) {
+                hugeicon
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+                    .padding(size * 0.26)     // outline delgado: más aire
+                    .frame(width: size, height: size)
+            } else {
+                Image(systemName: systemName)
+                    .font(.system(size: size * 0.42, weight: .semibold))
+                    .foregroundStyle(color)
+                    .frame(width: size, height: size)
+            }
+        }
+        .background(color.opacity(0.16), in: shape)
+        // Borde luminoso hairline del propio color: define el chip sin glow.
+        .overlay(shape.strokeBorder(color.opacity(0.22), lineWidth: 0.5))
     }
 }
 
