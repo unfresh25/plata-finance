@@ -2,25 +2,31 @@ import SwiftUI
 
 // Calendario mensual de Plata — paridad con app/(tabs)/calendar.tsx de la app RN.
 //
-// Grid de días del mes con badges de logos por día. Al seleccionar un día, las
-// tres listas de abajo (Pagos pendientes, Próximos pagos, Movimientos) se
-// filtran a ese día. Los "próximos pagos" son ocurrencias de recurrentes
-// proyectadas dentro del mes visible (getOccurrencesInMonth con guard de
-// seguridad, idéntico al original) más las deudas con dueDate futuras. Los
-// "pendientes" son recurrentes/deudas cuya fecha ya venció (<= hoy). Los
-// movimientos son transacciones cuya date cae en el mes/día.
+// Rediseño FLAT (sin cards): grid de días del mes arriba (sobre fondo plano, no
+// card), y debajo tres secciones planas separadas por hairlines —"Pagos
+// pendientes", "Próximos pagos" y "Movimientos"— con el mismo lenguaje del
+// Dashboard (PlainSection + PlainList + PlainRow + RowLeadingIcon). Al
+// seleccionar un día, las tres listas se filtran a ese día.
+//
+// Los "próximos pagos" son ocurrencias de recurrentes proyectadas dentro del mes
+// visible (getOccurrencesInMonth con guard de seguridad, idéntico al original)
+// más las deudas con dueDate futuras. Los "pendientes" son recurrentes/deudas
+// cuya fecha ya venció (<= hoy). Los movimientos son transacciones cuya date cae
+// en el mes/día.
 //
 // Todo el estado de datos viene de AppState (app.recurringEvents, app.debts,
-// app.transactions, app.categories). Los nombres de los miembros se cargan una
-// vez vía Repository para mostrar la inicial del creador de cada movimiento,
-// tal como en el original.
+// app.transactions, app.categories). El creador de cada movimiento se resuelve
+// con app.member(for: tx.createdBy) — miembro REAL, sin fallback a "Usuario".
 
 struct CalendarView: View {
     @Environment(AppState.self) private var app
 
     @State private var currentDate = Date()
     @State private var selectedDay: Int? = nil
-    @State private var memberNames: [String: String] = [:]  // profileId → name
+
+    // Long-press en un movimiento → editar (reutiliza la pantalla de alta), igual
+    // que el Dashboard.
+    @State private var editTarget: Transaction?
 
     private let cal = CalendarModel.calendar
 
@@ -38,6 +44,7 @@ struct CalendarView: View {
                         )
                         .padding(.horizontal, Space.l)
 
+                        // Grid del mes: vive directamente sobre el fondo (sin card).
                         calendarGrid
                             .padding(.horizontal, Space.l)
 
@@ -58,9 +65,12 @@ struct CalendarView: View {
             // (Apple §12), en vez de una barra opaca que corta la composición.
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .sheet(item: $editTarget) { tx in
+                // Edición real: reutiliza la pantalla de alta en modo edición.
+                AddTransactionView(editing: tx)
+            }
         }
         .tint(Palette.accent)
-        .task { await loadMembers() }
     }
 
     // MARK: - Grid del mes
@@ -100,66 +110,86 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Sección: pagos pendientes
+    // MARK: - Sección: pagos pendientes (plana)
 
+    @ViewBuilder
     private var pendingSection: some View {
-        Group {
-            if !pendingEventsRaw.isEmpty {
-                VStack(alignment: .leading, spacing: Space.m) {
-                    CalendarSectionHeader(
-                        icon: "exclamationmark.triangle.fill",
-                        iconColor: Palette.amber,
-                        title: "Pagos pendientes",
-                        count: pendingEvents.count
-                    )
-                    CalendarEventList(
-                        events: pendingEvents,
-                        emptyText: "Sin pagos pendientes en \(selectedDay != nil ? "este día" : "este mes")",
-                        currency: app.currency,
-                        pending: true
-                    )
+        if !pendingEventsRaw.isEmpty {
+            PlainSection(title: nil) {
+                CalendarSectionHeader(
+                    title: "Pagos pendientes",
+                    count: pendingEvents.count,
+                    tint: Palette.amber
+                )
+                if pendingEvents.isEmpty {
+                    CalendarEmptyRow(text: "Sin pagos pendientes en \(scopeWord)")
+                } else {
+                    PlainList(pendingEvents, dividerInset: 40 + Space.m) { ev in
+                        CalendarEventRow(event: ev, currency: app.currency, pending: true)
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Sección: próximos pagos
+    // MARK: - Sección: próximos pagos (plana)
 
     private var upcomingSection: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        PlainSection(title: nil) {
             CalendarSectionHeader(
-                icon: "calendar",
-                iconColor: Palette.orange,
                 title: "Próximos pagos",
-                count: displayedEvents.count
+                count: displayedEvents.count,
+                tint: Palette.orange
             )
-            CalendarEventList(
-                events: displayedEvents,
-                emptyText: "Sin pagos en \(selectedDay != nil ? "este día" : "este mes")",
-                currency: app.currency,
-                pending: false
-            )
+            if displayedEvents.isEmpty {
+                CalendarEmptyRow(text: "Sin pagos en \(scopeWord)")
+            } else {
+                PlainList(displayedEvents, dividerInset: 40 + Space.m) { ev in
+                    CalendarEventRow(event: ev, currency: app.currency, pending: false)
+                }
+            }
         }
     }
 
-    // MARK: - Sección: movimientos
+    // MARK: - Sección: movimientos (plana)
 
     private var transactionsSection: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        PlainSection(title: nil) {
             CalendarSectionHeader(
-                icon: "calendar",
-                iconColor: Palette.sky,
                 title: "Movimientos",
-                count: displayedTransactions.count
+                count: displayedTransactions.count,
+                tint: Palette.sky
             )
-            CalendarTransactionList(
-                transactions: displayedTransactions,
-                memberNames: memberNames,
-                emptyText: "Sin movimientos en \(selectedDay != nil ? "este día" : "este mes")",
-                currency: app.currency
-            )
+            if displayedTransactions.isEmpty {
+                CalendarEmptyRow(text: "Sin movimientos en \(scopeWord)")
+            } else {
+                PlainList(displayedTransactions, dividerInset: 40 + Space.m) { tx in
+                    NavigationLink {
+                        TransactionDetailView(transaction: tx)
+                    } label: {
+                        CalendarTransactionRow(
+                            transaction: tx,
+                            creatorName: app.member(for: tx.createdBy)?.name,
+                            category: app.category(for: tx.categoryId),
+                            currency: app.currency
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .pressable()
+                    .contextMenu {
+                        Button {
+                            editTarget = tx
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
         }
     }
+
+    /// Palabra de alcance para los estados vacíos: día vs. mes.
+    private var scopeWord: String { selectedDay != nil ? "este día" : "este mes" }
 
     // MARK: - Navegación de mes
 
@@ -362,30 +392,6 @@ struct CalendarView: View {
             targetId: ev.id
         )
     }
-
-    // MARK: - Miembros (para inicial del creador)
-
-    private func loadMembers() async {
-        guard memberNames.isEmpty, let hh = app.household?.id else { return }
-        do {
-            let rows: [CalendarMemberRow] = try await SupabaseClient.shared.from(
-                "profiles",
-                query: ["household_id": "eq.\(hh)", "select": "id,name"]
-            )
-            var map: [String: String] = [:]
-            for r in rows { map[r.id] = r.name }
-            memberNames = map
-        } catch {
-            // Silencioso: si falla, se usa "Usuario" como fallback.
-        }
-    }
-}
-
-// MARK: - Fila de datos de miembro
-
-private struct CalendarMemberRow: Decodable {
-    let id: String
-    let name: String
 }
 
 // MARK: - Modelo de evento del calendario (privado del feature)
@@ -586,67 +592,38 @@ private struct CalendarPlusBadge: View {
     }
 }
 
-// MARK: - Header de sección con contador
+// MARK: - Header de sección plano con contador
 
+/// Header de una sección plana del calendario: overline en mayúsculas (como el
+/// resto de la app) + chip contador teñido. Sin card — se apoya en el fondo.
 private struct CalendarSectionHeader: View {
-    let icon: String
-    let iconColor: Color
     let title: String
     let count: Int
+    let tint: Color
 
     var body: some View {
         HStack(spacing: Space.s) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(iconColor)
-            Text(title)
-                .font(Typo.headline)
-                .foregroundStyle(Palette.ink)
+            Text(title.uppercased())
+                .font(Typo.overline)
+                .tracking(0.8)
+                .foregroundStyle(Palette.inkTertiary)
             Spacer()
-            // Contador como chip sutil teñido del color del ícono (material ligero,
-            // sobre el fondo → no glass sobre glass).
+            // Contador como chip sutil teñido (material ligero, sobre el fondo).
             Text("\(count)")
                 .font(Typo.caption)
                 .monospacedDigit()
-                .foregroundStyle(iconColor)
+                .foregroundStyle(tint)
                 .frame(minWidth: 22)
                 .padding(.horizontal, Space.s)
                 .padding(.vertical, 3)
-                .background(iconColor.opacity(0.14), in: Capsule())
-                .overlay(Capsule().strokeBorder(iconColor.opacity(0.24), lineWidth: 0.5))
+                .background(tint.opacity(0.14), in: Capsule())
+                .overlay(Capsule().strokeBorder(tint.opacity(0.24), lineWidth: 0.5))
         }
+        .padding(.bottom, Space.xs)
     }
 }
 
-// MARK: - Lista de eventos (pendientes / próximos)
-
-private struct CalendarEventList: View {
-    let events: [CalendarEvent]
-    let emptyText: String
-    let currency: String
-    let pending: Bool
-
-    var body: some View {
-        if events.isEmpty {
-            CalendarEmptyRow(text: emptyText)
-        } else {
-            VStack(spacing: 0) {
-                ForEach(Array(events.enumerated()), id: \.element.id) { index, ev in
-                    CalendarEventRow(event: ev, currency: currency, pending: pending)
-                    if index < events.count - 1 {
-                        Divider().overlay(Palette.stroke)
-                            .padding(.leading, 40 + Space.m + Space.l)
-                    }
-                }
-            }
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .strokeBorder(Palette.stroke, lineWidth: 1)
-            )
-        }
-    }
-}
+// MARK: - Fila de evento (pendientes / próximos) — plana
 
 private struct CalendarEventRow: View {
     let event: CalendarEvent
@@ -654,55 +631,41 @@ private struct CalendarEventRow: View {
     let pending: Bool
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            iconBox
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.name)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(Typo.subhead)
-                    .foregroundStyle(pending ? Palette.amber : Palette.inkSecondary)
-                    .lineLimit(1)
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: logo,
+                    systemName: iconName,
+                    color: tint,
+                    size: 40
+                )
+            },
+            title: event.name,
+            subtitle: subtitle,
+            trailing: {
+                AmountText(
+                    amount: event.isIncome ? event.amount : -event.amount,
+                    currency: currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
+                .lineLimit(1)
             }
-
-            Spacer(minLength: Space.s)
-
-            AmountText(
-                amount: event.isIncome ? event.amount : -event.amount,
-                currency: currency,
-                font: Typo.amount,
-                signed: true,
-                tintBySign: true
-            )
-        }
-        .padding(Space.l)
+        )
     }
 
-    @ViewBuilder private var iconBox: some View {
-        let bg = event.category.map { CalendarVisual.color(for: $0) } ?? Palette.surfaceElevated
-        ZStack {
-            if let logo = SubscriptionLogo.image(for: event.logoSlug) {
-                Circle().fill(Color.white)
-                logo
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .padding(6)
-            } else if let cat = event.category {
-                Circle().fill(bg)
-                Image(systemName: CalendarVisual.symbol(for: cat))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Palette.bg)
-            } else {
-                Circle().fill(Palette.surfaceElevated)
-                Image(systemName: "calendar")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-        }
-        .frame(width: 40, height: 40)
+    private var logo: Image? {
+        SubscriptionLogo.image(for: event.logoSlug)
+    }
+
+    private var tint: Color {
+        event.category.map { CalendarVisual.color(for: $0) } ?? (event.isDebt ? Palette.amber : Palette.sky)
+    }
+
+    private var iconName: String {
+        if let cat = event.category { return CalendarVisual.symbol(for: cat) }
+        return event.isDebt ? "banknote.fill" : "calendar"
     }
 
     private var subtitle: String {
@@ -714,97 +677,88 @@ private struct CalendarEventRow: View {
     }
 }
 
-// MARK: - Lista de movimientos
-
-private struct CalendarTransactionList: View {
-    @Environment(AppState.self) private var app
-    let transactions: [Transaction]
-    let memberNames: [String: String]
-    let emptyText: String
-    let currency: String
-
-    var body: some View {
-        if transactions.isEmpty {
-            CalendarEmptyRow(text: emptyText)
-        } else {
-            VStack(spacing: 0) {
-                ForEach(Array(transactions.enumerated()), id: \.element.id) { index, tx in
-                    CalendarTransactionRow(
-                        transaction: tx,
-                        creatorName: memberNames[tx.createdBy] ?? "Usuario",
-                        category: app.category(for: tx.categoryId),
-                        currency: currency
-                    )
-                    if index < transactions.count - 1 {
-                        Divider().overlay(Palette.stroke)
-                            .padding(.leading, 40 + Space.m + Space.l)
-                    }
-                }
-            }
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .strokeBorder(Palette.stroke, lineWidth: 1)
-            )
-        }
-    }
-}
+// MARK: - Fila de movimiento — plana, con miembro real
 
 private struct CalendarTransactionRow: View {
     let transaction: Transaction
-    let creatorName: String
+    /// Nombre real del creador (app.member(for:)?.name). Nil si no se resuelve.
+    let creatorName: String?
     let category: Category?
     let currency: String
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            Text(initial)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 40, height: 40)
-                .background(Palette.surfaceElevated, in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(Typo.subhead)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: logo,
+                    systemName: iconName,
+                    color: tint,
+                    size: 40
+                )
+            },
+            title: title,
+            subtitle: subtitle,
+            trailing: {
+                AmountText(
+                    amount: signedAmount,
+                    currency: currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
+                .lineLimit(1)
             }
-
-            Spacer(minLength: Space.s)
-
-            AmountText(
-                amount: transaction.type == .income ? transaction.amount : -transaction.amount,
-                currency: currency,
-                font: Typo.amount,
-                signed: true,
-                tintBySign: true
-            )
-        }
-        .padding(Space.l)
+        )
     }
 
-    private var initial: String {
-        String(creatorName.prefix(1)).uppercased()
+    /// Logo de app si la descripción coincide con una suscripción conocida.
+    private var logo: Image? {
+        SubscriptionLogo.image(for: CalendarVisual.logoSlug(forName: transaction.description))
+    }
+
+    /// Ingreso positivo, gasto/transferencia negativo — coherente con el color por signo.
+    private var signedAmount: Double {
+        transaction.type == .income ? abs(transaction.amount) : -abs(transaction.amount)
     }
 
     private var title: String {
         if let desc = transaction.description, !desc.isEmpty { return desc }
-        if let name = category?.name { return name }
-        return "Movimiento"
+        if let name = category?.name, !name.isEmpty { return name }
+        return transaction.type.label
     }
 
+    /// Subtítulo: fecha relativa + creador REAL (o categoría si no hay creador).
     private var subtitle: String {
         let dateText = CalendarModel.relativeDateText(CalendarModel.parseLocalDate(transaction.date) ?? Date())
-        return "\(dateText) · \(creatorName)"
+        if let creator = creatorName, !creator.isEmpty {
+            return "\(dateText) · \(creator)"
+        }
+        if let name = category?.name, !name.isEmpty, name != title {
+            return "\(dateText) · \(name)"
+        }
+        return dateText
+    }
+
+    private var tint: Color {
+        if let category { return CalendarVisual.color(for: category) }
+        switch transaction.type {
+        case .income: return Palette.green
+        case .expense: return Palette.pink
+        case .transfer: return Palette.sky
+        }
+    }
+
+    private var iconName: String {
+        if let category { return CalendarVisual.symbol(for: category) }
+        switch transaction.type {
+        case .income: return "arrow.down.circle.fill"
+        case .expense: return "arrow.up.circle.fill"
+        case .transfer: return "arrow.left.arrow.right"
+        }
     }
 }
 
-// MARK: - Fila de estado vacío
+// MARK: - Fila de estado vacío (plana, amable)
 
 private struct CalendarEmptyRow: View {
     let text: String
@@ -815,7 +769,7 @@ private struct CalendarEmptyRow: View {
             .foregroundStyle(Palette.inkSecondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Space.xl)
+            .padding(.vertical, Space.l)
     }
 }
 

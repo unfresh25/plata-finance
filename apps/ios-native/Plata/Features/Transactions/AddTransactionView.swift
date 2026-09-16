@@ -13,6 +13,13 @@ struct AddTransactionView: View {
 
     @Namespace private var pillNS
 
+    /// Si viene un movimiento, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con updateTransaction (ajustando saldos). Si es nil,
+    /// es alta normal. Un mismo view para las dos rutas evita duplicar la UI.
+    var editing: Transaction? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     // Estado del formulario
     @State private var type: TransactionType = .expense
     @State private var amountDigits = ""          // solo dígitos (centavos implícitos = 0)
@@ -48,7 +55,7 @@ struct AddTransactionView: View {
                     content
                 }
             }
-            .navigationTitle("Nuevo movimiento")
+            .navigationTitle(editing == nil ? "Nuevo movimiento" : "Editar movimiento")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -88,7 +95,7 @@ struct AddTransactionView: View {
             keypad
 
             PrimaryButton(
-                title: isSaving ? "Guardando…" : "Guardar",
+                title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
                 icon: isSaving ? nil : "checkmark",
                 tint: canSave ? typeTint : Palette.surfaceElevated,
                 fg: canSave ? Palette.bg : Palette.inkTertiary
@@ -348,7 +355,11 @@ struct AddTransactionView: View {
 
         Task {
             do {
-                try await Repository().addTransaction(payload, householdId: hh, userId: uid)
+                if let tx = editing {
+                    try await Repository().updateTransaction(id: tx.id, original: tx, payload: payload)
+                } else {
+                    try await Repository().addTransaction(payload, householdId: hh, userId: uid)
+                }
                 await app.refreshAll()
                 isSaving = false
                 dismiss()
@@ -523,6 +534,17 @@ struct AddTransactionView: View {
     // MARK: - Efectos
 
     private func seedDefaults() {
+        // Modo edición: volcar los valores del movimiento en el formulario (una vez).
+        if let tx = editing, !didSeedEdit {
+            didSeedEdit = true
+            type = tx.type
+            amountDigits = String(Int(tx.amount.rounded()))
+            accountId = tx.accountId
+            categoryId = tx.categoryId
+            note = tx.description ?? ""
+            date = Self.parseISO(tx.date) ?? date
+            return   // no pisar con defaults de alta
+        }
         if accountId == nil { accountId = app.accounts.first?.id }
         reconcileCategoryForType()
     }
@@ -543,6 +565,16 @@ struct AddTransactionView: View {
         f.timeZone = TimeZone.current
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
+    }
+
+    /// Parsea la fecha almacenada (yyyy-MM-dd, o ISO completa) a Date local.
+    private static func parseISO(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        f.dateFormat = "yyyy-MM-dd"
+        if let d = f.date(from: String(s.prefix(10))) { return d }
+        return ISO8601DateFormatter().date(from: s)
     }
 
     /// Fecha amable para la fila: "Hoy", "Ayer" o "d MMM yyyy" en español.

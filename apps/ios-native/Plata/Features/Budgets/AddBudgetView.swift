@@ -12,6 +12,13 @@ struct AddBudgetView: View {
 
     @Namespace private var periodNS
 
+    /// Si viene un presupuesto, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con UPDATE sobre `budgets`. Si es nil, es alta normal.
+    /// Un mismo view para las dos rutas evita duplicar la UI.
+    var editing: Budget? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     // Formulario
     @State private var amountDigits = ""
     @State private var categoryId: String?
@@ -40,7 +47,7 @@ struct AddBudgetView: View {
                     content
                 }
             }
-            .navigationTitle("Nuevo presupuesto")
+            .navigationTitle(editing == nil ? "Nuevo presupuesto" : "Editar presupuesto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -52,9 +59,7 @@ struct AddBudgetView: View {
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
-        .onAppear {
-            if categoryId == nil { categoryId = expenseCategories.first?.id }
-        }
+        .onAppear(perform: seedDefaults)
         .alert("No se pudo guardar", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
         } message: {
@@ -88,7 +93,7 @@ struct AddBudgetView: View {
             keypad
 
             PrimaryButton(
-                title: isSaving ? "Guardando…" : "Guardar presupuesto",
+                title: isSaving ? "Guardando…" : (editing == nil ? "Guardar presupuesto" : "Guardar cambios"),
                 icon: isSaving ? nil : "checkmark",
                 tint: canSave ? Palette.amber : Palette.surfaceElevated,
                 fg: canSave ? Palette.bg : Palette.inkTertiary
@@ -196,21 +201,35 @@ struct AddBudgetView: View {
     }
 
     private func save() {
-        guard canSave, let categoryId, let hh = app.household?.id else { return }
+        guard canSave, let categoryId else { return }
         isSaving = true
         saveError = nil
 
-        let payload = AddBudgetInsert(
-            household_id: hh,
-            category_id: categoryId,
-            amount: amountValue,
-            period: period.rawValue,
-            start_date: Self.periodStart(period)
-        )
-
         Task {
             do {
-                let _: [Budget] = try await SupabaseClient.shared.insert("budgets", values: payload)
+                if let budget = editing {
+                    // EDICIÓN: PATCH de la fila. El alta de presupuesto no toca
+                    // saldos ni RPC, así que la edición tampoco. start_date se
+                    // recalcula si cambió el periodo (mensual → inicio de mes,
+                    // etc.), consistente con el alta.
+                    let patch = AddBudgetPatch(
+                        category_id: categoryId,
+                        amount: amountValue,
+                        period: period.rawValue,
+                        start_date: Self.periodStart(period)
+                    )
+                    try await SupabaseClient.shared.update("budgets", values: patch, match: ["id": budget.id])
+                } else {
+                    guard let hh = app.household?.id else { isSaving = false; return }
+                    let payload = AddBudgetInsert(
+                        household_id: hh,
+                        category_id: categoryId,
+                        amount: amountValue,
+                        period: period.rawValue,
+                        start_date: Self.periodStart(period)
+                    )
+                    let _: [Budget] = try await SupabaseClient.shared.insert("budgets", values: payload)
+                }
                 await app.refreshAll()
                 isSaving = false
                 dismiss()
@@ -223,6 +242,19 @@ struct AddBudgetView: View {
 
     private var errorBinding: Binding<Bool> {
         Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })
+    }
+
+    /// Modo edición: vuelca los valores del presupuesto en el formulario (una
+    /// vez). En alta, solo preselecciona la primera categoría de gasto.
+    private func seedDefaults() {
+        if let budget = editing, !didSeedEdit {
+            didSeedEdit = true
+            amountDigits = String(Int(budget.amount.rounded()))
+            categoryId = budget.categoryId
+            period = budget.period
+            return   // no pisar con defaults de alta
+        }
+        if categoryId == nil { categoryId = expenseCategories.first?.id }
     }
 
     /// Inicio del periodo actual: primer día del mes para mensual, del día actual
@@ -248,6 +280,17 @@ struct AddBudgetView: View {
 
 private struct AddBudgetInsert: Encodable {
     let household_id: String
+    let category_id: String
+    let amount: Double
+    let period: String
+    let start_date: String
+}
+
+// MARK: - Payload de edición (PATCH)
+
+/// Campos editables del presupuesto (snake_case = columnas de `budgets`). No
+/// incluye id ni household_id: no cambian al editar.
+private struct AddBudgetPatch: Encodable {
     let category_id: String
     let amount: Double
     let period: String

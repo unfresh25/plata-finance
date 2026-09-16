@@ -7,6 +7,13 @@ struct AddAccountView: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    /// Si viene una cuenta, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con UPDATE (PATCH de la fila; el balance va directo,
+    /// sin RPC). Si es nil, es alta normal. Un mismo view para las dos rutas.
+    var editing: Account? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     @State private var name = ""
     @State private var type: AccountType = .debit
     @State private var balanceText = ""
@@ -75,7 +82,10 @@ struct AddAccountView: View {
                             .foregroundStyle(Palette.negative)
                     }
 
-                    PrimaryButton(title: isSaving ? "Guardando…" : "Guardar cuenta", icon: "checkmark") {
+                    PrimaryButton(
+                        title: isSaving ? "Guardando…" : (editing == nil ? "Guardar cuenta" : "Guardar cambios"),
+                        icon: "checkmark"
+                    ) {
                         Task { await save() }
                     }
                     .disabled(!canSave)
@@ -85,7 +95,7 @@ struct AddAccountView: View {
             }
             // Velo tenue en vez de opaco: deja leer el material del sheet (glass).
             .background(Palette.bg.opacity(0.6).ignoresSafeArea())
-            .navigationTitle("Nueva cuenta")
+            .navigationTitle(editing == nil ? "Nueva cuenta" : "Editar cuenta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -97,6 +107,29 @@ struct AddAccountView: View {
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
+        .onAppear(perform: seedEdit)
+    }
+
+    // MARK: - Precarga (modo edición)
+
+    /// Vuelca los valores de la cuenta en el formulario, una sola vez. El balance
+    /// se muestra como texto editable (mismo formato que el TextField de alta).
+    private func seedEdit() {
+        guard let e = editing, !didSeedEdit else { return }
+        didSeedEdit = true
+        name = e.name
+        type = e.type
+        balanceText = Self.balanceString(e.balance)
+        colorHex = e.color
+    }
+
+    /// Formatea el balance para el campo de texto: entero si no tiene decimales
+    /// (COP típico), con punto decimal en caso contrario.
+    private static func balanceString(_ value: Double) -> String {
+        if value == value.rounded() {
+            return String(Int(value))
+        }
+        return String(value)
     }
 
     // MARK: - Vista previa
@@ -193,6 +226,34 @@ struct AddAccountView: View {
     // MARK: - Guardar
 
     private func save() async {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        // MODO EDICIÓN: PATCH de la fila. El balance es columna directa (va en el
+        // patch, sin apply_account_delta). No se tocan id/household_id/owner_id.
+        if let e = editing {
+            isSaving = true
+            errorMessage = nil
+
+            let patch = AccountPatch(
+                name: trimmedName,
+                type: type.rawValue,
+                balance: balance,
+                color: colorHex,
+                icon: type.sfSymbol
+            )
+
+            do {
+                try await SupabaseClient.shared.update("accounts", values: patch, match: ["id": e.id])
+                await app.refreshAll()
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+                isSaving = false
+            }
+            return
+        }
+
+        // MODO ALTA: INSERT (sin cambios respecto al comportamiento original).
         guard let householdId = app.household?.id,
               let ownerId = app.user?.id ?? SupabaseClient.shared.currentUserId else {
             errorMessage = "No se pudo identificar tu hogar. Intenta de nuevo."
@@ -205,7 +266,7 @@ struct AddAccountView: View {
         let payload = NewAccountInsert(
             household_id: householdId,
             owner_id: ownerId,
-            name: name.trimmingCharacters(in: .whitespaces),
+            name: trimmedName,
             type: type.rawValue,
             balance: balance,
             currency: app.currency,
@@ -234,6 +295,17 @@ private struct NewAccountInsert: Encodable {
     let type: String
     let balance: Double
     let currency: String
+    let color: String
+    let icon: String
+}
+
+/// PATCH de edición: solo columnas editables desde el formulario. El balance va
+/// directo (columna de la tabla), sin apply_account_delta. No incluye
+/// id/household_id/owner_id/currency (no editables aquí).
+private struct AccountPatch: Encodable {
+    let name: String
+    let type: String
+    let balance: Double
     let color: String
     let icon: String
 }

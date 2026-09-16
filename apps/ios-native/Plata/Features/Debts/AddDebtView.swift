@@ -12,6 +12,14 @@ struct AddDebtView: View {
 
     @Namespace private var dirNS
 
+    /// Si viene una deuda, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con UPDATE (PATCH de la fila; el alta no toca saldos,
+    /// así que la edición tampoco). Si es nil, es alta normal. Un mismo view para
+    /// las dos rutas evita duplicar la UI.
+    var editing: Debt? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     // Formulario
     @State private var direction: DebtDirection = .owedToUs
     @State private var amountDigits = ""
@@ -50,7 +58,7 @@ struct AddDebtView: View {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
-            .navigationTitle("Nueva deuda")
+            .navigationTitle(editing == nil ? "Nueva deuda" : "Editar deuda")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -62,6 +70,7 @@ struct AddDebtView: View {
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
+        .onAppear(perform: seedEdit)
         .onChange(of: direction) { _, _ in
             // La categoría debe coincidir con el nuevo tipo de movimiento.
             if let c = selectedCategory, c.type == (isOwed ? .income : .expense) { return }
@@ -93,7 +102,7 @@ struct AddDebtView: View {
             keypad
 
             PrimaryButton(
-                title: isSaving ? "Guardando…" : "Guardar",
+                title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
                 icon: isSaving ? nil : "checkmark",
                 tint: canSave ? tint : Palette.surfaceElevated,
                 fg: canSave ? Palette.bg : Palette.inkTertiary
@@ -289,10 +298,41 @@ struct AddDebtView: View {
     }
 
     private func save() {
-        guard canSave, let hh = app.household?.id,
-              let uid = app.profile?.id ?? SupabaseClient.shared.currentUserId else { return }
+        guard canSave else { return }
         isSaving = true
         saveError = nil
+
+        // MODO EDICIÓN: PATCH de la fila. El alta no toca saldos de cuentas, así
+        // que la edición tampoco (nada de RPC). No se incluye amount_paid para no
+        // pisar lo ya pagado, ni household_id/created_by (inmutables).
+        if let debt = editing {
+            let patch = DebtPatch(
+                direction: direction.rawValue,
+                person_name: person.trimmingCharacters(in: .whitespaces),
+                amount: amountValue,
+                due_date: hasDueDate ? Self.isoDate(dueDate) : nil,
+                description: note.isEmpty ? nil : note,
+                category_id: categoryId
+            )
+            Task {
+                do {
+                    try await SupabaseClient.shared.update("debts", values: patch, match: ["id": debt.id])
+                    await app.refreshAll()
+                    isSaving = false
+                    dismiss()
+                } catch {
+                    isSaving = false
+                    saveError = error.localizedDescription
+                }
+            }
+            return
+        }
+
+        guard let hh = app.household?.id,
+              let uid = app.profile?.id ?? SupabaseClient.shared.currentUserId else {
+            isSaving = false
+            return
+        }
 
         let payload = AddDebtInsert(
             household_id: hh,
@@ -320,6 +360,24 @@ struct AddDebtView: View {
         }
     }
 
+    /// Precarga el formulario desde `editing` una sola vez. El modelo `Debt` no
+    /// decodifica category_id, así que la categoría queda sin preseleccionar
+    /// (queda "Opcional") — el resto de campos sí se vuelcan.
+    private func seedEdit() {
+        guard let debt = editing, !didSeedEdit else { return }
+        didSeedEdit = true
+        direction = debt.direction
+        amountDigits = String(Int(debt.amount.rounded()))
+        person = debt.personName
+        note = debt.description ?? ""
+        if let due = debt.dueDate, let parsed = Self.parseISO(due) {
+            dueDate = parsed
+            hasDueDate = true
+        } else {
+            hasDueDate = false
+        }
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })
     }
@@ -330,6 +388,16 @@ struct AddDebtView: View {
         f.timeZone = .current
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
+    }
+
+    /// Parsea la fecha almacenada (yyyy-MM-dd, o ISO completa) a Date local.
+    private static func parseISO(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        if let d = f.date(from: String(s.prefix(10))) { return d }
+        return ISO8601DateFormatter().date(from: s)
     }
 }
 
@@ -349,6 +417,19 @@ private struct AddDebtInsert: Encodable {
     let description: String?
     let category_id: String?
     let status: String
+}
+
+// Patch de edición: mismos nombres de columna que el insert, sin los campos
+// inmutables (household_id/created_by) ni amount_paid (no se pisa lo pagado) ni
+// status (se gestiona aparte). Los opcionales se envían como null explícito
+// (Encodable emite `null`) para poder BORRAR fecha/concepto/categoría.
+private struct DebtPatch: Encodable {
+    let direction: String
+    let person_name: String
+    let amount: Double
+    let due_date: String?
+    let description: String?
+    let category_id: String?
 }
 
 // MARK: - Ícono principal de fila

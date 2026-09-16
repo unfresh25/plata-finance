@@ -32,10 +32,10 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Palette.bg.ignoresSafeArea()
-
             // Contenido del tab activo. Cada destino en su propio NavigationStack
-            // para conservar su pila al cambiar de pestaña.
+            // para conservar su pila al cambiar de pestaña. El fondo va como
+            // .background del contenido (NO como hermano del ZStack con
+            // ignoresSafeArea, que arrastraría a los hijos fuera del safe area).
             Group {
                 switch selection {
                 case .home:
@@ -49,6 +49,8 @@ struct MainTabView: View {
                 }
             }
             .transition(.opacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Palette.bg.ignoresSafeArea())
             // Espacio para que el contenido no quede oculto tras la barra flotante.
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 64)

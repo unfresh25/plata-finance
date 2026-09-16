@@ -13,6 +13,13 @@ struct AddRecurringView: View {
 
     @Namespace private var freqNS
 
+    /// Si viene un recurrente, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con UPDATE sobre recurring_events. Si es nil, es alta
+    /// normal. Un mismo view para las dos rutas evita duplicar la UI.
+    var editing: RecurringEvent? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     // Formulario
     @State private var amountDigits = ""
     @State private var name = ""
@@ -35,7 +42,7 @@ struct AddRecurringView: View {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
-            .navigationTitle("Nueva suscripción")
+            .navigationTitle(editing == nil ? "Nueva suscripción" : "Editar suscripción")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -69,7 +76,7 @@ struct AddRecurringView: View {
             .scrollDismissesKeyboard(.interactively)
 
             PrimaryButton(
-                title: isSaving ? "Guardando…" : "Guardar",
+                title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
                 icon: isSaving ? nil : "checkmark",
                 tint: canSave ? Palette.accent : Palette.surfaceElevated,
                 fg: canSave ? Palette.bg : Palette.inkTertiary
@@ -284,37 +291,63 @@ struct AddRecurringView: View {
     // MARK: - Guardar
 
     private func save() {
-        guard canSave, let hh = app.household?.id else { return }
+        guard canSave else { return }
         isSaving = true
         saveError = nil
 
-        struct Insert: Encodable {
-            let household_id: String
-            let name: String
-            let amount: Double
-            let frequency: String
-            let next_date: String
-            let category_id: String?
-            let account_id: String?
-            let is_active: Bool
-        }
-
         // El nombre guardado prioriza el del logo (para poder mapearlo al listar).
         let finalName = name.trimmingCharacters(in: .whitespaces)
-        let insert = Insert(
-            household_id: hh,
-            name: finalName,
-            amount: amountValue,
-            frequency: frequency.rawValue,
-            next_date: RecurrentesDate.iso(nextDate),
-            category_id: categoryId,
-            account_id: accountId,
-            is_active: true
-        )
 
         Task {
             do {
-                let _: [RecurringEvent] = try await SupabaseClient.shared.insert("recurring_events", values: insert)
+                if let event = editing {
+                    // MODO EDICIÓN: PATCH de la fila. Reúsa los nombres de columna
+                    // del Insert del alta; no toca id/household_id/is_active.
+                    struct Update: Encodable {
+                        let name: String
+                        let amount: Double
+                        let frequency: String
+                        let next_date: String
+                        let category_id: String?
+                        let account_id: String?
+                    }
+                    let update = Update(
+                        name: finalName,
+                        amount: amountValue,
+                        frequency: frequency.rawValue,
+                        next_date: RecurrentesDate.iso(nextDate),
+                        category_id: categoryId,
+                        account_id: accountId
+                    )
+                    try await SupabaseClient.shared.update(
+                        "recurring_events",
+                        values: update,
+                        match: ["id": event.id]
+                    )
+                } else {
+                    guard let hh = app.household?.id else { isSaving = false; return }
+                    struct Insert: Encodable {
+                        let household_id: String
+                        let name: String
+                        let amount: Double
+                        let frequency: String
+                        let next_date: String
+                        let category_id: String?
+                        let account_id: String?
+                        let is_active: Bool
+                    }
+                    let insert = Insert(
+                        household_id: hh,
+                        name: finalName,
+                        amount: amountValue,
+                        frequency: frequency.rawValue,
+                        next_date: RecurrentesDate.iso(nextDate),
+                        category_id: categoryId,
+                        account_id: accountId,
+                        is_active: true
+                    )
+                    let _: [RecurringEvent] = try await SupabaseClient.shared.insert("recurring_events", values: insert)
+                }
                 await app.refreshAll()
                 isSaving = false
                 dismiss()
@@ -369,6 +402,21 @@ struct AddRecurringView: View {
     }
 
     private func seedDefaults() {
+        // Modo edición: volcar los valores del recurrente en el formulario (una vez).
+        if let event = editing, !didSeedEdit {
+            didSeedEdit = true
+            amountDigits = String(Int(event.amount.rounded()))
+            name = event.name
+            // Logo: prioriza el logo_id guardado; si no, deriva del nombre (igual
+            // que RecurrentesVisual.logo(for:) al pintar la lista/detalle).
+            selectedLogo = SubscriptionLogo.slug(forStoredId: event.logoId)
+                ?? RecurrentesVisual.slug(for: event.name)
+            frequency = event.frequency
+            categoryId = event.categoryId
+            accountId = event.accountId
+            nextDate = RecurrentesDate.parse(event.nextDate) ?? nextDate
+            return   // no pisar con defaults de alta
+        }
         if categoryId == nil { categoryId = expenseCategories.first?.id }
     }
 }

@@ -7,7 +7,7 @@ import UIKit
 /// usados con propósito (cada categoría/estado tiene su color), derivados de
 /// las formas del onboarding original. La saturación se mantiene alta pero el
 /// uso es disciplinado: un acento por contexto, nunca color al azar.
-enum Palette {
+nonisolated enum Palette {
     // Fondos (dinámicos: adaptan a claro/oscuro automáticamente según el
     // colorScheme del entorno). El look oscuro conserva los valores originales;
     // el claro usa neutros con un leve sesgo frío para coherencia con el acento.
@@ -26,8 +26,12 @@ enum Palette {
     static let accent = dynamic(light: 0x5B63E0, dark: 0x818CF8)
 
     /// Construye un Color que resuelve distinto en claro y oscuro (UIKit trait).
-    static func dynamic(light: UInt, dark: UInt) -> Color {
-        Color(UIColor { traits in
+    /// `nonisolated` + closure `@Sendable`: UIKit resuelve el color en cualquier
+    /// hilo, así que el closure NO debe estar aislado al main actor (si lo está,
+    /// Swift 6 dispara un assert de aislamiento y la app crashea al resolver el
+    /// color fuera del main thread).
+    nonisolated static func dynamic(light: UInt, dark: UInt) -> Color {
+        Color(UIColor { @Sendable traits in
             let hex = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(
                 red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -120,7 +124,7 @@ enum Motion {
 
 extension Color {
     /// Init desde hex 0xRRGGBB.
-    init(hex: UInt, alpha: Double = 1) {
+    nonisolated init(hex: UInt, alpha: Double = 1) {
         self.init(
             .sRGB,
             red: Double((hex >> 16) & 0xFF) / 255,

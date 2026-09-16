@@ -9,6 +9,7 @@ struct DebtsView: View {
     @Environment(AppState.self) private var app
 
     @State private var showAdd = false
+    @State private var editingDebt: Debt?
 
     private var owedToUs: [Debt] {
         app.debts.filter { $0.direction == .owedToUs && $0.status == .active }
@@ -51,7 +52,8 @@ struct DebtsView: View {
                         tint: Palette.green,
                         positive: true,
                         emptyHint: "Nadie te debe por ahora.",
-                        currency: app.currency
+                        currency: app.currency,
+                        onEdit: { editingDebt = $0 }
                     )
                     DebtsSection(
                         title: "Debemos",
@@ -59,7 +61,8 @@ struct DebtsView: View {
                         tint: Palette.pink,
                         positive: false,
                         emptyHint: "No deben nada. Bien ahí.",
-                        currency: app.currency
+                        currency: app.currency,
+                        onEdit: { editingDebt = $0 }
                     )
                 }
             }
@@ -71,6 +74,7 @@ struct DebtsView: View {
         .scrollIndicators(.hidden)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAdd) { AddDebtView() }
+        .sheet(item: $editingDebt) { debt in AddDebtView(editing: debt) }
     }
 }
 
@@ -83,6 +87,7 @@ private struct DebtsSection: View {
     let positive: Bool
     let emptyHint: String
     let currency: String
+    let onEdit: (Debt) -> Void
 
     private var total: Double { debts.reduce(0) { $0 + $1.remaining } }
 
@@ -113,7 +118,13 @@ private struct DebtsSection: View {
                     .padding(.vertical, Space.s)
             } else {
                 PlainList(debts, dividerInset: 0) { debt in
-                    DebtsRow(debt: debt, tint: tint, positive: positive, currency: currency)
+                    Button {
+                        onEdit(debt)
+                    } label: {
+                        DebtsRow(debt: debt, tint: tint, positive: positive, currency: currency)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable()
                 }
             }
         }

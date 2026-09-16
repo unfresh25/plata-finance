@@ -75,9 +75,8 @@ struct TransactionDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .tint(Palette.accent)
         .sheet(isPresented: $showEdit) {
-            // Edición aún no soportada como flujo dedicado: reutilizamos la
-            // pantalla de alta (ver nota en el resumen). Al cerrarse, refrescamos.
-            AddTransactionView()
+            // Edición real: precarga este movimiento en la pantalla en modo edición.
+            AddTransactionView(editing: transaction)
         }
         .confirmationDialog(
             "¿Eliminar este movimiento?",

@@ -45,14 +45,14 @@ struct DashboardView: View {
                 )
             }
             .padding(.horizontal, Space.l)
-            .padding(.top, Space.s)
+            .padding(.top, Space.m)
             .padding(.bottom, Space.xxxl)
         }
-        .background(Palette.bg.ignoresSafeArea())
         .scrollIndicators(.hidden)
-        .sheet(item: $editTarget) { _ in
-            // Edición reutiliza la pantalla de alta (ver nota en el resumen).
-            AddTransactionView()
+        .background(Palette.bg.ignoresSafeArea())
+        .sheet(item: $editTarget) { tx in
+            // Edición real: reutiliza la pantalla de alta en modo edición.
+            AddTransactionView(editing: tx)
         }
     }
 }
@@ -320,9 +320,10 @@ private struct DashboardTransactionRow: View {
     }
 
     /// Logo de app si la descripción coincide con una suscripción conocida
-    /// (Netflix, Spotify…); si no, `nil` y se usa el ícono de categoría en color.
+    /// (Netflix, Apple Music Familiar…). Usa el mismo matching robusto de los
+    /// recurrentes (maneja sufijos, "+", etc.) para no depender de un match exacto.
     private var logo: Image? {
-        SubscriptionLogo.image(for: DashboardStyle.logoSlug(from: transaction.description))
+        SubscriptionLogo.image(for: RecurrentesVisual.slug(for: transaction.description ?? ""))
     }
 
     /// Ingreso positivo, gasto/transferencia negativo — coherente con el color por signo.

@@ -1,10 +1,11 @@
 import SwiftUI
 
-// Lista de movimientos agrupada por fecha. Header custom con título grande
-// "Movimientos" y buscador limpio debajo (sin el espacio fantasma del
-// navigationTitle .large + .searchable). Arriba de la lista, dos tarjetas de
-// "highlights" del mes: total gastado (con % vs mes anterior) y mayor gasto por
-// categoría. Cada fila reutiliza CategoryIcon + AmountText del design system.
+// Lista de movimientos agrupada por fecha, completamente PLANA (sin cards),
+// replicando el patrón del Dashboard. Header custom con título grande
+// "Movimientos" + buscador limpio. Arriba, los "highlights" del mes como una
+// fila de InlineStat (total gastado + mayor gasto), no tarjetas. Cada grupo de
+// día es una sección plana (etiqueta del día + neto a la derecha) con filas
+// idénticas al DashboardTransactionRow, separadas por hairlines.
 
 struct TransactionsView: View {
     @Environment(AppState.self) private var app
@@ -43,9 +44,9 @@ struct TransactionsView: View {
         .sheet(isPresented: $showingAdd) {
             AddTransactionView()
         }
-        .sheet(item: $editTarget) { _ in
-            // Edición reutiliza la pantalla de alta (ver nota en el resumen).
-            AddTransactionView()
+        .sheet(item: $editTarget) { tx in
+            // Edición real: reutiliza la pantalla de alta en modo edición.
+            AddTransactionView(editing: tx)
         }
     }
 
@@ -70,20 +71,25 @@ struct TransactionsView: View {
         }
     }
 
-    // MARK: - Highlights del mes
+    // MARK: - Highlights del mes (planos, sin cards)
 
+    /// "Este mes" como una fila de datos alineados a la izquierda: total gastado
+    /// (pink) y mayor gasto (con el logo/ícono de la categoría top + su monto).
+    /// Nada en cards — pura tipografía + espacio, igual que el Dashboard.
     @ViewBuilder
     private var monthHighlights: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             SectionLabel(text: "Este mes")
 
-            HStack(alignment: .top, spacing: Space.m) {
-                MonthSpentCard(
-                    total: monthExpenseTotal,
-                    delta: expenseDeltaPercent,
-                    currency: app.currency
+            HStack(alignment: .top, spacing: Space.xxl) {
+                InlineStat(
+                    label: "Total gastado",
+                    amount: monthExpenseTotal,
+                    currency: app.currency,
+                    tint: Palette.pink,
+                    icon: "arrow.up.right"
                 )
-                TopCategoryCard(
+                TransactionsTopCategoryStat(
                     highlight: topCategory,
                     currency: app.currency
                 )
@@ -98,8 +104,10 @@ struct TransactionsView: View {
         LazyVStack(alignment: .leading, spacing: Space.xl) {
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: Space.s) {
+                    // Header plano del día: etiqueta ("Hoy"/"Ayer"/fecha) + neto del
+                    // día a la derecha. Sin card — igual que una PlainSection.
                     HStack {
-                        Text(group.title)
+                        Text(group.title.uppercased())
                             .font(Typo.overline)
                             .tracking(0.8)
                             .foregroundStyle(Palette.inkTertiary)
@@ -112,44 +120,35 @@ struct TransactionsView: View {
                             tintBySign: true
                         )
                     }
-                    .padding(.horizontal, Space.xs)
 
-                    VStack(spacing: 0) {
-                        ForEach(Array(group.items.enumerated()), id: \.element.id) { index, tx in
-                            NavigationLink {
-                                TransactionDetailView(transaction: tx)
+                    // Lista plana con separadores hairline (no card). El divisor
+                    // arranca tras el logo/ícono de 40 + gap para alinearse al texto.
+                    PlainList(group.items, dividerInset: 40 + Space.m) { tx in
+                        NavigationLink {
+                            TransactionDetailView(transaction: tx)
+                        } label: {
+                            TransactionsFlatRow(
+                                transaction: tx,
+                                category: app.category(for: tx.categoryId),
+                                account: account(for: tx),
+                                currency: app.currency
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .pressable()
+                        .contextMenu {
+                            Button {
+                                detailTarget = tx
                             } label: {
-                                TransactionRow(transaction: tx)
+                                Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
                             }
-                            .buttonStyle(.plain)
-                            .pressable()
-                            .contextMenu {
-                                Button {
-                                    detailTarget = tx
-                                } label: {
-                                    Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
-                                }
-                                Button {
-                                    editTarget = tx
-                                } label: {
-                                    Label("Editar", systemImage: "pencil")
-                                }
-                            }
-                            if index < group.items.count - 1 {
-                                Divider()
-                                    .overlay(Palette.stroke)
-                                    .padding(.leading, 44 + Space.m + Space.l)
+                            Button {
+                                editTarget = tx
+                            } label: {
+                                Label("Editar", systemImage: "pencil")
                             }
                         }
                     }
-                    .background(
-                        Palette.surface,
-                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                            .strokeBorder(Palette.stroke, lineWidth: 1)
-                    )
                 }
             }
         }
@@ -191,30 +190,14 @@ struct TransactionsView: View {
             .sorted { $0.id > $1.id }
     }
 
-    // Prefijo YYYY-MM del mes actual y del anterior, en hora local.
+    // Prefijo YYYY-MM del mes actual, en hora local.
     private var currentMonthPrefix: String { TransactionMonth.prefix(monthsAgo: 0) }
-    private var previousMonthPrefix: String { TransactionMonth.prefix(monthsAgo: 1) }
 
     /// Gasto total (expense) del mes en curso.
     private var monthExpenseTotal: Double {
         app.transactions
             .filter { $0.type == .expense && $0.date.hasPrefix(currentMonthPrefix) }
             .reduce(0) { $0 + $1.amount }
-    }
-
-    /// Gasto total del mes anterior (para el %).
-    private var previousMonthExpenseTotal: Double {
-        app.transactions
-            .filter { $0.type == .expense && $0.date.hasPrefix(previousMonthPrefix) }
-            .reduce(0) { $0 + $1.amount }
-    }
-
-    /// Variación % del gasto vs mes anterior. Nil si el mes anterior fue 0
-    /// (no hay base para comparar → no inventamos un porcentaje).
-    private var expenseDeltaPercent: Double? {
-        let prev = previousMonthExpenseTotal
-        guard prev > 0 else { return nil }
-        return (monthExpenseTotal - prev) / prev * 100
     }
 
     /// Categoría con más gasto este mes: agrupa los expense por categoryId.
@@ -326,184 +309,121 @@ private struct TransactionsSearchField: View {
     }
 }
 
-// MARK: - Tarjetas de highlights del mes
+// MARK: - Highlight plano "Mayor gasto" del mes
 
-/// "Total gastado" este mes, con la variación % vs el mes anterior si existe.
-private struct MonthSpentCard: View {
-    let total: Double
-    let delta: Double?          // % vs mes anterior; nil si no comparable
-    let currency: String
-
-    var body: some View {
-        Card(padding: Space.l) {
-            VStack(alignment: .leading, spacing: Space.s) {
-                Label {
-                    Text("Total gastado")
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkSecondary)
-                } icon: {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Palette.negative)
-                }
-                .labelStyle(.titleAndIcon)
-
-                Text(CurrencyFormatter.string(total, currency: currency))
-                    .font(Typo.amountMedium)
-                    .tracking(-0.5)
-                    .foregroundStyle(Palette.ink)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                deltaBadge
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    @ViewBuilder
-    private var deltaBadge: some View {
-        if let delta {
-            let up = delta >= 0
-            // Gastar más = negativo (rojo), gastar menos = positivo (verde).
-            let tint = up ? Palette.negative : Palette.positive
-            HStack(spacing: 3) {
-                Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                    .font(.system(size: 9, weight: .bold))
-                Text("\(abs(delta), specifier: "%.0f")% vs mes anterior")
-                    .font(Typo.caption)
-                    .monospacedDigit()
-            }
-            .foregroundStyle(tint)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-        } else {
-            Text("Primer mes con registros")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-    }
-}
-
-/// "Mayor gasto" del mes: categoría con más gasto, con su ícono, color y monto.
-private struct TopCategoryCard: View {
+/// "Mayor gasto" del mes como dato plano (sin card): logo/ícono de la categoría
+/// top + su nombre y monto. Alineado a la izquierda, hermano del InlineStat.
+private struct TransactionsTopCategoryStat: View {
     let highlight: TopCategoryHighlight?
     let currency: String
 
     var body: some View {
-        Card(padding: Space.l) {
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text("Mayor gasto")
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkSecondary)
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Text("Mayor gasto")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.inkSecondary)
 
-                if let highlight {
-                    HStack(spacing: Space.s) {
-                        CategoryIcon(systemName: icon(for: highlight), color: color(for: highlight), size: 30)
-                        Text(name(for: highlight))
-                            .font(Typo.callout)
-                            .foregroundStyle(Palette.ink)
+            if let highlight {
+                HStack(spacing: Space.s) {
+                    RowLeadingIcon(
+                        systemName: TransactionVisual.symbol(for: highlight.category, fallbackType: .expense),
+                        color: TransactionVisual.color(for: highlight.category),
+                        size: 30
+                    )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(highlight.category?.name ?? "Sin categoría")
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
-                    }
-
-                    Text(CurrencyFormatter.string(highlight.amount, currency: currency))
-                        .font(Typo.amount)
-                        .tracking(-0.3)
-                        .foregroundStyle(color(for: highlight))
-                        .monospacedDigit()
+                        AmountText(
+                            amount: highlight.amount,
+                            currency: currency,
+                            font: Typo.amount
+                        )
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                } else {
-                    Text("Sin gastos aún")
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.inkTertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, Space.xs)
+                    }
                 }
+            } else {
+                Text("Sin gastos aún")
+                    .font(Typo.amount)
+                    .foregroundStyle(Palette.inkTertiary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private func name(for highlight: TopCategoryHighlight) -> String {
-        highlight.category?.name ?? "Sin categoría"
-    }
-
-    private func color(for highlight: TopCategoryHighlight) -> Color {
-        TransactionVisual.color(for: highlight.category)
-    }
-
-    private func icon(for highlight: TopCategoryHighlight) -> String {
-        TransactionVisual.symbol(for: highlight.category, fallbackType: .expense)
     }
 }
 
-// MARK: - Fila
+// MARK: - Fila plana (idéntica al DashboardTransactionRow)
 
-private struct TransactionRow: View {
-    @Environment(AppState.self) private var app
+/// Fila de movimiento plana: RowLeadingIcon (logo de app si aplica, si no ícono
+/// de categoría en su color) + descripción/categoría·cuenta + monto con signo y
+/// color. Sin card — vive dentro de una PlainList con hairlines.
+private struct TransactionsFlatRow: View {
     let transaction: Transaction
+    let category: Category?
+    let account: Account?
+    let currency: String
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            CategoryIcon(systemName: icon, color: color, size: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(Typo.subhead)
-                    .foregroundStyle(Palette.inkSecondary)
-                    .lineLimit(1)
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: logo,
+                    systemName: iconName,
+                    color: tint,
+                    size: 40
+                )
+            },
+            title: title,
+            subtitle: subtitle,
+            trailing: {
+                AmountText(
+                    amount: signedAmount,
+                    currency: currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
+                .lineLimit(1)
             }
-
-            Spacer(minLength: Space.s)
-
-            AmountText(
-                amount: signedAmount,
-                currency: app.currency,
-                font: Typo.amount,
-                signed: true,
-                tintBySign: true
-            )
-        }
-        .padding(Space.l)
-        .contentShape(Rectangle())
+        )
     }
 
-    private var category: Category? { app.category(for: transaction.categoryId) }
-
-    private var title: String {
-        if let desc = transaction.description, !desc.isEmpty { return desc }
-        if let name = category?.name { return name }
-        return transaction.type.label
-    }
-
-    private var subtitle: String {
-        let accountName = app.accounts.first { $0.id == transaction.accountId }?.name
-        if let name = category?.name, transaction.description?.isEmpty == false {
-            // Título ya es la descripción → subtítulo muestra categoría · cuenta.
-            if let acc = accountName { return "\(name) · \(acc)" }
-            return name
-        }
-        return accountName ?? transaction.type.label
+    /// Logo de app si la descripción coincide con una suscripción conocida
+    /// (Netflix, Spotify…); si no, cae al ícono de categoría.
+    private var logo: Image? {
+        SubscriptionLogo.image(for: RecurrentesVisual.slug(for: transaction.description ?? ""))
     }
 
     private var signedAmount: Double {
-        transaction.type == .income ? transaction.amount : -transaction.amount
+        transaction.type == .income ? abs(transaction.amount) : -abs(transaction.amount)
     }
 
-    private var color: Color {
+    private var title: String {
+        if let desc = transaction.description, !desc.isEmpty { return desc }
+        if let category, !category.name.isEmpty { return category.name }
+        return transaction.type.label
+    }
+
+    /// Subtítulo: categoría · cuenta (si el título ya es la descripción); si no,
+    /// solo la cuenta o la etiqueta del tipo.
+    private var subtitle: String {
+        let accountName = account?.name
+        if let category, !category.name.isEmpty,
+           let desc = transaction.description, !desc.isEmpty {
+            if let acc = accountName, !acc.isEmpty { return "\(category.name) · \(acc)" }
+            return category.name
+        }
+        if let acc = accountName, !acc.isEmpty { return acc }
+        return transaction.type.label
+    }
+
+    private var tint: Color {
         TransactionVisual.color(for: category)
     }
 
-    private var icon: String {
+    private var iconName: String {
         TransactionVisual.symbol(for: category, fallbackType: transaction.type)
     }
 }

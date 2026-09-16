@@ -7,6 +7,10 @@ import SwiftUI
 struct BudgetsView: View {
     @Environment(AppState.self) private var app
 
+    // Presupuesto en edición: al tocar una fila se presenta AddBudgetView en
+    // modo edición (mismo formulario que el alta, precargado).
+    @State private var editingBudget: Budget?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -16,7 +20,13 @@ struct BudgetsView: View {
                 } else {
                     PlainSection(title: "Presupuestos del mes") {
                         PlainList(indexed(app.budgets), dividerInset: 0) { pair in
-                            BudgetPlainRow(budget: pair.budget, index: pair.index)
+                            Button {
+                                editingBudget = pair.budget
+                            } label: {
+                                BudgetPlainRow(budget: pair.budget, index: pair.index)
+                            }
+                            .buttonStyle(.plain)
+                            .pressable()
                         }
                     }
                     .padding(.top, Space.s)
@@ -27,6 +37,9 @@ struct BudgetsView: View {
         }
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Presupuestos")
+        .sheet(item: $editingBudget) { budget in
+            AddBudgetView(editing: budget)
+        }
     }
 
     private func indexed(_ budgets: [Budget]) -> [BudgetIndexPair] {

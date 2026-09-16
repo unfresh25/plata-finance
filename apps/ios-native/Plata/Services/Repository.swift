@@ -147,6 +147,51 @@ struct Repository {
             "p_account_id": accountId, "p_delta": -amount,
         ])
     }
+
+    /// Edita un movimiento existente. Ajusta saldos de forma consistente:
+    /// revierte el efecto del movimiento ORIGINAL en su cuenta original y aplica
+    /// el efecto del movimiento NUEVO en su cuenta nueva (soporta cambio de
+    /// cuenta, monto y tipo). Los transfers no tocan saldo. Luego hace PATCH.
+    func updateTransaction(id: String, original: Transaction, payload: NewTransaction) async throws {
+        // Efecto que el original tenía sobre su cuenta (income suma, expense resta).
+        let oldDelta: Double = original.type == .transfer
+            ? 0
+            : (original.type == .income ? original.amount : -original.amount)
+        // Efecto que tendrá el nuevo.
+        let newDelta: Double = payload.type == .transfer
+            ? 0
+            : (payload.type == .income ? payload.amount : -payload.amount)
+
+        // Revertir el original en su cuenta original.
+        if oldDelta != 0 {
+            let _: EmptyResponse = try await client.rpc("apply_account_delta", params: [
+                "p_account_id": original.accountId, "p_delta": -oldDelta,
+            ])
+        }
+        // Aplicar el nuevo en su cuenta (puede haber cambiado).
+        if newDelta != 0 {
+            let _: EmptyResponse = try await client.rpc("apply_account_delta", params: [
+                "p_account_id": payload.accountId, "p_delta": newDelta,
+            ])
+        }
+
+        struct Patch: Encodable {
+            let account_id: String
+            let amount: Double
+            let type: String
+            let category_id: String?
+            let description: String?
+            let date: String
+        }
+        try await client.update("transactions", values: Patch(
+            account_id: payload.accountId,
+            amount: payload.amount,
+            type: payload.type.rawValue,
+            category_id: payload.type == .transfer ? nil : payload.categoryId,
+            description: payload.description,
+            date: payload.date
+        ), match: ["id": id])
+    }
 }
 
 struct NewTransaction {

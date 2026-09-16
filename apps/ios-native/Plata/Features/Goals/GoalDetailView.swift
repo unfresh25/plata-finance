@@ -14,6 +14,7 @@ struct GoalDetailView: View {
     @State private var sheet: GoalMoveMode?
     @State private var isWorking = false
     @State private var feedback: String?
+    @State private var showEdit = false
 
     // Índice para el color de respaldo: posición dentro de las metas del hogar.
     private var index: Int {
@@ -66,6 +67,9 @@ struct GoalDetailView: View {
             }
             .presentationDetents([.height(340)])
             .glassSheetBackground()
+        }
+        .sheet(isPresented: $showEdit) {
+            AddGoalView(editing: goal)
         }
     }
 
@@ -131,6 +135,11 @@ struct GoalDetailView: View {
             }
             .disabled(goal.currentAmount <= 0)
             .opacity(goal.currentAmount <= 0 ? 0.5 : 1)
+
+            SecondaryButton(title: "Editar meta", icon: "pencil") {
+                feedback = nil
+                showEdit = true
+            }
         }
     }
 

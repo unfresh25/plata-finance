@@ -1,16 +1,22 @@
 import SwiftUI
 
-// Detalle de una cuenta. Paridad con app RN account/[id].tsx: tarjeta de la
-// cuenta (nombre, tipo, balance) e historial de movimientos de esa cuenta. Los
-// datos salen de AppState (app.transactions filtrado por accountId), sin red.
-// Cada movimiento abre su detalle vía sheet (TransactionDetailView).
+// Detalle de una cuenta. Paridad con app RN account/[id].tsx: la tarjeta estilo
+// crédito de la cuenta (nombre, tipo, balance) — ÚNICA excepción permitida a
+// "sin cards" — seguida del historial de movimientos de esa cuenta, ya PLANO
+// (PlainSection + PlainList con hairlines, filas tipo Dashboard). Sin cards.
+// Los datos salen de AppState (app.transactions filtrado por accountId), sin red.
+// Tap en un movimiento → TransactionDetailView; long-press → Editar (AddTransactionView).
 
 struct AccountDetailView: View {
     @Environment(AppState.self) private var app
 
     let account: Account
 
+    // Detalle de un movimiento (tap) y edición de cuenta (toolbar).
     @State private var selectedTransaction: Transaction?
+    @State private var showEditAccount = false
+    // Long-press en un movimiento → editar (reutiliza la pantalla de alta).
+    @State private var editTarget: Transaction?
 
     // La cuenta puede haber cambiado (balance) tras un refresh: relee de AppState.
     private var liveAccount: Account {
@@ -23,14 +29,11 @@ struct AccountDetailView: View {
             .sorted { $0.date > $1.date }
     }
 
-    private var base: Color {
-        AccountCreditCardStyle.color(from: liveAccount.color, id: liveAccount.id)
-    }
-
     var body: some View {
         ScrollView {
-            VStack(spacing: Space.xl) {
-                accountCard
+            VStack(alignment: .leading, spacing: Space.xl) {
+                // Excepción única a "sin cards": la tarjeta estilo crédito.
+                AccountCreditCard(account: liveAccount, currency: app.currency)
                     .padding(.top, Space.s)
 
                 movements
@@ -38,11 +41,23 @@ struct AccountDetailView: View {
             .padding(.horizontal, Space.l)
             .padding(.bottom, Space.xxxl)
         }
+        .scrollIndicators(.hidden)
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Detalle de cuenta")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // "Editar cuenta" discreto en la barra, no en un bloque gris.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showEditAccount = true
+                } label: {
+                    Label("Editar cuenta", systemImage: "pencil")
+                }
+            }
+        }
         .toolbarBackground(.thinMaterial, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .tint(Palette.accent)
         .sheet(item: $selectedTransaction) { tx in
             NavigationStack {
                 TransactionDetailView(transaction: tx)
@@ -51,104 +66,48 @@ struct AccountDetailView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(Palette.bg)
         }
+        .sheet(item: $editTarget) { tx in
+            // Edición real: reutiliza la pantalla de alta en modo edición.
+            AddTransactionView(editing: tx)
+        }
+        .sheet(isPresented: $showEditAccount) {
+            AddAccountView(editing: liveAccount)
+        }
     }
 
-    // MARK: - Tarjeta de cuenta
-
-    private var accountCard: some View {
-        let acc = liveAccount
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                Text(acc.name)
-                    .font(Typo.headline)
-                    .tracking(-0.2)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: acc.type.sfSymbol)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
-            }
-
-            Spacer(minLength: Space.xl)
-
-            Text(acc.type.label.uppercased())
-                .font(Typo.overline)
-                .tracking(1.4)
-                .foregroundStyle(.white.opacity(0.78))
-                .padding(.bottom, Space.xs)
-
-            Text(CurrencyFormatter.string(acc.balance, currency: app.currency))
-                .font(Typo.amountLarge)
-                .tracking(-0.5)
-                .monospacedDigit()
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-        }
-        .padding(Space.l)
-        .frame(height: 190)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            ZStack {
-                // Gradiente diagonal del color de la cuenta: clara → base → oscura.
-                LinearGradient(
-                    colors: [
-                        AccountCreditCardStyle.lighten(base, by: 0.16),
-                        base,
-                        AccountCreditCardStyle.darken(base, by: 0.26),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                // Highlight de luz en la esquina superior (efecto tarjeta).
-                RadialGradient(
-                    colors: [.white.opacity(0.22), .clear],
-                    center: .topLeading,
-                    startRadius: 0,
-                    endRadius: 360
-                )
-                .blendMode(.softLight)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: AccountCreditCardStyle.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AccountCreditCardStyle.radius, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.28), .white.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
-        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-    }
-
-    // MARK: - Historial
+    // MARK: - Historial de movimientos (plano)
 
     private var movements: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionLabel(text: "Historial de movimientos")
-
+        PlainSection(title: "Historial de movimientos") {
             if accountTransactions.isEmpty {
                 AccountDetailEmpty()
             } else {
-                VStack(spacing: Space.s) {
-                    ForEach(accountTransactions) { tx in
+                // Lista plana con hairlines; el divisor arranca tras el ícono de
+                // 40 + gap para alinearse con el texto (igual que el Dashboard).
+                PlainList(accountTransactions, dividerInset: 40 + Space.m) { tx in
+                    Button {
+                        selectedTransaction = tx
+                    } label: {
+                        AccountDetailTxRow(
+                            transaction: tx,
+                            category: app.category(for: tx.categoryId),
+                            member: app.member(for: tx.createdBy),
+                            currency: app.currency
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .pressable()
+                    .contextMenu {
                         Button {
                             selectedTransaction = tx
                         } label: {
-                            AccountDetailTxRow(
-                                transaction: tx,
-                                category: app.category(for: tx.categoryId),
-                                currency: app.currency
-                            )
+                            Label("Ver detalle", systemImage: "doc.text.magnifyingglass")
                         }
-                        .pressable()
+                        Button {
+                            editTarget = tx
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
                     }
                 }
             }
@@ -156,68 +115,100 @@ struct AccountDetailView: View {
     }
 }
 
-// MARK: - Fila de movimiento
+// MARK: - Fila de movimiento (plana, estilo Dashboard)
 
 private struct AccountDetailTxRow: View {
     let transaction: Transaction
     let category: Category?
+    let member: Profile?
     let currency: String
 
-    private var isIncome: Bool { transaction.type == .income }
-
-    private var title: String {
-        if let d = transaction.description, !d.isEmpty { return d }
-        return category?.name ?? transaction.type.label
-    }
-
     var body: some View {
-        Card(padding: Space.m) {
-            HStack(spacing: Space.m) {
-                CategoryIcon(
-                    systemName: TransactionVisual.symbol(for: category, fallbackType: transaction.type),
-                    color: TransactionVisual.color(for: category),
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: logo,
+                    systemName: iconName,
+                    color: tint,
                     size: 40
                 )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    Text(AccountDetailDate.pretty(transaction.date))
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
+            },
+            title: title,
+            subtitle: subtitle,
+            trailing: {
                 AmountText(
-                    amount: isIncome ? transaction.amount : -transaction.amount,
+                    amount: signedAmount,
                     currency: currency,
                     font: Typo.amount,
                     signed: true,
                     tintBySign: true
                 )
+                .lineLimit(1)
             }
+        )
+    }
+
+    /// Logo de app si la descripción coincide con una suscripción conocida
+    /// (Netflix, Spotify…), con el mismo matching robusto de los recurrentes.
+    private var logo: Image? {
+        SubscriptionLogo.image(for: RecurrentesVisual.slug(for: transaction.description ?? ""))
+    }
+
+    /// Ingreso positivo, gasto/transferencia negativo — coherente con el color por signo.
+    private var signedAmount: Double {
+        transaction.type == .income ? abs(transaction.amount) : -abs(transaction.amount)
+    }
+
+    private var title: String {
+        if let desc = transaction.description, !desc.isEmpty { return desc }
+        if let category, !category.name.isEmpty { return category.name }
+        return transaction.type.label
+    }
+
+    /// Subtítulo: quién lo registró (miembro real) + categoría (si aporta) + fecha.
+    private var subtitle: String {
+        var parts: [String] = []
+        if let name = member?.name, !name.isEmpty { parts.append(name) }
+        if let category, !category.name.isEmpty,
+           let desc = transaction.description, !desc.isEmpty {
+            parts.append(category.name)
         }
+        parts.append(AccountDetailDate.pretty(transaction.date))
+        return parts.joined(separator: " · ")
+    }
+
+    private var tint: Color {
+        TransactionVisual.color(for: category)
+    }
+
+    private var iconName: String {
+        TransactionVisual.symbol(for: category, fallbackType: transaction.type)
     }
 }
 
-// MARK: - Estado vacío
+// MARK: - Estado vacío (amable, plano)
 
 private struct AccountDetailEmpty: View {
     var body: some View {
-        VStack(spacing: Space.s) {
+        VStack(spacing: Space.m) {
             Image(systemName: "tray")
-                .font(.system(size: 28))
+                .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(Palette.inkTertiary)
+                .frame(width: 56, height: 56)
+                .background(Palette.surfaceElevated, in: Circle())
+
             Text("Sin movimientos en esta cuenta")
-                .font(Typo.callout)
-                .foregroundStyle(Palette.inkSecondary)
+                .font(Typo.headline)
+                .foregroundStyle(Palette.ink)
+
             Text("Cuando registres ingresos o gastos aquí, aparecerán en este historial.")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkTertiary)
+                .font(Typo.subhead)
+                .foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Space.xxl)
+        .padding(.vertical, Space.xl)
     }
 }
 

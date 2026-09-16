@@ -9,6 +9,14 @@ struct AddGoalView: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    /// Si viene una meta, la pantalla opera en MODO EDICIÓN: precarga el
+    /// formulario y guarda con un UPDATE (PATCH de la fila). Si es nil, es alta
+    /// normal (INSERT). Un mismo view para las dos rutas evita duplicar la UI.
+    /// No se edita current_amount: eso lo mueven las contribuciones, aparte.
+    var editing: SavingsGoal? = nil
+    /// Garantiza que la precarga del modo edición ocurra una sola vez.
+    @State private var didSeedEdit = false
+
     // Formulario
     @State private var amountDigits = ""
     @State private var name = ""
@@ -41,7 +49,7 @@ struct AddGoalView: View {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
                 content
             }
-            .navigationTitle("Nueva meta")
+            .navigationTitle(editing == nil ? "Nueva meta" : "Editar meta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -53,6 +61,7 @@ struct AddGoalView: View {
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
+        .onAppear(perform: seedEdit)
         .alert("No se pudo guardar", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
         } message: {
@@ -96,7 +105,7 @@ struct AddGoalView: View {
                 .pressable()
 
                 PrimaryButton(
-                    title: isSaving ? "Guardando…" : "Guardar",
+                    title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
                     icon: isSaving ? nil : "checkmark",
                     tint: canSave ? Palette.ink : Palette.surfaceElevated,
                     fg: canSave ? Palette.bg : Palette.inkTertiary
@@ -262,25 +271,45 @@ struct AddGoalView: View {
     // MARK: - Guardar
 
     private func save() {
-        guard canSave, let hh = app.household?.id else { return }
+        // En alta se requiere household; en edición no (la fila ya existe).
+        guard canSave else { return }
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let isoDeadline = hasDeadline ? Self.isoDate(deadline) : nil
         isSaving = true
         saveError = nil
 
-        let payload = AddGoalInsert(
-            household_id: hh,
-            name: name.trimmingCharacters(in: .whitespaces),
-            target_amount: amountValue,
-            current_amount: 0,
-            deadline: hasDeadline ? Self.isoDate(deadline) : nil,
-            icon: preset.symbol,
-            color: preset.hex,
-            account_id: accountId,
-            status: "active"
-        )
-
         Task {
             do {
-                let _: [SavingsGoal] = try await SupabaseClient.shared.insert("savings_goals", values: payload)
+                if let goal = editing {
+                    // UPDATE: PATCH de la fila. current_amount NO se toca aquí (lo
+                    // mueven las contribuciones). No inventamos lógica de saldo: el
+                    // alta tampoco tocaba cuentas, solo insertaba la fila.
+                    let patch = AddGoalPatch(
+                        name: trimmedName,
+                        target_amount: amountValue,
+                        deadline: isoDeadline,
+                        icon: preset.symbol,
+                        color: preset.hex,
+                        account_id: accountId
+                    )
+                    try await SupabaseClient.shared.update(
+                        "savings_goals", values: patch, match: ["id": goal.id]
+                    )
+                } else {
+                    guard let hh = app.household?.id else { isSaving = false; return }
+                    let payload = AddGoalInsert(
+                        household_id: hh,
+                        name: trimmedName,
+                        target_amount: amountValue,
+                        current_amount: 0,
+                        deadline: isoDeadline,
+                        icon: preset.symbol,
+                        color: preset.hex,
+                        account_id: accountId,
+                        status: "active"
+                    )
+                    let _: [SavingsGoal] = try await SupabaseClient.shared.insert("savings_goals", values: payload)
+                }
                 await app.refreshAll()
                 isSaving = false
                 dismiss()
@@ -291,8 +320,38 @@ struct AddGoalView: View {
         }
     }
 
+    /// Modo edición: vuelca los valores de la meta en el formulario (una sola vez).
+    private func seedEdit() {
+        guard let goal = editing, !didSeedEdit else { return }
+        didSeedEdit = true
+        name = goal.name
+        amountDigits = String(Int(goal.targetAmount.rounded()))
+        accountId = goal.accountId
+        if let raw = goal.deadline, let d = Self.parseISO(raw) {
+            deadline = d
+            hasDeadline = true
+        }
+        // Preseleccionar el preset por ícono; si no hay coincidencia, por color;
+        // y si nada casa, deja el default (el ícono/color de la meta igual se
+        // envían tal cual en el patch vía preset.symbol/hex).
+        if let match = AddGoalPreset.all.first(where: { $0.symbol == goal.icon })
+            ?? AddGoalPreset.all.first(where: { $0.hex.caseInsensitiveCompare(goal.color) == .orderedSame }) {
+            preset = match
+        }
+    }
+
     private var errorBinding: Binding<Bool> {
         Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })
+    }
+
+    /// Parsea la fecha almacenada (yyyy-MM-dd, o ISO completa) a Date local.
+    private static func parseISO(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        if let d = f.date(from: String(s.prefix(10))) { return d }
+        return ISO8601DateFormatter().date(from: s)
     }
 
     private static func isoDate(_ date: Date) -> String {
@@ -337,6 +396,20 @@ private struct AddGoalInsert: Encodable {
     let color: String
     let account_id: String?
     let status: String
+}
+
+// MARK: - Payload de edición (PATCH)
+//
+// Mismas columnas editables que el Insert, en snake_case. Se omiten id,
+// household_id, current_amount y status (no editables desde este formulario).
+
+private struct AddGoalPatch: Encodable {
+    let name: String
+    let target_amount: Double
+    let deadline: String?
+    let icon: String
+    let color: String
+    let account_id: String?
 }
 
 // MARK: - Ícono principal de fila
