@@ -48,6 +48,8 @@ struct SettingsView: View {
                     }
                 )
 
+                SettingsManagementSection()
+
                 SettingsSignOutButton { showSignOutConfirm = true }
 
                 SettingsFooter()
@@ -164,6 +166,30 @@ private struct SettingsHouseholdSection: View {
 
     private var displayHouseholdName: String {
         (householdName?.isEmpty == false) ? householdName! : "Sin hogar"
+    }
+}
+
+// MARK: - Gestión (categorías, etc.)
+
+private struct SettingsManagementSection: View {
+    var body: some View {
+        PlainSection(title: "Gestión") {
+            NavigationLink {
+                CategoriesView()
+            } label: {
+                SettingsRow(
+                    icon: "square.grid.2x2.fill",
+                    tint: Palette.indigo,
+                    title: "Gestionar categorías"
+                ) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable()
+        }
     }
 }
 

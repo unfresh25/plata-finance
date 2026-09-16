@@ -23,51 +23,49 @@ struct CategoriesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Palette.bg.ignoresSafeArea()
+        // Sin NavigationStack propio: esta vista se presenta vía NavigationLink
+        // desde Ajustes (ya hay un stack). Anidar otro duplicaba la barra y
+        // producía un header/back descuadrado sobre material translúcido.
+        ZStack {
+            Palette.bg.ignoresSafeArea()
 
-                if app.categories.isEmpty {
-                    CategorasEmptyState { editor = .new }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: Space.xl) {
-                            CategorasSection(
-                                title: "Gastos",
-                                categories: expenses,
-                                onEdit: { editor = .edit($0) }
-                            )
-                            CategorasSection(
-                                title: "Ingresos",
-                                categories: incomes,
-                                onEdit: { editor = .edit($0) }
-                            )
-                        }
-                        .padding(.horizontal, Space.l)
-                        .padding(.top, Space.s)
-                        .padding(.bottom, Space.xxxl)
+            if app.categories.isEmpty {
+                CategorasEmptyState { editor = .new }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.xl) {
+                        CategorasSection(
+                            title: "Gastos",
+                            categories: expenses,
+                            onEdit: { editor = .edit($0) }
+                        )
+                        CategorasSection(
+                            title: "Ingresos",
+                            categories: incomes,
+                            onEdit: { editor = .edit($0) }
+                        )
                     }
+                    .padding(.horizontal, Space.l)
+                    .padding(.top, Space.s)
+                    .padding(.bottom, Space.xxxl)
                 }
             }
-            .navigationTitle("Categorías")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        editor = .new
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Palette.bg)
-                            .frame(width: 32, height: 32)
-                            .background(Palette.ink, in: Circle())
-                    }
-                    .pressable()
+        }
+        .navigationTitle("Categorías")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    editor = .new
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.bg)
+                        .frame(width: 32, height: 32)
+                        .background(Palette.ink, in: Circle())
                 }
+                .pressable()
             }
-            // Header translúcido: el contenido pasa por debajo (Apple §12).
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
         }
         .tint(Palette.accent)
         .sheet(item: $editor) { target in
@@ -116,7 +114,8 @@ private struct CategorasRow: View {
             CategoryIcon(
                 systemName: IconMapping.sfSymbol(for: category.icon),
                 color: CategorasVisual.color(for: category),
-                size: 44
+                size: 44,
+                slug: category.icon
             )
 
             Text(category.name)
@@ -303,13 +302,23 @@ private struct CategorasEditorView: View {
 
     // MARK: Vista previa gigante
 
+    /// Glifo grande del ícono elegido: Hugeicon real si existe, si no SF Symbol.
+    @ViewBuilder
+    private var previewGlyph: some View {
+        if let hugeicon = CategoryIconAsset.image(forSlug: icon) {
+            hugeicon.resizable().scaledToFit().frame(width: 44, height: 44)
+        } else {
+            Image(systemName: IconMapping.sfSymbol(for: icon))
+                .font(.system(size: 44, weight: .semibold))
+        }
+    }
+
     private var preview: some View {
         VStack(spacing: Space.l) {
             Button {
                 showingIconPicker = true
             } label: {
-                Image(systemName: IconMapping.sfSymbol(for: icon))
-                    .font(.system(size: 44, weight: .semibold))
+                previewGlyph
                     .foregroundStyle(tint)
                     .frame(width: 96, height: 96)
                     .background(
@@ -482,6 +491,19 @@ private struct CategorasTypeButton: View {
 
 // MARK: - Selector de ícono (grid en sheet)
 
+/// Glifo del grid del picker: Hugeicon real si existe, si no SF Symbol.
+private struct CategorasPickerGlyph: View {
+    let slug: String
+    var body: some View {
+        if let hugeicon = CategoryIconAsset.image(forSlug: slug) {
+            hugeicon.resizable().scaledToFit().frame(width: 24, height: 24)
+        } else {
+            Image(systemName: IconMapping.sfSymbol(for: slug))
+                .font(.system(size: 24, weight: .semibold))
+        }
+    }
+}
+
 private struct CategorasIconPicker: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var selected: String
@@ -501,8 +523,7 @@ private struct CategorasIconPicker: View {
                                 selected = slug
                                 dismiss()
                             } label: {
-                                Image(systemName: IconMapping.sfSymbol(for: slug))
-                                    .font(.system(size: 24, weight: .semibold))
+                                CategorasPickerGlyph(slug: slug)
                                     .foregroundStyle(isSelected ? tint : Palette.ink)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 56)
