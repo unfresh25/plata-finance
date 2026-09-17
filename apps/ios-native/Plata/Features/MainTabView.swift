@@ -106,7 +106,7 @@ struct MainTabView: View {
 
 /// Altura que la barra flotante ocupa sobre el contenido (cápsula + paddings).
 /// El safe-area inferior (home indicator) lo añade aparte cada ScrollView.
-private let floatingTabBarHeight: CGFloat = 76
+private let floatingTabBarHeight: CGFloat = 96
 
 extension View {
     /// Reserva espacio scrolleable al final para que el último elemento pueda
