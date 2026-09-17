@@ -6,6 +6,8 @@ import SwiftUI
 struct ShoppingView: View {
     @Environment(AppState.self) private var app
 
+    @State private var deleteTarget: ShoppingList?
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -23,6 +25,13 @@ struct ShoppingView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .pressable()
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        deleteTarget = list
+                                    } label: {
+                                        Label("Eliminar lista", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -33,7 +42,19 @@ struct ShoppingView: View {
             .floatingTabBarInset()
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Compras")
+            .alert("Eliminar lista", isPresented: deleteBinding, presenting: deleteTarget) { list in
+                Button("Cancelar", role: .cancel) { deleteTarget = nil }
+                Button("Eliminar", role: .destructive) {
+                    Task { await app.shoppingListDelete(id: list.id) }
+                }
+            } message: { list in
+                Text("Se eliminará “\(list.name)” y todos sus ítems. Esta acción no se puede deshacer.")
+            }
         }
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
     }
 }
 

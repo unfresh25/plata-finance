@@ -15,6 +15,8 @@ struct AccountDetailView: View {
     // Detalle de un movimiento (tap) y edición de cuenta (toolbar).
     @State private var selectedTransaction: Transaction?
     @State private var showEditAccount = false
+    @State private var showDeleteConfirm = false
+    @Environment(\.dismiss) private var dismiss
     // Long-press en un movimiento → editar (reutiliza la pantalla de alta).
     @State private var editTarget: Transaction?
 
@@ -46,14 +48,24 @@ struct AccountDetailView: View {
         .navigationTitle("Detalle de cuenta")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // "Editar cuenta" discreto en la barra, no en un bloque gris.
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showEditAccount = true
+                Menu {
+                    Button { showEditAccount = true } label: { Label("Editar cuenta", systemImage: "pencil") }
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Eliminar cuenta", systemImage: "trash")
+                    }
                 } label: {
-                    Label("Editar cuenta", systemImage: "pencil")
+                    Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .alert("¿Eliminar esta cuenta?", isPresented: $showDeleteConfirm) {
+            Button("Eliminar", role: .destructive) {
+                Task { await app.deleteAccount(id: liveAccount.id); dismiss() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se eliminará la cuenta y TODOS sus movimientos. Esta acción no se puede deshacer.")
         }
         .toolbarBackground(.thinMaterial, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)

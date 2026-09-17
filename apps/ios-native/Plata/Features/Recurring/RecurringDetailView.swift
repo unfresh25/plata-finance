@@ -159,13 +159,15 @@ struct RecurringDetailView: View {
 
     // MARK: - Resumen en frase
 
+    private var isIncome: Bool { event.type == .income }
+
     private var sentence: some View {
         (
-            Text("Gastas ")
+            Text(isIncome ? "Cobras " : "Pagas ")
                 .foregroundStyle(Palette.inkSecondary)
             + Text(CurrencyFormatter.string(event.amount, currency: app.currency))
-                .foregroundStyle(Palette.ink)
-            + Text(" \(frequencyPhrase) en esta suscripción.")
+                .foregroundStyle(isIncome ? Palette.positive : Palette.negative)
+            + Text(" \(frequencyPhrase) por esta suscripción.")
                 .foregroundStyle(Palette.inkSecondary)
         )
         .font(.system(size: 26, weight: .semibold, design: .rounded))
@@ -201,15 +203,15 @@ struct RecurringDetailView: View {
             )
             if let category {
                 RecurrentesInfoPill(
-                    symbol: TransactionVisual.symbol(for: category, fallbackType: .expense),
+                    symbol: TransactionVisual.symbol(for: category, fallbackType: event.type),
                     text: category.name,
                     tint: TransactionVisual.color(for: category)
                 )
             }
             RecurrentesInfoPill(
                 symbol: "arrow.triangle.2.circlepath",
-                text: "≈ \(CurrencyFormatter.string(RecurrentesMath.monthlyEquivalent(amount: event.amount, frequency: event.frequency), currency: app.currency)) al mes",
-                tint: Palette.accent
+                text: "≈ \(CurrencyFormatter.string(RecurrentesMath.monthlyEquivalent(amount: event.amount, frequency: event.frequency), currency: app.currency)) \(isIncome ? "entran" : "salen") al mes",
+                tint: isIncome ? Palette.positive : Palette.accent
             )
             }
         }
@@ -219,12 +221,12 @@ struct RecurringDetailView: View {
 
     private var accountSection: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            Text("Cuenta para el pago")
+            Text(isIncome ? "Cuenta para el cobro" : "Cuenta para el pago")
                 .font(Typo.caption)
                 .foregroundStyle(Palette.inkTertiary)
 
             if app.accounts.isEmpty {
-                Text("No tienes cuentas. Crea una para confirmar pagos.")
+                Text(isIncome ? "No tienes cuentas. Crea una para confirmar cobros." : "No tienes cuentas. Crea una para confirmar pagos.")
                     .font(Typo.subhead)
                     .foregroundStyle(Palette.inkSecondary)
             } else {
@@ -268,7 +270,7 @@ struct RecurringDetailView: View {
 
     private var confirmButton: some View {
         PrimaryButton(
-            title: isConfirming ? "Confirmando…" : "Confirmar pago",
+            title: isConfirming ? "Confirmando…" : (isIncome ? "Confirmar cobro" : "Confirmar pago"),
             icon: isConfirming ? nil : "checkmark.circle.fill",
             tint: canConfirm ? Palette.green : Palette.surfaceElevated,
             fg: canConfirm ? Palette.bg : Palette.inkTertiary
@@ -289,10 +291,12 @@ struct RecurringDetailView: View {
         isConfirming = true
         errorMessage = nil
 
+        // income suma a la cuenta, expense resta — el delta lo aplica
+        // Repository().addTransaction según el type (igual que el abono a deuda).
         let payload = NewTransaction(
             accountId: accountId,
             amount: event.amount,
-            type: .expense,
+            type: event.type,
             categoryId: event.categoryId,
             description: event.name,
             date: RecurrentesDate.iso(Date())

@@ -161,21 +161,48 @@ struct RecurringEvent: Codable, Identifiable, Hashable {
     var householdId: String
     var name: String
     var amount: Double
+    var type: TransactionType = .expense   // income | expense (los recurrentes nunca son transfer)
     var frequency: Frequency
     var nextDate: String
     var categoryId: String?
     var accountId: String?
     var isActive: Bool
     var logoId: String?   // id del logo de app elegido (netflix, disney, apple-music…)
+    var debtId: String?         // si es el plan de cuotas de una deuda
+    var savingsGoalId: String?  // si es el plan de aporte de una meta
 
     enum CodingKeys: String, CodingKey {
-        case id, name, amount, frequency
+        case id, name, amount, type, frequency
         case householdId = "household_id"
         case nextDate = "next_date"
         case categoryId = "category_id"
         case accountId = "account_id"
         case isActive = "is_active"
         case logoId = "logo_id"
+        case debtId = "debt_id"
+        case savingsGoalId = "savings_goal_id"
+    }
+}
+
+extension RecurringEvent {
+    // El init(from:) va en extensión para NO suprimir el inicializador
+    // memberwise sintetizado (lo usan PreviewData y demás llamadores).
+    /// Tolera filas antiguas sin la columna `type` (default expense).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        householdId = try c.decode(String.self, forKey: .householdId)
+        name = try c.decode(String.self, forKey: .name)
+        amount = try c.decode(Double.self, forKey: .amount)
+        type = try c.decodeIfPresent(TransactionType.self, forKey: .type) ?? .expense
+        frequency = try c.decode(Frequency.self, forKey: .frequency)
+        nextDate = try c.decode(String.self, forKey: .nextDate)
+        categoryId = try c.decodeIfPresent(String.self, forKey: .categoryId)
+        accountId = try c.decodeIfPresent(String.self, forKey: .accountId)
+        isActive = try c.decode(Bool.self, forKey: .isActive)
+        logoId = try c.decodeIfPresent(String.self, forKey: .logoId)
+        debtId = try c.decodeIfPresent(String.self, forKey: .debtId)
+        savingsGoalId = try c.decodeIfPresent(String.self, forKey: .savingsGoalId)
     }
 }
 
@@ -218,6 +245,7 @@ struct Debt: Codable, Identifiable, Hashable {
     var amountPaid: Double
     var dueDate: String?
     var description: String?
+    var categoryId: String?
     var status: DebtStatus
 
     enum CodingKeys: String, CodingKey {
@@ -227,6 +255,7 @@ struct Debt: Codable, Identifiable, Hashable {
         case personName = "person_name"
         case amountPaid = "amount_paid"
         case dueDate = "due_date"
+        case categoryId = "category_id"
     }
 
     var remaining: Double { max(0, amount - amountPaid) }
@@ -309,6 +338,7 @@ struct ShoppingItem: Codable, Identifiable, Hashable {
     var actualPrice: Double?
     var isChecked: Bool
     var addedBy: String
+    var categoryId: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, quantity, unit
@@ -317,5 +347,6 @@ struct ShoppingItem: Codable, Identifiable, Hashable {
         case actualPrice = "actual_price"
         case isChecked = "is_checked"
         case addedBy = "added_by"
+        case categoryId = "category_id"
     }
 }

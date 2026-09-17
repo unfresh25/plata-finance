@@ -133,6 +133,41 @@ final class AppState {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    // MARK: Eliminación de entidades
+
+    func deleteAccount(id: String) async {
+        do { try await repo.deleteAccount(id: id); await refreshAll() }
+        catch { errorMessage = error.localizedDescription }
+    }
+    func deleteDebt(id: String) async {
+        do { try await repo.deleteDebt(id: id); await refreshAll() }
+        catch { errorMessage = error.localizedDescription }
+    }
+    func deleteGoal(id: String) async {
+        do { try await repo.deleteGoal(id: id); await refreshAll() }
+        catch { errorMessage = error.localizedDescription }
+    }
+    func deleteBudget(id: String) async {
+        do { try await repo.deleteBudget(id: id); await refreshAll() }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    // MARK: Listas de compra
+
+    /// Edita nombre + presupuesto de una lista y refresca el estado.
+    func shoppingListUpdate(id: String, name: String, estimatedTotal: Double?) async {
+        do {
+            try await repo.shoppingListUpdate(id: id, name: name, estimatedTotal: estimatedTotal)
+            await refreshAll()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Elimina una lista (los ítems caen por cascade) y refresca.
+    func shoppingListDelete(id: String) async {
+        do { try await repo.shoppingListDelete(id: id); await refreshAll() }
+        catch { errorMessage = error.localizedDescription }
+    }
+
     // MARK: Preferencias
 
     /// Cambia la moneda: actualiza el estado al instante y persiste en la BD.
