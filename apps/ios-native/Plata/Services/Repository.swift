@@ -261,6 +261,54 @@ struct Repository {
             date: payload.date
         ), match: ["id": id])
     }
+
+    // MARK: - Perfil
+
+    /// Actualiza nombre y/o avatar del perfil. Solo envía los campos presentes.
+    func updateProfile(userId: String, name: String? = nil, avatarUrl: String? = nil) async throws {
+        struct Patch: Encodable {
+            let name: String?
+            let avatar_url: String?
+        }
+        try await client.update("profiles",
+            values: Patch(name: name, avatar_url: avatarUrl),
+            match: ["id": userId])
+    }
+
+    /// Sube una imagen de avatar al Storage y devuelve su URL pública.
+    func uploadAvatar(userId: String, jpeg: Data) async throws -> String {
+        let path = "\(userId)-\(Int(Date().timeIntervalSince1970)).jpg"
+        return try await client.uploadToStorage(
+            bucket: "avatars", path: path, data: jpeg, contentType: "image/jpeg")
+    }
+
+    /// Persiste la moneda preferida del usuario en la BD.
+    func updateCurrency(userId: String, currency: String) async throws {
+        struct Patch: Encodable { let currency: String }
+        try await client.update("profiles", values: Patch(currency: currency), match: ["id": userId])
+    }
+
+    // MARK: - Hogar
+
+    /// Actualiza el nombre del hogar.
+    func updateHouseholdName(householdId: String, name: String) async throws {
+        struct Patch: Encodable { let name: String }
+        try await client.update("households", values: Patch(name: name), match: ["id": householdId])
+    }
+
+    /// Regenera el código de invitación del hogar y devuelve el nuevo código.
+    func regenerateInviteCode(householdId: String) async throws -> String {
+        let code = Self.randomInviteCode()
+        struct Patch: Encodable { let invite_code: String }
+        try await client.update("households", values: Patch(invite_code: code), match: ["id": householdId])
+        return code
+    }
+
+    /// Código de invitación aleatorio de 6 caracteres (sin ambiguos 0/O, 1/I).
+    private static func randomInviteCode(length: Int = 6) -> String {
+        let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        return String((0..<length).map { _ in alphabet[Int.random(in: 0..<alphabet.count)] })
+    }
 }
 
 struct NewTransaction {

@@ -112,6 +112,8 @@ struct AddTransactionView: View {
         } message: {
             Text(saveError ?? "Inténtalo de nuevo.")
         }
+        // Menú de opciones (cámara/galería): action sheet legítimo. Se fuerza la
+        // adaptación a sheet para que en iOS 26 no salga como popover con flecha.
         .confirmationDialog("Escanear recibo", isPresented: $showScanSource, titleVisibility: .visible) {
             if AddTxCameraPicker.isAvailable {
                 Button("Tomar foto") { showCamera = true }

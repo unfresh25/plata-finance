@@ -283,11 +283,7 @@ private struct CategorasEditorView: View {
             .sheet(isPresented: $showingIconPicker) {
                 CategorasIconPicker(selected: $icon, tint: tint)
             }
-            .confirmationDialog(
-                "¿Eliminar categoría?",
-                isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
-            ) {
+            .alert("¿Eliminar categoría?", isPresented: $showDeleteConfirm) {
                 Button("Eliminar", role: .destructive) { Task { await deleteCategory() } }
                 Button("Cancelar", role: .cancel) {}
             } message: {
