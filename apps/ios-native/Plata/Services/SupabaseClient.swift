@@ -118,6 +118,32 @@ final class SupabaseClient {
         let _: EmptyResponse = try await requestRaw(url: comps.url!, method: "PATCH", body: try encoder.encode(values), single: true)
     }
 
+    // MARK: Storage
+
+    /// Sube bytes al bucket de Storage y devuelve la URL pública (con cache-buster).
+    /// Usado para el avatar del perfil (bucket "avatars", RLS: owner-only).
+    func uploadToStorage(bucket: String, path: String, data: Data, contentType: String) async throws -> String {
+        let url = SupabaseConfig.url.appendingPathComponent("/storage/v1/object/\(bucket)/\(path)")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        req.setValue("true", forHTTPHeaderField: "x-upsert")   // sobrescribe si existe
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = data
+
+        let (respData, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let msg = String(data: respData, encoding: .utf8) ?? "Error al subir la imagen."
+            throw SupabaseError(message: msg)
+        }
+        // URL pública (el bucket avatars es de lectura pública) + cache-buster.
+        let publicURL = SupabaseConfig.url.appendingPathComponent("/storage/v1/object/public/\(bucket)/\(path)")
+        return "\(publicURL.absoluteString)?t=\(Int(Date().timeIntervalSince1970))"
+    }
+
     // MARK: RPC
 
     @discardableResult

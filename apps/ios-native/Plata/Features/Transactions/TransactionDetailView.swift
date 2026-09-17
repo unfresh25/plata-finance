@@ -78,11 +78,7 @@ struct TransactionDetailView: View {
             // Edición real: precarga este movimiento en la pantalla en modo edición.
             AddTransactionView(editing: transaction)
         }
-        .confirmationDialog(
-            "¿Eliminar este movimiento?",
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
-        ) {
+        .alert("¿Eliminar este movimiento?", isPresented: $showDeleteConfirm) {
             Button("Eliminar", role: .destructive) { delete() }
             Button("Cancelar", role: .cancel) {}
         } message: {

@@ -261,6 +261,26 @@ struct Repository {
             date: payload.date
         ), match: ["id": id])
     }
+
+    // MARK: - Perfil
+
+    /// Actualiza nombre y/o avatar del perfil. Solo envía los campos presentes.
+    func updateProfile(userId: String, name: String? = nil, avatarUrl: String? = nil) async throws {
+        struct Patch: Encodable {
+            let name: String?
+            let avatar_url: String?
+        }
+        try await client.update("profiles",
+            values: Patch(name: name, avatar_url: avatarUrl),
+            match: ["id": userId])
+    }
+
+    /// Sube una imagen de avatar al Storage y devuelve su URL pública.
+    func uploadAvatar(userId: String, jpeg: Data) async throws -> String {
+        let path = "\(userId)-\(Int(Date().timeIntervalSince1970)).jpg"
+        return try await client.uploadToStorage(
+            bucket: "avatars", path: path, data: jpeg, contentType: "image/jpeg")
+    }
 }
 
 struct NewTransaction {

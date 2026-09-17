@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 // Ajustes — perfil (arriba), hogar + código de invitación, preferencias (moneda,
 // tema) y cierre de sesión. Diseño PLANO: secciones con header y filas separadas
@@ -13,6 +14,14 @@ struct SettingsView: View {
     @State private var didCopyCode = false
     // Confirmación destructiva antes de cerrar sesión.
     @State private var showSignOutConfirm = false
+
+    // Edición de perfil (nombre + foto).
+    @State private var showNameEdit = false
+    @State private var nameInput = ""
+    @State private var showPhotosPicker = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isSavingProfile = false
+    @State private var profileError: String?
 
     // Monedas soportadas (código ISO + etiqueta amable).
     private let currencies: [(code: String, label: String)] = [
@@ -30,7 +39,13 @@ struct SettingsView: View {
                 SettingsProfileHeader(
                     name: app.profile?.name,
                     email: app.user?.email,
-                    avatarUrl: app.profile?.avatarUrl
+                    avatarUrl: app.profile?.avatarUrl,
+                    isSaving: isSavingProfile,
+                    onEditName: {
+                        nameInput = app.profile?.name ?? ""
+                        showNameEdit = true
+                    },
+                    onChangePhoto: { showPhotosPicker = true }
                 )
 
                 SettingsHouseholdSection(
@@ -61,15 +76,73 @@ struct SettingsView: View {
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Ajustes")
         .navigationBarTitleDisplayMode(.large)
-        .confirmationDialog(
-            "¿Cerrar sesión?",
-            isPresented: $showSignOutConfirm,
-            titleVisibility: .visible
-        ) {
+        // Alert nativo (centrado) para la confirmación destructiva. En iOS 26 el
+        // confirmationDialog a veces se presenta como popover con flecha en iPhone
+        // (bug de SwiftUI); el alert siempre sale como el diálogo estándar de Apple.
+        .alert("¿Cerrar sesión?", isPresented: $showSignOutConfirm) {
             Button("Cerrar sesión", role: .destructive) { app.signOut() }
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text("Volverás a la pantalla de inicio. Tus datos siguen a salvo.")
+        }
+        // Editar nombre para mostrar (alert con campo de texto).
+        .alert("Editar nombre", isPresented: $showNameEdit) {
+            TextField("Tu nombre", text: $nameInput)
+                .textInputAutocapitalization(.words)
+            Button("Guardar") { Task { await saveName() } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Este es el nombre que verá tu pareja.")
+        }
+        // Cambiar foto de perfil.
+        .photosPicker(isPresented: $showPhotosPicker, selection: $photoItem, matching: .images)
+        .onChange(of: photoItem) { _, newItem in
+            if let newItem { Task { await saveAvatar(from: newItem) } }
+        }
+        .alert("No se pudo actualizar el perfil", isPresented: profileErrorBinding) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(profileError ?? "")
+        }
+    }
+
+    // MARK: - Guardado de perfil
+
+    private var profileErrorBinding: Binding<Bool> {
+        Binding(get: { profileError != nil }, set: { if !$0 { profileError = nil } })
+    }
+
+    private func saveName() async {
+        let trimmed = nameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let uid = app.profile?.id else { return }
+        isSavingProfile = true
+        do {
+            try await Repository().updateProfile(userId: uid, name: trimmed)
+            app.profile?.name = trimmed
+        } catch {
+            profileError = error.localizedDescription
+        }
+        isSavingProfile = false
+    }
+
+    private func saveAvatar(from item: PhotosPickerItem) async {
+        guard let uid = app.profile?.id else { return }
+        isSavingProfile = true
+        defer { isSavingProfile = false; photoItem = nil }
+        do {
+            guard
+                let data = try await item.loadTransferable(type: Data.self),
+                let image = UIImage(data: data),
+                let jpeg = image.jpegData(compressionQuality: 0.6)
+            else {
+                profileError = "No se pudo leer la imagen seleccionada."
+                return
+            }
+            let url = try await Repository().uploadAvatar(userId: uid, jpeg: jpeg)
+            try await Repository().updateProfile(userId: uid, avatarUrl: url)
+            app.profile?.avatarUrl = url
+        } catch {
+            profileError = error.localizedDescription
         }
     }
 
@@ -96,17 +169,49 @@ private struct SettingsProfileHeader: View {
     let name: String?
     let email: String?
     var avatarUrl: String?
+    var isSaving: Bool = false
+    var onEditName: () -> Void = {}
+    var onChangePhoto: () -> Void = {}
 
     var body: some View {
         HStack(spacing: Space.l) {
-            AvatarView(name: name, urlString: avatarUrl, size: 64)
+            // Avatar tappable: al tocar, cambia la foto. Badge de cámara + spinner.
+            Button(action: onChangePhoto) {
+                ZStack(alignment: .bottomTrailing) {
+                    AvatarView(name: name, urlString: avatarUrl, size: 64)
+                        .opacity(isSaving ? 0.5 : 1)
+                    if isSaving {
+                        ProgressView().tint(Palette.accent)
+                    } else {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Palette.onAccent)
+                            .frame(width: 22, height: 22)
+                            .background(Palette.accent, in: Circle())
+                            .overlay(Circle().strokeBorder(Palette.bg, lineWidth: 2))
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable(scale: 0.96)
+            .disabled(isSaving)
 
+            // Nombre + correo. El nombre es tappable para editarlo.
             VStack(alignment: .leading, spacing: 2) {
-                Text(name?.isEmpty == false ? name! : "Sin nombre")
-                    .font(Typo.title)
-                    .tracking(-0.4)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+                Button(action: onEditName) {
+                    HStack(spacing: Space.xs) {
+                        Text(name?.isEmpty == false ? name! : "Sin nombre")
+                            .font(Typo.title)
+                            .tracking(-0.4)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .pressable(scale: 0.97)
 
                 Text(email ?? "Sin correo")
                     .font(Typo.subhead)
