@@ -27,6 +27,10 @@ struct SettingsView: View {
     @State private var showRegenConfirm = false
     @State private var isRegenerating = false
 
+    // Editar nombre del hogar.
+    @State private var showHouseholdEdit = false
+    @State private var householdNameInput = ""
+
     // Monedas soportadas (código ISO + etiqueta amable).
     private let currencies: [(code: String, label: String)] = [
         ("COP", "Peso colombiano"),
@@ -57,6 +61,11 @@ struct SettingsView: View {
                     inviteCode: app.household?.inviteCode,
                     didCopy: didCopyCode,
                     isRegenerating: isRegenerating,
+                    canEditName: app.household != nil,
+                    onEditName: {
+                        householdNameInput = app.household?.name ?? ""
+                        showHouseholdEdit = true
+                    },
                     onCopy: copyInviteCode,
                     onRegenerate: { showRegenConfirm = true }
                 )
@@ -118,6 +127,15 @@ struct SettingsView: View {
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text("El código actual dejará de funcionar. Tendrás que compartir el nuevo.")
+        }
+        // Editar nombre del hogar.
+        .alert("Nombre del hogar", isPresented: $showHouseholdEdit) {
+            TextField("Nombre del hogar", text: $householdNameInput)
+                .textInputAutocapitalization(.words)
+            Button("Guardar") { Task { await app.setHouseholdName(householdNameInput) } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Así verán tú y tu pareja este hogar.")
         }
     }
 
@@ -252,21 +270,35 @@ private struct SettingsHouseholdSection: View {
     let inviteCode: String?
     let didCopy: Bool
     var isRegenerating: Bool = false
+    var canEditName: Bool = false
+    var onEditName: () -> Void = {}
     let onCopy: () -> Void
     var onRegenerate: () -> Void = {}
 
     var body: some View {
         PlainSection(title: "Hogar") {
-            SettingsRow(
-                icon: "house.fill",
-                tint: Palette.sky,
-                title: "Nombre del hogar"
-            ) {
-                Text(displayHouseholdName)
-                    .font(Typo.callout)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
+            Button(action: onEditName) {
+                SettingsRow(
+                    icon: "house.fill",
+                    tint: Palette.sky,
+                    title: "Nombre del hogar"
+                ) {
+                    HStack(spacing: Space.xs) {
+                        Text(displayHouseholdName)
+                            .font(Typo.callout)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        if canEditName {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Palette.inkTertiary)
+                        }
+                    }
+                }
             }
+            .buttonStyle(.plain)
+            .disabled(!canEditName)
+            .pressable(scale: 0.98)
 
             RowDivider(leadingInset: 40 + Space.m)
 

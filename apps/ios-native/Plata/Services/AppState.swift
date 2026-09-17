@@ -114,6 +114,16 @@ final class AppState {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    /// Cambia el nombre del hogar: estado al instante + persiste en la BD.
+    func setHouseholdName(_ name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let hh = household?.id else { return }
+        household?.name = trimmed
+        do {
+            try await repo.updateHouseholdName(householdId: hh, name: trimmed)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
     /// Regenera el código de invitación del hogar y actualiza el estado.
     func regenerateInviteCode() async {
         guard let hh = household?.id else { return }

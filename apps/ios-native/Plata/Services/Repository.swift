@@ -290,6 +290,12 @@ struct Repository {
 
     // MARK: - Hogar
 
+    /// Actualiza el nombre del hogar.
+    func updateHouseholdName(householdId: String, name: String) async throws {
+        struct Patch: Encodable { let name: String }
+        try await client.update("households", values: Patch(name: name), match: ["id": householdId])
+    }
+
     /// Regenera el código de invitación del hogar y devuelve el nuevo código.
     func regenerateInviteCode(householdId: String) async throws -> String {
         let code = Self.randomInviteCode()
