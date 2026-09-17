@@ -23,6 +23,10 @@ struct SettingsView: View {
     @State private var isSavingProfile = false
     @State private var profileError: String?
 
+    // Regenerar código de invitación (confirmación + spinner).
+    @State private var showRegenConfirm = false
+    @State private var isRegenerating = false
+
     // Monedas soportadas (código ISO + etiqueta amable).
     private let currencies: [(code: String, label: String)] = [
         ("COP", "Peso colombiano"),
@@ -52,7 +56,9 @@ struct SettingsView: View {
                     householdName: app.household?.name,
                     inviteCode: app.household?.inviteCode,
                     didCopy: didCopyCode,
-                    onCopy: copyInviteCode
+                    isRegenerating: isRegenerating,
+                    onCopy: copyInviteCode,
+                    onRegenerate: { showRegenConfirm = true }
                 )
 
                 SettingsPreferencesSection(
@@ -60,6 +66,8 @@ struct SettingsView: View {
                     selectedCurrency: currentCurrencyLabel,
                     onSelectCurrency: { code in
                         withAnimation(Motion.value) { app.profile?.currency = code }
+                        // Persistir en la BD (antes solo cambiaba en memoria).
+                        Task { await app.setCurrency(code) }
                     }
                 )
 
@@ -104,6 +112,19 @@ struct SettingsView: View {
         } message: {
             Text(profileError ?? "")
         }
+        // Regenerar código de invitación (invalida el anterior).
+        .alert("¿Regenerar código?", isPresented: $showRegenConfirm) {
+            Button("Regenerar", role: .destructive) { Task { await regenerateCode() } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("El código actual dejará de funcionar. Tendrás que compartir el nuevo.")
+        }
+    }
+
+    private func regenerateCode() async {
+        isRegenerating = true
+        await app.regenerateInviteCode()
+        isRegenerating = false
     }
 
     // MARK: - Guardado de perfil
@@ -230,7 +251,9 @@ private struct SettingsHouseholdSection: View {
     let householdName: String?
     let inviteCode: String?
     let didCopy: Bool
+    var isRegenerating: Bool = false
     let onCopy: () -> Void
+    var onRegenerate: () -> Void = {}
 
     var body: some View {
         PlainSection(title: "Hogar") {
@@ -261,11 +284,32 @@ private struct SettingsHouseholdSection: View {
                 }
             }
 
-            Text("Comparte el código para que tu pareja se una a este hogar.")
-                .font(Typo.caption)
-                .foregroundStyle(Palette.inkTertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, Space.s)
+            HStack(alignment: .top, spacing: Space.s) {
+                Text("Comparte el código para que tu pareja se una a este hogar.")
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if inviteCode?.isEmpty == false {
+                    Button(action: onRegenerate) {
+                        HStack(spacing: Space.xs) {
+                            if isRegenerating {
+                                ProgressView().controlSize(.mini).tint(Palette.accent)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            Text("Regenerar")
+                                .font(Typo.caption)
+                        }
+                        .foregroundStyle(Palette.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.95)
+                    .disabled(isRegenerating)
+                }
+            }
+            .padding(.top, Space.s)
         }
     }
 
