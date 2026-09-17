@@ -563,10 +563,9 @@ private struct CategorasIconPicker: View {
 
 enum CategorasVisual {
     /// Paleta de colores idéntica a la app RN (app/category/[id].tsx).
-    static let palette: [String] = [
-        "#EF4444", "#F97316", "#F59E0B", "#84CC16", "#22C55E", "#14B8A6",
-        "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6", "#D946EF", "#F43F5E", "#64748B",
-    ]
+    /// Paleta ÚNICA de personalización (CustomPalette, 12 colores) — misma que
+    /// cuentas y metas. Se guarda el hex en la columna `color` de la categoría.
+    static let palette: [String] = CustomPalette.swatches.map(\.hex)
 
     /// Slugs de ícono del backend (orden de CategoryIconGroups, sin repetidos),
     /// que se renderizan con IconMapping.sfSymbol(for:).

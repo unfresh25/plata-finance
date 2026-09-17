@@ -372,16 +372,26 @@ struct AddGoalPreset: Identifiable, Hashable {
     let color: Color
     let hex: String
 
-    static let all: [AddGoalPreset] = [
-        .init(id: "1", symbol: "airplane", name: "Viaje", color: Color(hex: 0x3B82F6), hex: "#3B82F6"),
-        .init(id: "2", symbol: "house.fill", name: "Vivienda", color: Color(hex: 0x8B5CF6), hex: "#8B5CF6"),
-        .init(id: "3", symbol: "car.fill", name: "Vehículo", color: Color(hex: 0xF59E0B), hex: "#F59E0B"),
-        .init(id: "4", symbol: "laptopcomputer", name: "Tecnología", color: Color(hex: 0x10B981), hex: "#10B981"),
-        .init(id: "5", symbol: "heart.fill", name: "Salud", color: Color(hex: 0xEF4444), hex: "#EF4444"),
-        .init(id: "6", symbol: "book.fill", name: "Estudios", color: Color(hex: 0x06B6D4), hex: "#06B6D4"),
-        .init(id: "7", symbol: "star.fill", name: "Retiro", color: Color(hex: 0xEC4899), hex: "#EC4899"),
-        .init(id: "8", symbol: "banknote.fill", name: "Ahorro", color: Color(hex: 0x22C55E), hex: "#22C55E"),
-    ]
+    /// Presets de meta: ícono + nombre + un color de la paleta ÚNICA de
+    /// personalización (CustomPalette), la misma de cuentas y categorías. Los
+    /// índices eligen colores bien separados (evita vecinos parecidos).
+    static let all: [AddGoalPreset] = {
+        let sw = CustomPalette.swatches
+        let specs: [(icon: String, name: String, i: Int)] = [
+            ("airplane", "Viaje", 2),        // Blue
+            ("house.fill", "Vivienda", 10),  // Plum
+            ("car.fill", "Vehículo", 3),     // Amber
+            ("laptopcomputer", "Tecnología", 0), // Teal
+            ("heart.fill", "Salud", 1),      // Coral
+            ("book.fill", "Estudios", 11),   // Cyan
+            ("star.fill", "Retiro", 4),      // Rose
+            ("banknote.fill", "Ahorro", 5),  // Green
+        ]
+        return specs.enumerated().map { idx, s in
+            AddGoalPreset(id: "\(idx + 1)", symbol: s.icon, name: s.name,
+                          color: sw[s.i].color, hex: sw[s.i].hex)
+        }
+    }()
 }
 
 // MARK: - Payload de inserción
