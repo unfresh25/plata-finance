@@ -8,32 +8,14 @@ struct OnboardingView: View {
     @Environment(AppState.self) private var app
 
     @State private var appeared = false
-    @State private var wordIndex = 0
-
-    // Palabras que rotan arriba (verbo + su ícono), como el ticker de Fuse.
-    private let words: [(text: String, symbol: String)] = [
-        ("Ahorrar", "banknote.fill"),
-        ("Gastar", "cart.fill"),
-        ("Compartir", "person.2.fill"),
-        ("Planear", "chart.pie.fill"),
-        ("Lograr", "target"),
-    ]
-    private let ticker = Timer.publish(every: 2.2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
-            // Degradado estilo Fuse: violeta saturado abajo que sube y muere en
-            // el fondo por arriba.
+            // Degradado estilo Fuse: violeta abajo que sube y muere en el fondo
+            // por arriba. Intensidad contenida para un look elegante, no brillante.
             FuseGradient()
 
             VStack(alignment: .leading, spacing: 0) {
-                // Ticker de palabras arriba, sobre la zona clara del degradado.
-                WordTicker(words: words, index: wordIndex)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, Space.xxxl)
-                    .padding(.horizontal, Space.xl)
-                    .opacity(appeared ? 1 : 0)
-
                 Spacer(minLength: Space.xl)
 
                 // Contenido anclado abajo, sobre el color → texto en blanco.
@@ -86,9 +68,6 @@ struct OnboardingView: View {
                 .padding(.horizontal, Space.xl)
                 .padding(.bottom, Space.xxl)
             }
-        }
-        .onReceive(ticker) { _ in
-            withAnimation(.smooth(duration: 0.5)) { wordIndex += 1 }
         }
         .onAppear {
             withAnimation(Motion.ui.delay(0.05)) { appeared = true }
