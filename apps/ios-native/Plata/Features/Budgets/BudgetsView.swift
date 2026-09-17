@@ -33,8 +33,8 @@ struct BudgetsView: View {
                 }
             }
             .padding(.horizontal, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Presupuestos")
         .sheet(item: $editingBudget) { budget in

@@ -36,6 +36,9 @@ struct MainTabView: View {
         // inyecta como safeAreaInset(.bottom): así reserva EXACTAMENTE su propia
         // altura y ningún contenido (ni el de pantallas empujadas por push)
         // queda oculto tras ella. Un spacer fijo se quedaba corto.
+        // La barra FLOTA como overlay sobre el contenido (estilo WhatsApp). Cada
+        // ScrollView de las pantallas reserva su altura con `.floatingTabBarInset()`
+        // para poder scrollear el último elemento hasta quedar visible sobre ella.
         Group {
             switch selection {
             case .home:
@@ -51,7 +54,7 @@ struct MainTabView: View {
         .transition(.opacity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .overlay(alignment: .bottom) {
             MainTabBar(selection: $selection) {
                 showingAddMenu = true
             }
@@ -96,6 +99,21 @@ struct MainTabView: View {
         case .account: AddAccountView()
         case .recurring: AddRecurringView()
         }
+    }
+}
+
+// MARK: - Inset para la barra flotante
+
+/// Altura que la barra flotante ocupa sobre el contenido (cápsula + paddings).
+/// El safe-area inferior (home indicator) lo añade aparte cada ScrollView.
+private let floatingTabBarHeight: CGFloat = 76
+
+extension View {
+    /// Reserva espacio scrolleable al final para que el último elemento pueda
+    /// subir por encima de la barra flotante (estilo WhatsApp). Aplícalo al
+    /// ScrollView de cada pantalla que vive bajo MainTabView.
+    func floatingTabBarInset() -> some View {
+        self.safeAreaPadding(.bottom, floatingTabBarHeight)
     }
 }
 
@@ -163,7 +181,7 @@ private struct MainTabBar: View {
         // Aire por encima de la barra: como se inyecta vía safeAreaInset, este
         // padding superior se suma al espacio reservado, dando holgura entre el
         // último elemento del contenido y la barra flotante (antes quedaba pegado).
-        .padding(.top, Space.m)
+        .padding(.top, Space.xl)
     }
 }
 

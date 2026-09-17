@@ -46,8 +46,8 @@ struct DebtDetailView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle(liveDebt.personName)
         .navigationBarTitleDisplayMode(.inline)

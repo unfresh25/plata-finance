@@ -39,8 +39,8 @@ struct AccountDetailView: View {
                 movements
             }
             .padding(.horizontal, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .scrollIndicators(.hidden)
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Detalle de cuenta")

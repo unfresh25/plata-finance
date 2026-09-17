@@ -27,8 +27,8 @@ struct TransactionsView: View {
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.top, Space.s)
-                .padding(.bottom, Space.xxxl)
             }
+            .floatingTabBarInset()
             .background(Palette.bg.ignoresSafeArea())
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)

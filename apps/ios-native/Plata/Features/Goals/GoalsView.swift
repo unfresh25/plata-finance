@@ -32,8 +32,8 @@ struct GoalsView: View {
                 }
             }
             .padding(.horizontal, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Metas")
         .navigationDestination(for: SavingsGoal.self) { goal in

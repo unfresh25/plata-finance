@@ -48,8 +48,8 @@ struct GoalDetailView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle(goal.name)
         .navigationBarTitleDisplayMode(.inline)
