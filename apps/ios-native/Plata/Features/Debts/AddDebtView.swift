@@ -33,6 +33,12 @@ struct AddDebtView: View {
     @State private var isSaving = false
     @State private var saveError: String?
 
+    // Plan de pagos automático (crea un recurrente ligado a la deuda).
+    @State private var hasPlan = false
+    @State private var installmentDigits = ""
+    @State private var planFrequency: Frequency = .monthly
+    @State private var planDay = 1
+
     private var isOwed: Bool { direction == .owedToUs }
     private var tint: Color { isOwed ? Palette.green : Palette.pink }
 
@@ -94,6 +100,9 @@ struct AddDebtView: View {
                         .padding(.vertical, Space.s)
 
                     selectors
+
+                    // Plan de pagos (solo al crear): crea un recurrente ligado.
+                    if editing == nil { planSection }
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
@@ -114,6 +123,70 @@ struct AddDebtView: View {
             .padding(.top, Space.m)
             .padding(.bottom, Space.s)
         }
+    }
+
+    // MARK: - Plan de pagos (recurrente ligado)
+
+    private var planSection: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Toggle(isOn: $hasPlan.animation(Motion.ui)) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Plan de pagos")
+                        .font(Typo.headline)
+                        .foregroundStyle(Palette.ink)
+                    Text("Crea cuotas periódicas como recurrente.")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .tint(Palette.accent)
+
+            if hasPlan {
+                // Cuota
+                HStack {
+                    Text("Cuota").font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
+                    Spacer()
+                    Text("$").foregroundStyle(Palette.inkTertiary)
+                    TextField("0", text: $installmentDigits)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(Typo.amount).monospacedDigit()
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: 140)
+                }
+                RowDivider()
+                // Frecuencia
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Text("Frecuencia").font(Typo.overline).tracking(0.6).foregroundStyle(Palette.inkTertiary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Space.s) {
+                            ForEach(Frequency.allCases, id: \.self) { f in
+                                Button {
+                                    withAnimation(Motion.ui) { planFrequency = f }
+                                } label: {
+                                    Text(f.label)
+                                        .font(Typo.subhead)
+                                        .foregroundStyle(planFrequency == f ? Palette.onAccent : Palette.ink)
+                                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                                        .background(planFrequency == f ? Palette.accent : Palette.surfaceElevated, in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                RowDivider()
+                // Día del mes
+                Stepper(value: $planDay, in: 1...28) {
+                    HStack {
+                        Text("Día de cobro").font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Text("\(planDay)").font(Typo.amount).monospacedDigit().foregroundStyle(Palette.ink)
+                    }
+                }
+            }
+        }
+        .padding(.top, Space.s)
     }
 
     // MARK: - Monto gigante
@@ -349,7 +422,21 @@ struct AddDebtView: View {
 
         Task {
             do {
-                let _: [Debt] = try await SupabaseClient.shared.insert("debts", values: payload)
+                let inserted: [Debt] = try await SupabaseClient.shared.insert("debts", values: payload)
+                // Plan de pagos: crea un recurrente ligado a la deuda (cuotas).
+                // Tipo income si "nos deben" (cobras), expense si "debemos" (pagas).
+                if hasPlan, let debtId = inserted.first?.id, installmentValue > 0 {
+                    try await Repository().createRecurringPlan(
+                        householdId: hh,
+                        name: person.isEmpty ? "Deuda" : person,
+                        amount: installmentValue,
+                        type: direction == .owedToUs ? .income : .expense,
+                        frequency: planFrequency,
+                        categoryId: categoryId,
+                        dayOfMonth: planDay,
+                        debtId: debtId
+                    )
+                }
                 await app.refreshAll()
                 isSaving = false
                 dismiss()
@@ -359,6 +446,8 @@ struct AddDebtView: View {
             }
         }
     }
+
+    private var installmentValue: Double { Double(installmentDigits) ?? 0 }
 
     /// Precarga el formulario desde `editing` una sola vez. El modelo `Debt` no
     /// decodifica category_id, así que la categoría queda sin preseleccionar
@@ -370,6 +459,7 @@ struct AddDebtView: View {
         amountDigits = String(Int(debt.amount.rounded()))
         person = debt.personName
         note = debt.description ?? ""
+        categoryId = debt.categoryId   // precarga la categoría (antes se perdía al editar)
         if let due = debt.dueDate, let parsed = Self.parseISO(due) {
             dueDate = parsed
             hasDueDate = true

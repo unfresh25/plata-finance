@@ -43,6 +43,15 @@ struct DashboardView: View {
                     currency: app.currency,
                     onEdit: { editTarget = $0 }
                 )
+
+                // Pagos pendientes / próximos: recurrentes activos + deudas con
+                // fecha de vencimiento, proyectados igual que en el Calendario.
+                // Si ambas listas están vacías, no se pinta nada (sin ruido).
+                DashboardPaymentsSections(
+                    pending: pendingPayments,
+                    upcoming: upcomingPayments,
+                    currency: app.currency
+                )
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.m)
@@ -54,6 +63,38 @@ struct DashboardView: View {
             // Edición real: reutiliza la pantalla de alta en modo edición.
             AddTransactionView(editing: tx)
         }
+    }
+
+    // MARK: - Pagos pendientes / próximos (derivados de AppState)
+
+    /// Todos los eventos de pago candidatos: recurrentes activos + deudas activas
+    /// con fecha de vencimiento. Mismo criterio de datos que el Calendario.
+    private var allPayments: [DashboardPayment] {
+        var out: [DashboardPayment] = []
+        for ev in app.recurringEvents where ev.isActive {
+            guard let date = DashboardPaymentDate.parseLocalDate(ev.nextDate) else { continue }
+            out.append(DashboardPayment(recurring: ev, date: date, category: app.category(for: ev.categoryId)))
+        }
+        for debt in app.debts where debt.status == .active {
+            guard let due = debt.dueDate, !due.isEmpty,
+                  let date = DashboardPaymentDate.parseLocalDate(due) else { continue }
+            out.append(DashboardPayment(debt: debt, date: date, category: app.category(for: debt.categoryId)))
+        }
+        return out
+    }
+
+    /// Vencidos o para hoy (fecha <= inicio de hoy).
+    private var pendingPayments: [DashboardPayment] {
+        allPayments
+            .filter { $0.date <= DashboardPaymentDate.todayStart }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// Futuros (fecha > hoy), ordenados por fecha ascendente.
+    private var upcomingPayments: [DashboardPayment] {
+        allPayments
+            .filter { $0.date > DashboardPaymentDate.todayStart }
+            .sorted { $0.date < $1.date }
     }
 }
 
@@ -393,6 +434,280 @@ private struct DashboardEmptyState: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Space.xl)
+    }
+}
+
+// MARK: - Pagos pendientes / próximos
+
+/// Un pago del dashboard: un recurrente o una deuda, ya resuelto a una fecha
+/// concreta. Unifica ambos orígenes para las listas "Pagos pendientes" y
+/// "Próximos pagos" (paridad con combinedEvents del legacy).
+private struct DashboardPayment: Identifiable {
+    enum Kind {
+        case recurring(RecurringEvent)
+        case debt(Debt)
+    }
+
+    let kind: Kind
+    let date: Date
+    let category: Category?
+
+    init(recurring: RecurringEvent, date: Date, category: Category?) {
+        self.kind = .recurring(recurring)
+        self.date = date
+        self.category = category
+    }
+
+    init(debt: Debt, date: Date, category: Category?) {
+        self.kind = .debt(debt)
+        self.date = date
+        self.category = category
+    }
+
+    var id: String {
+        switch kind {
+        case .recurring(let ev): return "r-\(ev.id)"
+        case .debt(let d): return "d-\(d.id)"
+        }
+    }
+
+    /// Nombre visible: nombre del recurrente, o "Deuda: …" para deudas.
+    var title: String {
+        switch kind {
+        case .recurring(let ev): return ev.name
+        case .debt(let d):
+            let base = (d.description?.isEmpty == false) ? d.description! : d.personName
+            return "Deuda: \(base)"
+        }
+    }
+
+    /// Etiqueta de frecuencia (solo recurrentes; las deudas no la tienen).
+    var frequencyLabel: String? {
+        if case .recurring(let ev) = kind { return ev.frequency.label }
+        return nil
+    }
+
+    /// Monto con signo: ingreso positivo (deuda que nos deben), gasto negativo.
+    var signedAmount: Double {
+        switch kind {
+        case .recurring(let ev): return -abs(ev.amount)  // recurrentes son gastos
+        case .debt(let d):
+            return d.direction == .owedToUs ? abs(d.remaining) : -abs(d.remaining)
+        }
+    }
+
+    var logo: Image? {
+        switch kind {
+        case .recurring(let ev): return RecurrentesVisual.logo(for: ev)
+        case .debt: return nil
+        }
+    }
+
+    /// Color del ícono: color de la categoría si existe; si no, un fallback por tipo.
+    var tint: Color {
+        if let category { return DashboardStyle.color(from: category.color) }
+        switch kind {
+        case .recurring: return Palette.accent
+        case .debt(let d): return d.direction == .owedToUs ? Palette.green : Palette.pink
+        }
+    }
+
+    var systemIcon: String {
+        if let category { return DashboardStyle.symbol(icon: category.icon, name: category.name) }
+        switch kind {
+        case .recurring: return "arrow.triangle.2.circlepath"
+        case .debt: return "banknote.fill"
+        }
+    }
+}
+
+/// Bloque con las dos secciones planas de pagos. No renderiza nada si ambas
+/// listas están vacías (evita ruido en el dashboard).
+private struct DashboardPaymentsSections: View {
+    let pending: [DashboardPayment]
+    let upcoming: [DashboardPayment]
+    let currency: String
+
+    /// Máximo de filas por sección en la vista previa del inicio.
+    private let maxRows = 4
+
+    var body: some View {
+        if !pending.isEmpty || !upcoming.isEmpty {
+            VStack(alignment: .leading, spacing: Space.xl) {
+                if !pending.isEmpty {
+                    DashboardPaymentsSection(
+                        title: "Pagos pendientes",
+                        payments: pending,
+                        maxRows: maxRows,
+                        currency: currency,
+                        pending: true
+                    )
+                }
+                if !upcoming.isEmpty {
+                    DashboardPaymentsSection(
+                        title: "Próximos pagos",
+                        payments: upcoming,
+                        maxRows: maxRows,
+                        currency: currency,
+                        pending: false
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct DashboardPaymentsSection: View {
+    let title: String
+    let payments: [DashboardPayment]
+    let maxRows: Int
+    let currency: String
+    let pending: Bool
+
+    private var shown: [DashboardPayment] { Array(payments.prefix(maxRows)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            // Header plano coherente con "Movimientos recientes": overline +
+            // "Ver todos" al Calendario cuando hay más de los que se muestran.
+            HStack {
+                Text(title.uppercased())
+                    .font(Typo.overline)
+                    .tracking(0.8)
+                    .foregroundStyle(Palette.inkTertiary)
+                Spacer()
+                if payments.count > maxRows {
+                    NavigationLink {
+                        CalendarView()
+                    } label: {
+                        Text("Ver todos")
+                            .font(Typo.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Palette.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.94)
+                }
+            }
+
+            PlainList(shown, dividerInset: 40 + Space.m) { payment in
+                DashboardPaymentLink(payment: payment, currency: currency, pending: pending)
+            }
+        }
+    }
+}
+
+/// Fila tappable: navega al detalle del recurrente o de la deuda según el tipo.
+private struct DashboardPaymentLink: View {
+    let payment: DashboardPayment
+    let currency: String
+    let pending: Bool
+
+    var body: some View {
+        NavigationLink {
+            switch payment.kind {
+            case .recurring(let ev):
+                RecurringDetailView(event: ev)
+            case .debt(let d):
+                DebtDetailView(
+                    debt: d,
+                    tint: d.direction == .owedToUs ? Palette.green : Palette.pink,
+                    positive: d.direction == .owedToUs,
+                    onEdit: {}
+                )
+            }
+        } label: {
+            DashboardPaymentRow(payment: payment, currency: currency, pending: pending)
+        }
+        .buttonStyle(.plain)
+        .pressable()
+    }
+}
+
+private struct DashboardPaymentRow: View {
+    let payment: DashboardPayment
+    let currency: String
+    let pending: Bool
+
+    var body: some View {
+        PlainRow(
+            leading: {
+                RowLeadingIcon(
+                    logo: payment.logo,
+                    categoryIcon: CategoryIconAsset.image(forSlug: payment.category?.icon),
+                    systemName: payment.systemIcon,
+                    color: payment.tint,
+                    size: 40
+                )
+            },
+            title: payment.title,
+            subtitle: subtitle,
+            trailing: {
+                AmountText(
+                    amount: payment.signedAmount,
+                    currency: currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
+                .lineLimit(1)
+            }
+        )
+    }
+
+    /// "Vencido/Hoy/… · frecuencia" — la fecha relativa primero, luego la
+    /// frecuencia (si es recurrente). Igual criterio que el Calendario.
+    private var subtitle: String {
+        var parts = [DashboardPaymentDate.relativeText(payment.date)]
+        if let freq = payment.frequencyLabel { parts.append(freq) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// Helpers de fecha para los pagos, replicados mínimamente del Calendario para
+/// no depender de sus tipos privados (parseLocalDate + fecha relativa).
+private enum DashboardPaymentDate {
+    static let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = Locale(identifier: "es_CO")
+        c.timeZone = TimeZone.current
+        return c
+    }()
+
+    static var todayStart: Date { calendar.startOfDay(for: Date()) }
+
+    private static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        f.dateFormat = "d MMM"
+        return f
+    }()
+
+    /// Parsea "yyyy-MM-dd" (o ISO con tiempo) como fecha local a medianoche,
+    /// tomando solo la parte de fecha — igual que CalendarModel.parseLocalDate.
+    static func parseLocalDate(_ string: String) -> Date? {
+        guard !string.isEmpty else { return nil }
+        let datePart = String(string.split(separator: "T").first ?? "")
+        let comps = datePart.split(separator: "-")
+        guard comps.count == 3,
+              let y = Int(comps[0]), let m = Int(comps[1]), let d = Int(comps[2]) else { return nil }
+        return calendar.date(from: DateComponents(year: y, month: m, day: d))
+    }
+
+    /// "Vencido" (pasado), "Hoy", "Mañana", "Ayer" o la fecha corta.
+    static func relativeText(_ date: Date) -> String {
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+        let days = calendar.dateComponents([.day], from: today, to: target).day ?? 0
+        switch days {
+        case 0: return "Hoy"
+        case 1: return "Mañana"
+        case -1: return "Ayer"
+        case ..<0: return "Vencido"
+        default:
+            let text = shortDateFormatter.string(from: date)
+            return text.prefix(1).uppercased() + text.dropFirst()
+        }
     }
 }
 

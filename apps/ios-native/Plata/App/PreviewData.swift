@@ -39,8 +39,8 @@ extension AppState {
             SavingsGoal(id: "g2", householdId: "h1", name: "Fondo de emergencia", targetAmount: 6_000_000, currentAmount: 5_600_000, deadline: nil, icon: "shield.fill", color: "#3B815C", accountId: "a3", status: .active),
         ]
         app.debts = [
-            Debt(id: "d1", householdId: "h1", createdBy: "u1", direction: .owedToUs, personName: "Camila", amount: 300_000, amountPaid: 100_000, dueDate: nil, description: "Préstamo", status: .active),
-            Debt(id: "d2", householdId: "h1", createdBy: "u1", direction: .weOwe, personName: "David", amount: 150_000, amountPaid: 0, dueDate: nil, description: "Cena", status: .active),
+            Debt(id: "d1", householdId: "h1", createdBy: "u1", direction: .owedToUs, personName: "Camila", amount: 300_000, amountPaid: 100_000, dueDate: nil, description: "Préstamo", categoryId: nil, status: .active),
+            Debt(id: "d2", householdId: "h1", createdBy: "u1", direction: .weOwe, personName: "David", amount: 150_000, amountPaid: 0, dueDate: nil, description: "Cena", categoryId: nil, status: .active),
         ]
         app.shoppingLists = [
             ShoppingList(id: "s1", householdId: "h1", createdBy: "u1", name: "Mercado semanal", store: "Éxito", estimatedTotal: 250_000, actualTotal: nil, status: .open, date: today),

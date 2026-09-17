@@ -18,6 +18,8 @@ struct DebtDetailView: View {
     @State private var feedback: String?
     @State private var payments: [DebtPayment] = []
     @State private var loadingHistory = true
+    @State private var showDeleteConfirm = false
+    @Environment(\.dismiss) private var dismiss
 
     // La deuda puede haber cambiado tras un abono: relee de AppState.
     private var liveDebt: Debt {
@@ -55,9 +57,23 @@ struct DebtDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Editar", action: onEdit)
-                    .foregroundStyle(Palette.accent)
+                Menu {
+                    Button { onEdit() } label: { Label("Editar", systemImage: "pencil") }
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Eliminar deuda", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
             }
+        }
+        .alert("¿Eliminar esta deuda?", isPresented: $showDeleteConfirm) {
+            Button("Eliminar", role: .destructive) {
+                Task { await app.deleteDebt(id: liveDebt.id); dismiss() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se borrará la deuda y su historial de abonos.")
         }
         .sheet(isPresented: $showPaymentSheet) {
             DebtPaymentSheet(

@@ -8,8 +8,14 @@ import SwiftUI
 
 struct ShoppingListDetailView: View {
     @Environment(AppState.self) private var app
+    @Environment(\.dismiss) private var dismiss
 
-    let list: ShoppingList
+    // Copia editable de la lista: nombre y presupuesto pueden cambiar in-place.
+    @State private var list: ShoppingList
+
+    init(list: ShoppingList) {
+        _list = State(initialValue: list)
+    }
 
     @State private var items: [ShoppingItem] = []
     @State private var isLoading = true
@@ -21,11 +27,24 @@ struct ShoppingListDetailView: View {
 
     // Sheets / modales
     @State private var showAddItemSheet = false
+    @State private var editItem: ShoppingItem?            // ítem que se está editando
     @State private var priceItem: ShoppingItem?          // ítem que se está marcando comprado
+    @State private var showEditListSheet = false
+    @State private var showDeleteListAlert = false
+    @State private var deleteItemTarget: ShoppingItem?   // ítem pendiente de confirmar borrado
     @State private var showTemplateSaved = false
     @State private var actionError: String?
 
     private var tint: Color { ShoppingStatusStyle.tint(for: list.status) }
+
+    private var expenseCategories: [Category] {
+        app.categories.filter { $0.type == .expense }
+    }
+
+    private func category(for id: String?) -> Category? {
+        guard let id else { return nil }
+        return app.categories.first { $0.id == id }
+    }
 
     // MARK: Derivados
 
@@ -67,9 +86,12 @@ struct ShoppingListDetailView: View {
                         ForEach(items) { item in
                             ShoppingItemRow(
                                 item: item,
+                                category: category(for: item.categoryId),
                                 currency: app.currency,
                                 tint: tint,
-                                onToggle: { toggle(item) }
+                                onToggle: { toggle(item) },
+                                onEdit: { editItem = item },
+                                onDelete: { deleteItemTarget = item }
                             )
                         }
                     }
@@ -91,11 +113,22 @@ struct ShoppingListDetailView: View {
                         Label("Añadir ítem con detalle", systemImage: "plus.circle")
                     }
                     Button {
+                        showEditListSheet = true
+                    } label: {
+                        Label("Editar lista", systemImage: "pencil")
+                    }
+                    Button {
                         saveAsTemplate()
                     } label: {
                         Label("Guardar como plantilla", systemImage: "square.and.arrow.down")
                     }
                     .disabled(items.isEmpty)
+                    Divider()
+                    Button(role: .destructive) {
+                        showDeleteListAlert = true
+                    } label: {
+                        Label("Eliminar lista", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .foregroundStyle(Palette.ink)
@@ -109,10 +142,43 @@ struct ShoppingListDetailView: View {
         }
         .task { await load() }
         .sheet(isPresented: $showAddItemSheet) {
-            ShoppingAddItemSheet(currency: app.currency, tint: tint) { name, quantity, unit, estimated in
-                await addDetailedItem(name: name, quantity: quantity, unit: unit, estimated: estimated)
+            ShoppingItemEditSheet(
+                title: "Nuevo ítem",
+                confirmLabel: "Añadir ítem",
+                existing: nil,
+                categories: expenseCategories,
+                currency: app.currency,
+                tint: tint
+            ) { name, quantity, unit, estimated, categoryId in
+                await addDetailedItem(name: name, quantity: quantity, unit: unit, estimated: estimated, categoryId: categoryId)
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
+            .presentationBackground(Palette.bg)
+        }
+        .sheet(item: $editItem) { item in
+            ShoppingItemEditSheet(
+                title: "Editar ítem",
+                confirmLabel: "Guardar ítem",
+                existing: item,
+                categories: expenseCategories,
+                currency: app.currency,
+                tint: tint
+            ) { name, quantity, unit, estimated, categoryId in
+                await updateItem(item, name: name, quantity: quantity, unit: unit, estimated: estimated, categoryId: categoryId)
+            }
+            .presentationDetents([.large])
+            .presentationBackground(Palette.bg)
+        }
+        .sheet(isPresented: $showEditListSheet) {
+            ShoppingListEditSheet(
+                name: list.name,
+                budget: list.estimatedTotal,
+                currency: app.currency,
+                tint: tint
+            ) { newName, newBudget in
+                await editList(name: newName, budget: newBudget)
+            }
+            .presentationDetents([.large])
             .presentationBackground(Palette.bg)
         }
         .sheet(item: $priceItem) { item in
@@ -131,6 +197,22 @@ struct ShoppingListDetailView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text(actionError ?? "Inténtalo de nuevo.")
+        }
+        .alert("Eliminar ítem", isPresented: deleteItemBinding, presenting: deleteItemTarget) { item in
+            Button("Cancelar", role: .cancel) { deleteItemTarget = nil }
+            Button("Eliminar", role: .destructive) {
+                Task { await deleteItem(item) }
+            }
+        } message: { item in
+            Text("¿Eliminar “\(item.name)” de la lista?")
+        }
+        .alert("Eliminar lista", isPresented: $showDeleteListAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                Task { await deleteList() }
+            }
+        } message: {
+            Text("Se eliminará “\(list.name)” y todos sus ítems. Esta acción no se puede deshacer.")
         }
     }
 
@@ -319,7 +401,7 @@ struct ShoppingListDetailView: View {
 
     // MARK: - Añadir ítem con detalle
 
-    private func addDetailedItem(name: String, quantity: Double, unit: String?, estimated: Double?) async {
+    private func addDetailedItem(name: String, quantity: Double, unit: String?, estimated: Double?, categoryId: String? = nil) async {
         guard let uid = app.profile?.id else { return }
         isAddingItem = true
         defer { isAddingItem = false }
@@ -332,6 +414,7 @@ struct ShoppingListDetailView: View {
             let estimated_price: Double?
             let is_checked: Bool
             let added_by: String
+            let category_id: String?
         }
         let payload = Insert(
             list_id: list.id,
@@ -340,7 +423,8 @@ struct ShoppingListDetailView: View {
             unit: unit,
             estimated_price: estimated,
             is_checked: false,
-            added_by: uid
+            added_by: uid,
+            category_id: categoryId
         )
         do {
             let created: [ShoppingItem] = try await SupabaseClient.shared.insert("shopping_items", values: payload)
@@ -357,6 +441,95 @@ struct ShoppingListDetailView: View {
         }
     }
 
+    // MARK: - Editar ítem
+
+    private func updateItem(_ item: ShoppingItem, name: String, quantity: Double, unit: String?, estimated: Double?, categoryId: String?) async {
+        // Optimista.
+        applyLocal(item.id) {
+            $0.name = name
+            $0.quantity = quantity
+            $0.unit = unit
+            $0.estimatedPrice = estimated
+            $0.categoryId = categoryId
+        }
+
+        struct Patch: Encodable {
+            let name: String
+            let quantity: Double
+            let unit: String?
+            let estimated_price: Double?
+            let category_id: String?
+        }
+        do {
+            try await SupabaseClient.shared.update(
+                "shopping_items",
+                values: Patch(name: name, quantity: quantity, unit: unit, estimated_price: estimated, category_id: categoryId),
+                match: ["id": item.id]
+            )
+        } catch {
+            // Revertir al valor previo si falla.
+            applyLocal(item.id) {
+                $0.name = item.name
+                $0.quantity = item.quantity
+                $0.unit = item.unit
+                $0.estimatedPrice = item.estimatedPrice
+                $0.categoryId = item.categoryId
+            }
+            actionError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Eliminar ítem
+
+    private func deleteItem(_ item: ShoppingItem) async {
+        deleteItemTarget = nil
+        let snapshot = items
+        withAnimation(Motion.ui) { items.removeAll { $0.id == item.id } }
+        do {
+            try await SupabaseClient.shared.deleteRow("shopping_items", match: ["id": item.id])
+        } catch {
+            withAnimation(Motion.ui) { items = snapshot }
+            actionError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Editar lista
+
+    private func editList(name: String, budget: Double?) async {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return }
+        let previousName = list.name
+        let previousBudget = list.estimatedTotal
+        // Optimista local.
+        list.name = cleanName
+        list.estimatedTotal = budget
+        do {
+            try await SupabaseClient.shared.update(
+                "shopping_lists",
+                values: ShoppingListPatch(name: cleanName, estimated_total: budget),
+                match: ["id": list.id]
+            )
+            await app.refreshAll()
+        } catch {
+            list.name = previousName
+            list.estimatedTotal = previousBudget
+            actionError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Eliminar lista
+
+    private func deleteList() async {
+        do {
+            // shopping_items.list_id tiene ON DELETE CASCADE → basta con borrar la lista.
+            try await SupabaseClient.shared.deleteRow("shopping_lists", match: ["id": list.id])
+            await app.refreshAll()
+            dismiss()
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
     // MARK: - Guardar como plantilla
 
     private func saveAsTemplate() {
@@ -366,6 +539,7 @@ struct ShoppingListDetailView: View {
             let quantity: Double
             let unit: String?
             let estimated_price: Double?
+            let category_id: String?
         }
         struct Insert: Encodable {
             let household_id: String
@@ -376,7 +550,7 @@ struct ShoppingListDetailView: View {
             household_id: list.householdId,
             name: list.name,
             items: items.map {
-                TemplateItem(name: $0.name, quantity: $0.quantity, unit: $0.unit, estimated_price: $0.estimatedPrice)
+                TemplateItem(name: $0.name, quantity: $0.quantity, unit: $0.unit, estimated_price: $0.estimatedPrice, category_id: $0.categoryId)
             }
         )
         Task {
@@ -399,15 +573,28 @@ struct ShoppingListDetailView: View {
     private var errorBinding: Binding<Bool> {
         Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })
     }
+
+    private var deleteItemBinding: Binding<Bool> {
+        Binding(get: { deleteItemTarget != nil }, set: { if !$0 { deleteItemTarget = nil } })
+    }
+}
+
+// Patch reutilizable para actualizar nombre/presupuesto de una lista.
+private struct ShoppingListPatch: Encodable {
+    let name: String
+    let estimated_total: Double?
 }
 
 // MARK: - Fila de ítem
 
 private struct ShoppingItemRow: View {
     let item: ShoppingItem
+    let category: Category?
     let currency: String
     let tint: Color
     let onToggle: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     private var quantityText: String {
         let qty = item.quantity
@@ -430,45 +617,85 @@ private struct ShoppingItemRow: View {
         return CurrencyFormatter.string(price * item.quantity, currency: currency)
     }
 
+    private var categoryColor: Color {
+        Color(hexString: category?.color ?? "") ?? Palette.inkTertiary
+    }
+
     var body: some View {
-        Button(action: onToggle) {
-            Card(padding: Space.m) {
-                HStack(spacing: Space.m) {
+        Card(padding: Space.m) {
+            HStack(spacing: Space.m) {
+                // Checkbox: sólo togglea comprado (área de toque propia).
+                Button(action: onToggle) {
                     Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 24, weight: .regular))
                         .foregroundStyle(item.isChecked ? tint : Palette.inkTertiary)
                         .animation(Motion.ui, value: item.isChecked)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pressable(scale: 0.9)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name)
-                            .font(Typo.body)
-                            .foregroundStyle(item.isChecked ? Palette.inkTertiary : Palette.ink)
-                            .strikethrough(item.isChecked, color: Palette.inkTertiary)
-                            .lineLimit(1)
-                        if !quantityText.isEmpty {
-                            Text(quantityText)
-                                .font(Typo.caption)
+                // Cuerpo: toca para editar el ítem.
+                Button(action: onEdit) {
+                    HStack(spacing: Space.m) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(Typo.body)
+                                .foregroundStyle(item.isChecked ? Palette.inkTertiary : Palette.ink)
+                                .strikethrough(item.isChecked, color: Palette.inkTertiary)
+                                .lineLimit(1)
+                            HStack(spacing: Space.s) {
+                                if !quantityText.isEmpty {
+                                    Text(quantityText)
+                                        .font(Typo.caption)
+                                        .monospacedDigit()
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                                if let category {
+                                    HStack(spacing: 3) {
+                                        Circle()
+                                            .fill(categoryColor)
+                                            .frame(width: 6, height: 6)
+                                        Text(category.name)
+                                            .font(Typo.caption)
+                                            .foregroundStyle(Palette.inkTertiary)
+                                            .lineLimit(1)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(minLength: Space.s)
+
+                        if let priceText {
+                            Text(priceText)
+                                .font(Typo.amount)
                                 .monospacedDigit()
-                                .foregroundStyle(Palette.inkSecondary)
+                                .foregroundStyle(item.isChecked ? Palette.inkTertiary : Palette.ink)
+                        } else if !item.isChecked {
+                            Text("+ Precio")
+                                .font(Typo.caption)
+                                .foregroundStyle(tint)
                         }
                     }
-
-                    Spacer(minLength: Space.s)
-
-                    if let priceText {
-                        Text(priceText)
-                            .font(Typo.amount)
-                            .monospacedDigit()
-                            .foregroundStyle(item.isChecked ? Palette.inkTertiary : Palette.ink)
-                    } else if !item.isChecked {
-                        Text("+ Precio")
-                            .font(Typo.caption)
-                            .foregroundStyle(tint)
-                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
-        .pressable()
+        .contextMenu {
+            Button {
+                onEdit()
+            } label: {
+                Label("Editar ítem", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Eliminar ítem", systemImage: "trash")
+            }
+        }
     }
 }
 
@@ -610,18 +837,25 @@ private struct ShoppingPriceSheet: View {
     }
 }
 
-// MARK: - Sheet: añadir ítem con detalle
+// MARK: - Sheet: crear / editar ítem (nombre, cantidad, unidad, precio, categoría)
 
-private struct ShoppingAddItemSheet: View {
+private struct ShoppingItemEditSheet: View {
     @Environment(\.dismiss) private var dismiss
+
+    let title: String
+    let confirmLabel: String
+    let existing: ShoppingItem?
+    let categories: [Category]
     let currency: String
     let tint: Color
-    let onAdd: (_ name: String, _ quantity: Double, _ unit: String?, _ estimated: Double?) async -> Void
+    /// (nombre, cantidad, unidad, precio estimado por unidad, categoryId)
+    let onSave: (_ name: String, _ quantity: Double, _ unit: String?, _ estimated: Double?, _ categoryId: String?) async -> Void
 
     @State private var name = ""
     @State private var quantityText = "1"
     @State private var unit = ""
     @State private var priceDigits = ""
+    @State private var categoryId: String?
     @State private var isSaving = false
 
     var body: some View {
@@ -643,7 +877,7 @@ private struct ShoppingAddItemSheet: View {
                                 )
                                 .font(Typo.body)
                                 .foregroundStyle(Palette.ink)
-                                .submitLabel(.next)
+                                .submitLabel(.done)
                             }
                         }
 
@@ -695,6 +929,31 @@ private struct ShoppingAddItemSheet: View {
                             }
                         }
 
+                        // Categoría del ítem
+                        if !categories.isEmpty {
+                            VStack(alignment: .leading, spacing: Space.s) {
+                                Text("CATEGORÍA")
+                                    .font(Typo.overline)
+                                    .foregroundStyle(Palette.inkTertiary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: Space.s) {
+                                        ForEach(categories) { cat in
+                                            ShoppingCategoryChip(
+                                                category: cat,
+                                                isSelected: categoryId == cat.id
+                                            ) {
+                                                withAnimation(Motion.ui) {
+                                                    categoryId = (categoryId == cat.id) ? nil : cat.id
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
                         keypad
                     }
                     .padding(Space.l)
@@ -703,12 +962,12 @@ private struct ShoppingAddItemSheet: View {
             }
             .safeAreaInset(edge: .bottom) {
                 PrimaryButton(
-                    title: isSaving ? "Añadiendo…" : "Añadir ítem",
-                    icon: isSaving ? nil : "plus",
+                    title: isSaving ? "Guardando…" : confirmLabel,
+                    icon: isSaving ? nil : "checkmark",
                     tint: canSave ? tint : Palette.surfaceElevated,
                     fg: canSave ? Palette.bg : Palette.inkTertiary
                 ) {
-                    add()
+                    save()
                 }
                 .disabled(!canSave || isSaving)
                 .padding(.horizontal, Space.l)
@@ -716,7 +975,7 @@ private struct ShoppingAddItemSheet: View {
                 .padding(.bottom, Space.s)
                 .background(Palette.bg)
             }
-            .navigationTitle("Nuevo ítem")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -728,6 +987,19 @@ private struct ShoppingAddItemSheet: View {
         }
         .tint(Palette.accent)
         .presentationDragIndicator(.visible)
+        .onAppear(perform: prefill)
+    }
+
+    private func prefill() {
+        guard let existing else { return }
+        name = existing.name
+        let qty = existing.quantity
+        quantityText = qty.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(qty)) : String(format: "%g", qty)
+        unit = existing.unit ?? ""
+        if let price = existing.estimatedPrice, price > 0 {
+            priceDigits = String(Int(price.rounded()))
+        }
+        categoryId = existing.categoryId
     }
 
     private var keypad: some View {
@@ -775,19 +1047,213 @@ private struct ShoppingAddItemSheet: View {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func add() {
+    private func save() {
         isSaving = true
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
-            await onAdd(
+            await onSave(
                 cleanName,
                 quantityValue,
                 cleanUnit.isEmpty ? nil : cleanUnit,
-                estimatedValue > 0 ? estimatedValue : nil
+                estimatedValue > 0 ? estimatedValue : nil,
+                categoryId
             )
             dismiss()
         }
+    }
+}
+
+// MARK: - Sheet: editar lista (nombre + presupuesto)
+
+private struct ShoppingListEditSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let name: String
+    let budget: Double?
+    let currency: String
+    let tint: Color
+    let onSave: (_ name: String, _ budget: Double?) async -> Void
+
+    @State private var nameText: String
+    @State private var budgetDigits: String
+    @State private var isSaving = false
+
+    init(name: String, budget: Double?, currency: String, tint: Color, onSave: @escaping (_ name: String, _ budget: Double?) async -> Void) {
+        self.name = name
+        self.budget = budget
+        self.currency = currency
+        self.tint = tint
+        self.onSave = onSave
+        _nameText = State(initialValue: name)
+        _budgetDigits = State(initialValue: (budget.map { $0 > 0 ? String(Int($0.rounded())) : "" }) ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.bg.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: Space.xl) {
+                        VStack(spacing: Space.xs) {
+                            Text("PRESUPUESTO ESTIMADO")
+                                .font(Typo.overline)
+                                .tracking(1.2)
+                                .foregroundStyle(tint)
+                            Text(formattedBudget)
+                                .font(Typo.amountHero(48))
+                                .monospacedDigit()
+                                .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.4)
+                                .contentTransition(.numericText(value: budgetValue))
+                                .animation(Motion.value, value: budgetValue)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .padding(.top, Space.m)
+
+                        Card(padding: Space.m) {
+                            VStack(alignment: .leading, spacing: Space.xs) {
+                                Text("NOMBRE DE LA LISTA")
+                                    .font(Typo.overline)
+                                    .foregroundStyle(Palette.inkTertiary)
+                                TextField(
+                                    "",
+                                    text: $nameText,
+                                    prompt: Text("Ej. Mercado semanal").foregroundColor(Palette.inkTertiary)
+                                )
+                                .font(Typo.body)
+                                .foregroundStyle(Palette.ink)
+                                .submitLabel(.done)
+                            }
+                        }
+
+                        keypad
+                    }
+                    .padding(.horizontal, Space.l)
+                    .padding(.bottom, Space.l)
+                }
+                .scrollDismissesKeyboard(.interactively)
+            }
+            .safeAreaInset(edge: .bottom) {
+                PrimaryButton(
+                    title: isSaving ? "Guardando…" : "Guardar cambios",
+                    icon: isSaving ? nil : "checkmark",
+                    tint: canSave ? tint : Palette.surfaceElevated,
+                    fg: canSave ? Palette.bg : Palette.inkTertiary
+                ) {
+                    save()
+                }
+                .disabled(!canSave || isSaving)
+                .padding(.horizontal, Space.l)
+                .padding(.top, Space.s)
+                .padding(.bottom, Space.s)
+                .background(Palette.bg)
+            }
+            .navigationTitle("Editar lista")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+            .toolbarBackground(Palette.bg, for: .navigationBar)
+        }
+        .tint(Palette.accent)
+        .presentationDragIndicator(.visible)
+    }
+
+    private var keypad: some View {
+        VStack(spacing: Space.s) {
+            ForEach(rows, id: \.self) { row in
+                HStack(spacing: Space.s) {
+                    ForEach(row, id: \.self) { key in
+                        ComprasKeypadButton(key: key) { tap(key) }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, Space.l)
+    }
+
+    private let rows: [[ComprasKeypadKey]] = [
+        [.digit("1"), .digit("2"), .digit("3")],
+        [.digit("4"), .digit("5"), .digit("6")],
+        [.digit("7"), .digit("8"), .digit("9")],
+        [.clear, .digit("0"), .delete],
+    ]
+
+    private func tap(_ key: ComprasKeypadKey) {
+        switch key {
+        case .digit(let d):
+            guard budgetDigits.count < 12 else { return }
+            if budgetDigits.isEmpty && d == "0" { return }
+            budgetDigits.append(d)
+        case .delete:
+            if !budgetDigits.isEmpty { budgetDigits.removeLast() }
+        case .clear:
+            budgetDigits = ""
+        }
+    }
+
+    private var budgetValue: Double { Double(budgetDigits) ?? 0 }
+    private var formattedBudget: String { CurrencyFormatter.string(budgetValue, currency: currency) }
+
+    private var canSave: Bool {
+        !nameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func save() {
+        isSaving = true
+        let clean = nameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            await onSave(clean, budgetValue > 0 ? budgetValue : nil)
+            dismiss()
+        }
+    }
+}
+
+// MARK: - Chip de categoría (para ítems)
+
+private struct ShoppingCategoryChip: View {
+    let category: Category
+    let isSelected: Bool
+    var action: () -> Void
+
+    private var color: Color {
+        Color(hexString: category.color) ?? Palette.sky
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Space.xs) {
+                if let icon = CategoryIconAsset.image(forSlug: category.icon) {
+                    icon
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 15, height: 15)
+                } else {
+                    Image(systemName: IconMapping.sfSymbol(for: category.icon))
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                Text(category.name)
+                    .font(Typo.callout)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? color : Palette.inkSecondary)
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s)
+            .background(
+                (isSelected ? color.opacity(0.16) : Palette.surfaceElevated),
+                in: Capsule(style: .continuous)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(isSelected ? color : Palette.stroke.opacity(0.5), lineWidth: isSelected ? 1.5 : 1)
+            )
+        }
+        .pressable()
     }
 }
 

@@ -219,6 +219,18 @@ struct AddBudgetView: View {
                         start_date: Self.periodStart(period)
                     )
                     try await SupabaseClient.shared.update("budgets", values: patch, match: ["id": budget.id])
+                } else if let existing = app.budgets.first(where: {
+                    $0.categoryId == categoryId && $0.period == period
+                }) {
+                    // UPSERT: ya hay un presupuesto para esta categoría+periodo →
+                    // se actualiza en vez de duplicar (como el legacy).
+                    let patch = AddBudgetPatch(
+                        category_id: categoryId,
+                        amount: amountValue,
+                        period: period.rawValue,
+                        start_date: Self.periodStart(period)
+                    )
+                    try await SupabaseClient.shared.update("budgets", values: patch, match: ["id": existing.id])
                 } else {
                     guard let hh = app.household?.id else { isSaving = false; return }
                     let payload = AddBudgetInsert(

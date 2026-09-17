@@ -15,6 +15,12 @@ struct GoalDetailView: View {
     @State private var isWorking = false
     @State private var feedback: String?
     @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+
+    // La meta puede haber cambiado (progreso) tras un aporte: relee de AppState.
+    private var liveGoal: SavingsGoal {
+        app.goals.first { $0.id == goal.id } ?? goal
+    }
 
     // Índice para el color de respaldo: posición dentro de las metas del hogar.
     private var index: Int {
@@ -29,7 +35,7 @@ struct GoalDetailView: View {
         goal.icon.contains(".") ? goal.icon : BudgetPalette.symbol(forName: goal.name)
     }
 
-    private var remaining: Double { max(0, goal.targetAmount - goal.currentAmount) }
+    private var remaining: Double { max(0, liveGoal.targetAmount - liveGoal.currentAmount) }
 
     var body: some View {
         ScrollView {
@@ -60,7 +66,7 @@ struct GoalDetailView: View {
                 mode: mode,
                 tint: tint,
                 currency: app.currency,
-                maxWithdraw: goal.currentAmount,
+                maxWithdraw: liveGoal.currentAmount,
                 isWorking: isWorking
             ) { amount in
                 await perform(mode: mode, amount: amount)
@@ -71,13 +77,21 @@ struct GoalDetailView: View {
         .sheet(isPresented: $showEdit) {
             AddGoalView(editing: goal)
         }
+        .alert("¿Eliminar esta meta?", isPresented: $showDeleteConfirm) {
+            Button("Eliminar", role: .destructive) {
+                Task { await app.deleteGoal(id: goal.id); dismiss() }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se borrará la meta y sus aportes registrados.")
+        }
     }
 
     // MARK: Header con anillo grande
 
     private var ringHeader: some View {
         ZStack {
-            ProgressRing(progress: goal.progress, color: tint, lineWidth: 14, size: 220)
+            ProgressRing(progress: liveGoal.progress, color: tint, lineWidth: 14, size: 220)
 
             VStack(spacing: Space.xs) {
                 Image(systemName: symbol)
@@ -85,13 +99,13 @@ struct GoalDetailView: View {
                     .foregroundStyle(tint)
                     .padding(.bottom, 2)
 
-                Text("\(Int((goal.progress * 100).rounded())) %")
+                Text("\(Int((liveGoal.progress * 100).rounded())) %")
                     .font(Typo.amountLarge)
                     .tracking(-0.5)
                     .foregroundStyle(Palette.ink)
                     .monospacedDigit()
 
-                AmountText(amount: goal.currentAmount, currency: app.currency, font: Typo.amount)
+                AmountText(amount: liveGoal.currentAmount, currency: app.currency, font: Typo.amount)
             }
         }
         .padding(.top, Space.s)
@@ -103,16 +117,16 @@ struct GoalDetailView: View {
         VStack(spacing: 0) {
             GoalStatRow(
                 label: "Objetivo",
-                value: CurrencyFormatter.string(goal.targetAmount, currency: app.currency),
+                value: CurrencyFormatter.string(liveGoal.targetAmount, currency: app.currency),
                 color: Palette.ink
             )
             RowDivider()
             GoalStatRow(
-                label: goal.status == .completed ? "Completada" : "Faltan",
-                value: goal.status == .completed
+                label: liveGoal.status == .completed ? "Completada" : "Faltan",
+                value: liveGoal.status == .completed
                     ? "¡Listo!"
                     : CurrencyFormatter.string(remaining, currency: app.currency),
-                color: goal.status == .completed ? Palette.green : tint
+                color: liveGoal.status == .completed ? Palette.green : tint
             )
             if let deadline = formattedDeadline {
                 RowDivider()
@@ -133,13 +147,27 @@ struct GoalDetailView: View {
                 feedback = nil
                 sheet = .withdraw
             }
-            .disabled(goal.currentAmount <= 0)
-            .opacity(goal.currentAmount <= 0 ? 0.5 : 1)
+            .disabled(liveGoal.currentAmount <= 0)
+            .opacity(liveGoal.currentAmount <= 0 ? 0.5 : 1)
 
             SecondaryButton(title: "Editar meta", icon: "pencil") {
                 feedback = nil
                 showEdit = true
             }
+
+            Button(role: .destructive) {
+                showDeleteConfirm = true
+            } label: {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "trash")
+                    Text("Eliminar meta").font(Typo.headline)
+                }
+                .foregroundStyle(Palette.negative)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Space.l)
+                .background(Palette.negative.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            }
+            .pressable()
         }
     }
 
@@ -171,7 +199,7 @@ struct GoalDetailView: View {
         do {
             let signed = mode == .add ? amount : -amount
             try await Repository().addContribution(
-                goalId: goal.id,
+                goal: liveGoal,
                 accountId: accountId,
                 amount: signed,
                 userId: userId

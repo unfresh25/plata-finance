@@ -30,6 +30,13 @@ struct AddGoalView: View {
     @State private var isSaving = false
     @State private var saveError: String?
 
+    // Plan de ahorro automático (crea un recurrente ligado a la meta).
+    @State private var hasPlan = false
+    @State private var installmentDigits = ""
+    @State private var planFrequency: Frequency = .monthly
+    @State private var planDay = 1
+    private var installmentValue: Double { Double(installmentDigits) ?? 0 }
+
     private var tint: Color { preset.color }
 
     private var amountValue: Double { Double(amountDigits) ?? 0 }
@@ -69,6 +76,67 @@ struct AddGoalView: View {
         }
     }
 
+    // MARK: - Plan de ahorro (recurrente ligado)
+
+    private var planSection: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Toggle(isOn: $hasPlan.animation(Motion.ui)) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Plan de ahorro")
+                        .font(Typo.headline)
+                        .foregroundStyle(Palette.ink)
+                    Text("Aparta dinero automáticamente cada periodo.")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .tint(tint)
+
+            if hasPlan {
+                HStack {
+                    Text("Monto por periodo").font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
+                    Spacer()
+                    Text("$").foregroundStyle(Palette.inkTertiary)
+                    TextField("0", text: $installmentDigits)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(Typo.amount).monospacedDigit()
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: 140)
+                }
+                RowDivider()
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Text("Frecuencia").font(Typo.overline).tracking(0.6).foregroundStyle(Palette.inkTertiary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Space.s) {
+                            ForEach(Frequency.allCases, id: \.self) { f in
+                                Button {
+                                    withAnimation(Motion.ui) { planFrequency = f }
+                                } label: {
+                                    Text(f.label)
+                                        .font(Typo.subhead)
+                                        .foregroundStyle(planFrequency == f ? Palette.onAccent : Palette.ink)
+                                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                                        .background(planFrequency == f ? tint : Palette.surfaceElevated, in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                RowDivider()
+                Stepper(value: $planDay, in: 1...28) {
+                    HStack {
+                        Text("Día de aporte").font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
+                        Spacer()
+                        Text("\(planDay)").font(Typo.amount).monospacedDigit().foregroundStyle(Palette.ink)
+                    }
+                }
+            }
+        }
+        .padding(.top, Space.s)
+    }
+
     private var content: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -77,6 +145,9 @@ struct AddGoalView: View {
                         .padding(.top, Space.l)
 
                     selectors
+
+                    // Plan de ahorro (solo al crear): crea un recurrente ligado.
+                    if editing == nil { planSection }
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
@@ -308,7 +379,20 @@ struct AddGoalView: View {
                         account_id: accountId,
                         status: "active"
                     )
-                    let _: [SavingsGoal] = try await SupabaseClient.shared.insert("savings_goals", values: payload)
+                    let inserted: [SavingsGoal] = try await SupabaseClient.shared.insert("savings_goals", values: payload)
+                    // Plan de ahorro: recurrente ligado a la meta (aparta dinero → expense).
+                    if hasPlan, let goalId = inserted.first?.id, installmentValue > 0 {
+                        try await Repository().createRecurringPlan(
+                            householdId: hh,
+                            name: trimmedName.isEmpty ? "Aporte a meta" : trimmedName,
+                            amount: installmentValue,
+                            type: .expense,
+                            frequency: planFrequency,
+                            categoryId: nil,
+                            dayOfMonth: planDay,
+                            savingsGoalId: goalId
+                        )
+                    }
                 }
                 await app.refreshAll()
                 isSaving = false

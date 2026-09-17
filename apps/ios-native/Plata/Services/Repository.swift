@@ -133,7 +133,11 @@ struct Repository {
         }
     }
 
-    func addContribution(goalId: String, accountId: String, amount: Double, userId: String) async throws {
+    /// Aporte (amount > 0) o retiro (amount < 0) a una meta. Además de registrar
+    /// la contribución y mover el saldo de la cuenta, actualiza el
+    /// `current_amount` de la meta y la marca `completed` si alcanza el objetivo
+    /// (esto NO lo hacía antes → el anillo de progreso quedaba congelado).
+    func addContribution(goal: SavingsGoal, accountId: String, amount: Double, userId: String) async throws {
         struct Insert: Encodable {
             let goal_id: String
             let created_by: String
@@ -142,10 +146,24 @@ struct Repository {
         }
         let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
         let _: [EmptyDecodable] = try await client.insert("savings_contributions", values:
-            Insert(goal_id: goalId, created_by: userId, amount: amount, date: today))
+            Insert(goal_id: goal.id, created_by: userId, amount: amount, date: today))
+
+        // Mueve el saldo de la cuenta: aporte resta, retiro suma.
         let _: EmptyResponse = try await client.rpc("apply_account_delta", params: [
             "p_account_id": accountId, "p_delta": -amount,
         ])
+
+        // Actualiza el progreso de la meta (clamp a [0, ∞)) y el estado.
+        let newAmount = max(0, goal.currentAmount + amount)
+        let isDone = newAmount >= goal.targetAmount
+        struct GoalPatch: Encodable {
+            let current_amount: Double
+            let status: String
+        }
+        try await client.update("savings_goals", values: GoalPatch(
+            current_amount: newAmount,
+            status: isDone ? GoalStatus.completed.rawValue : GoalStatus.active.rawValue
+        ), match: ["id": goal.id])
     }
 
     // MARK: - Deudas: abonos
@@ -308,6 +326,108 @@ struct Repository {
     private static func randomInviteCode(length: Int = 6) -> String {
         let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
         return String((0..<length).map { _ in alphabet[Int.random(in: 0..<alphabet.count)] })
+    }
+
+    // MARK: - Eliminación de entidades
+
+    /// Elimina una cuenta y, en cascada, sus transacciones (como el legacy).
+    func deleteAccount(id: String) async throws {
+        try await client.deleteRow("transactions", match: ["account_id": id])
+        try await client.deleteRow("accounts", match: ["id": id])
+    }
+
+    func deleteDebt(id: String) async throws {
+        try await client.deleteRow("debts", match: ["id": id])
+    }
+
+    func deleteGoal(id: String) async throws {
+        try await client.deleteRow("savings_goals", match: ["id": id])
+    }
+
+    func deleteBudget(id: String) async throws {
+        try await client.deleteRow("budgets", match: ["id": id])
+    }
+
+    // MARK: - Listas de compra (edición / eliminación)
+
+    /// Actualiza nombre y presupuesto de una lista de compra.
+    func shoppingListUpdate(id: String, name: String, estimatedTotal: Double?) async throws {
+        struct Patch: Encodable {
+            let name: String
+            let estimated_total: Double?
+        }
+        try await client.update("shopping_lists", values: Patch(name: name, estimated_total: estimatedTotal), match: ["id": id])
+    }
+
+    /// Elimina una lista. `shopping_items.list_id` tiene ON DELETE CASCADE,
+    /// por lo que los ítems se borran automáticamente.
+    func shoppingListDelete(id: String) async throws {
+        try await client.deleteRow("shopping_lists", match: ["id": id])
+    }
+
+    // MARK: - Plan automático (recurrente ligado a deuda / meta)
+
+    /// Crea un `recurring_events` ligado a una deuda o meta (plan de cuotas/aporte
+    /// periódico). Uno de `debtId`/`savingsGoalId` debe venir. `dayOfMonth` fija el
+    /// día de cobro; `nextDate` se calcula a partir de él.
+    func createRecurringPlan(
+        householdId: String,
+        name: String,
+        amount: Double,
+        type: TransactionType,
+        frequency: Frequency,
+        categoryId: String?,
+        dayOfMonth: Int,
+        debtId: String? = nil,
+        savingsGoalId: String? = nil
+    ) async throws {
+        struct Insert: Encodable {
+            let household_id: String
+            let name: String
+            let amount: Double
+            let type: String
+            let frequency: String
+            let category_id: String?
+            let day_of_month: Int
+            let next_date: String
+            let is_active: Bool
+            let debt_id: String?
+            let savings_goal_id: String?
+        }
+        let insert = Insert(
+            household_id: householdId,
+            name: name,
+            amount: amount,
+            type: type.rawValue,
+            frequency: frequency.rawValue,
+            category_id: categoryId,
+            day_of_month: dayOfMonth,
+            next_date: Self.nextDate(forDayOfMonth: dayOfMonth),
+            is_active: true,
+            debt_id: debtId,
+            savings_goal_id: savingsGoalId
+        )
+        let _: [RecurringEvent] = try await client.insert("recurring_events", values: insert)
+    }
+
+    /// Próxima fecha "yyyy-MM-dd" para ese día del mes: este mes si aún no pasó,
+    /// si no el mes siguiente (equivale a calcNextDate del legacy).
+    static func nextDate(forDayOfMonth day: Int) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone.current
+        let now = Date()
+        let clampedDay = min(max(day, 1), 28)
+        var comps = cal.dateComponents([.year, .month], from: now)
+        comps.day = clampedDay
+        let thisMonth = cal.date(from: comps) ?? now
+        let target = thisMonth >= cal.startOfDay(for: now)
+            ? thisMonth
+            : (cal.date(byAdding: .month, value: 1, to: thisMonth) ?? thisMonth)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = cal.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: target)
     }
 }
 

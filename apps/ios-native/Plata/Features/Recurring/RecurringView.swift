@@ -20,9 +20,11 @@ struct RecurringView: View {
         }
     }
 
+    // Solo gastos: el encabezado muestra el "gasto mensual estimado", así que los
+    // recurrentes de ingreso no deben inflar esa cifra.
     private var monthlyTotal: Double {
         app.recurringEvents
-            .filter { $0.isActive }
+            .filter { $0.isActive && $0.type == .expense }
             .reduce(0) { $0 + RecurrentesMath.monthlyEquivalent(amount: $1.amount, frequency: $1.frequency) }
     }
 
@@ -155,7 +157,14 @@ private struct RecurrentesRow: View {
             Spacer(minLength: Space.s)
 
             VStack(alignment: .trailing, spacing: 3) {
-                AmountText(amount: event.amount, currency: app.currency, font: Typo.amount)
+                // Ingreso: +verde · Gasto: −pink (signo y color por tipo).
+                AmountText(
+                    amount: event.type == .income ? event.amount : -event.amount,
+                    currency: app.currency,
+                    font: Typo.amount,
+                    signed: true,
+                    tintBySign: true
+                )
                 if !event.isActive {
                     // Badge de estado: capa teñida sutil con borde luminoso (sin glow).
                     Text("Pausada")
@@ -306,7 +315,7 @@ enum RecurrentesVisual {
 
     static func symbol(for event: RecurringEvent, category: Category?) -> String {
         if let category {
-            return TransactionVisual.symbol(for: category, fallbackType: .expense)
+            return TransactionVisual.symbol(for: category, fallbackType: event.type)
         }
         return "arrow.triangle.2.circlepath"
     }

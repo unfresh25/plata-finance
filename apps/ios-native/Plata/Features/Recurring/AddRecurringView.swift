@@ -12,6 +12,7 @@ struct AddRecurringView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Namespace private var freqNS
+    @Namespace private var typeNS
 
     /// Si viene un recurrente, la pantalla opera en MODO EDICIÓN: precarga el
     /// formulario y guarda con UPDATE sobre recurring_events. Si es nil, es alta
@@ -23,6 +24,7 @@ struct AddRecurringView: View {
     // Formulario
     @State private var amountDigits = ""
     @State private var name = ""
+    @State private var type: TransactionType = .expense
     @State private var selectedLogo: String?          // slug del catálogo
     @State private var frequency: Frequency = .monthly
     @State private var categoryId: String?
@@ -66,6 +68,8 @@ struct AddRecurringView: View {
                     logoHeader
                         .padding(.top, Space.m)
 
+                    typeToggle
+
                     amountDisplay
 
                     selectors
@@ -99,7 +103,7 @@ struct AddRecurringView: View {
             .glassSheetBackground()
         }
         .sheet(isPresented: $showCategoryPicker) {
-            RecurrentesCategoryPicker(categories: expenseCategories, selection: $categoryId)
+            RecurrentesCategoryPicker(categories: typedCategories, fallbackType: type, selection: $categoryId)
                 .presentationDetents([.medium, .large])
                 .glassSheetBackground()
         }
@@ -145,6 +149,19 @@ struct AddRecurringView: View {
         .pressable()
     }
 
+    // MARK: - Toggle Ingreso / Gasto
+
+    private var typeToggle: some View {
+        PillToggle(options: typeOptions, selection: $type, namespace: typeNS)
+            .onChange(of: type) { _, _ in
+                // Al cambiar de tipo, la categoría elegida puede no aplicar: si no
+                // pertenece al nuevo tipo, se reajusta a la primera compatible.
+                if let id = categoryId, !typedCategories.contains(where: { $0.id == id }) {
+                    categoryId = typedCategories.first?.id
+                }
+            }
+    }
+
     // MARK: - Monto
 
     private var amountDisplay: some View {
@@ -155,16 +172,16 @@ struct AddRecurringView: View {
                 .foregroundStyle(Palette.inkTertiary)
 
             HStack(spacing: Space.s) {
-                Image(systemName: "minus")
+                Image(systemName: type == .income ? "plus" : "minus")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Palette.inkTertiary)
+                    .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
                     .opacity(amountValue > 0 ? 1 : 0)
 
                 Text(formattedAmount)
                     .font(Typo.amountHero(amountFontSize))
                     .monospacedDigit()
                     .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                    .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
+                    .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
                     .contentTransition(.numericText(value: amountValue))
@@ -212,7 +229,7 @@ struct AddRecurringView: View {
                     leading: {
                         if let cat = selectedCategory {
                             CategoryIcon(
-                                systemName: TransactionVisual.symbol(for: cat, fallbackType: .expense),
+                                systemName: TransactionVisual.symbol(for: cat, fallbackType: type),
                                 color: TransactionVisual.color(for: cat),
                                 size: 36
                             )
@@ -225,7 +242,7 @@ struct AddRecurringView: View {
                 )
             }
             .pressable()
-            .disabled(expenseCategories.isEmpty)
+            .disabled(typedCategories.isEmpty)
 
             // Cuenta (opcional)
             Card(padding: Space.m) {
@@ -306,6 +323,7 @@ struct AddRecurringView: View {
                     struct Update: Encodable {
                         let name: String
                         let amount: Double
+                        let type: String
                         let frequency: String
                         let next_date: String
                         let category_id: String?
@@ -314,6 +332,7 @@ struct AddRecurringView: View {
                     let update = Update(
                         name: finalName,
                         amount: amountValue,
+                        type: type.rawValue,
                         frequency: frequency.rawValue,
                         next_date: RecurrentesDate.iso(nextDate),
                         category_id: categoryId,
@@ -330,6 +349,7 @@ struct AddRecurringView: View {
                         let household_id: String
                         let name: String
                         let amount: Double
+                        let type: String
                         let frequency: String
                         let next_date: String
                         let category_id: String?
@@ -340,6 +360,7 @@ struct AddRecurringView: View {
                         household_id: hh,
                         name: finalName,
                         amount: amountValue,
+                        type: type.rawValue,
                         frequency: frequency.rawValue,
                         next_date: RecurrentesDate.iso(nextDate),
                         category_id: categoryId,
@@ -368,6 +389,18 @@ struct AddRecurringView: View {
         ]
     }
 
+    private var typeOptions: [(value: TransactionType, label: String, tint: Color)] {
+        [
+            (.expense, "Gasto", Palette.negative),
+            (.income, "Ingreso", Palette.positive),
+        ]
+    }
+
+    /// Color del monto según el tipo: verde ingreso / pink gasto.
+    private var amountTint: Color {
+        type == .income ? Palette.positive : Palette.negative
+    }
+
     private var amountValue: Double { Double(amountDigits) ?? 0 }
 
     private var formattedAmount: String {
@@ -383,8 +416,10 @@ struct AddRecurringView: View {
         }
     }
 
-    private var expenseCategories: [Category] {
-        app.categories.filter { $0.type == .expense }
+    /// Categorías compatibles con el tipo elegido (income → categorías de ingreso).
+    private var typedCategories: [Category] {
+        let wanted: CategoryType = type == .income ? .income : .expense
+        return app.categories.filter { $0.type == wanted }
     }
 
     private var selectedCategory: Category? { app.category(for: categoryId) }
@@ -407,6 +442,7 @@ struct AddRecurringView: View {
             didSeedEdit = true
             amountDigits = String(Int(event.amount.rounded()))
             name = event.name
+            type = event.type
             // Logo: prioriza el logo_id guardado; si no, deriva del nombre (igual
             // que RecurrentesVisual.logo(for:) al pintar la lista/detalle).
             selectedLogo = SubscriptionLogo.slug(forStoredId: event.logoId)
@@ -417,7 +453,7 @@ struct AddRecurringView: View {
             nextDate = RecurrentesDate.parse(event.nextDate) ?? nextDate
             return   // no pisar con defaults de alta
         }
-        if categoryId == nil { categoryId = expenseCategories.first?.id }
+        if categoryId == nil { categoryId = typedCategories.first?.id }
     }
 }
 
@@ -535,6 +571,7 @@ struct RecurrentesLogoPicker: View {
 struct RecurrentesCategoryPicker: View {
     @Environment(\.dismiss) private var dismiss
     let categories: [Category]
+    var fallbackType: TransactionType = .expense
     @Binding var selection: String?
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: Space.m)]
@@ -548,7 +585,7 @@ struct RecurrentesCategoryPicker: View {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 30))
                             .foregroundStyle(Palette.inkTertiary)
-                        Text("No hay categorías de gasto")
+                        Text(fallbackType == .income ? "No hay categorías de ingreso" : "No hay categorías de gasto")
                             .font(Typo.callout)
                             .foregroundStyle(Palette.inkSecondary)
                     }
@@ -586,7 +623,7 @@ struct RecurrentesCategoryPicker: View {
         let color = TransactionVisual.color(for: cat)
         return VStack(spacing: Space.s) {
             CategoryIcon(
-                systemName: TransactionVisual.symbol(for: cat, fallbackType: .expense),
+                systemName: TransactionVisual.symbol(for: cat, fallbackType: fallbackType),
                 color: color,
                 size: 48
             )

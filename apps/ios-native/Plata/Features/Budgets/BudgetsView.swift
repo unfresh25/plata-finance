@@ -10,6 +10,7 @@ struct BudgetsView: View {
     // Presupuesto en edición: al tocar una fila se presenta AddBudgetView en
     // modo edición (mismo formulario que el alta, precargado).
     @State private var editingBudget: Budget?
+    @State private var budgetToDelete: Budget?
 
     var body: some View {
         ScrollView {
@@ -27,6 +28,14 @@ struct BudgetsView: View {
                             }
                             .buttonStyle(.plain)
                             .pressable()
+                            .contextMenu {
+                                Button { editingBudget = pair.budget } label: {
+                                    Label("Editar", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) { budgetToDelete = pair.budget } label: {
+                                    Label("Eliminar", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .padding(.top, Space.s)
@@ -40,6 +49,18 @@ struct BudgetsView: View {
         .sheet(item: $editingBudget) { budget in
             AddBudgetView(editing: budget)
         }
+        .alert("¿Eliminar presupuesto?", isPresented: deleteBinding) {
+            Button("Eliminar", role: .destructive) {
+                if let b = budgetToDelete { Task { await app.deleteBudget(id: b.id) } }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Dejarás de ver el seguimiento de gasto de esta categoría.")
+        }
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { budgetToDelete != nil }, set: { if !$0 { budgetToDelete = nil } })
     }
 
     private func indexed(_ budgets: [Budget]) -> [BudgetIndexPair] {
