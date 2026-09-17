@@ -90,23 +90,54 @@ struct AccountCreditCard: View {
         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
     }
 
-    // Fondo de la tarjeta: degradado diagonal clara → oscura + highlight de luz.
+    // Fondo de la tarjeta: degradado diagonal suave del color + una capa de
+    // liquid glass en la mitad superior (reflejo de vidrio) + highlight de luz.
     private var cardSurface: some View {
         ZStack {
-            // Gradiente diagonal del color (variante más clara arriba-izq a más
-            // oscura abajo-der). Derivado del color, no plano.
+            // Gradiente diagonal del color, más SUAVE que antes (rango contenido,
+            // se ve elegante, no dramático). Derivado del color, no plano.
             LinearGradient(
                 colors: [
-                    AccountCreditCardStyle.lighten(base, by: 0.16),
+                    AccountCreditCardStyle.lighten(base, by: 0.12),
                     base,
-                    AccountCreditCardStyle.darken(base, by: 0.26),
+                    AccountCreditCardStyle.darken(base, by: 0.18),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
-            // Highlight de luz en la esquina superior: brillo blanco muy tenue
-            // que da el efecto "tarjeta" (superficie que refleja luz).
+            // Toque de LIQUID GLASS: lámina de vidrio translúcida en la mitad
+            // superior. En iOS 26 usa .glassEffect real; en iOS 17 cae a
+            // .ultraThinMaterial. Enmascarada para que brille arriba y se
+            // disuelva hacia el centro (reflejo de vidrio).
+            Color.clear
+                .liquidGlass(cornerRadius: AccountCreditCardStyle.radius)
+                .opacity(0.65)
+                .mask(
+                    LinearGradient(
+                        colors: [.white, .white.opacity(0.4), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .allowsHitTesting(false)
+
+            // "Sheen": banda diagonal de brillo que cruza la tarjeta, el reflejo
+            // característico de una superficie de vidrio pulida.
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .white.opacity(0.10), location: 0.42),
+                    .init(color: .white.opacity(0.22), location: 0.5),
+                    .init(color: .white.opacity(0.10), location: 0.58),
+                    .init(color: .clear, location: 1.0),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.plusLighter)
+
+            // Highlight de luz en la esquina superior.
             RadialGradient(
                 colors: [.white.opacity(0.22), .clear],
                 center: .topLeading,
