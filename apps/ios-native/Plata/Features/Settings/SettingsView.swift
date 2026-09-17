@@ -31,6 +31,9 @@ struct SettingsView: View {
     @State private var showHouseholdEdit = false
     @State private var householdNameInput = ""
 
+    // QR del código de invitación.
+    @State private var showQR = false
+
     // Monedas soportadas (código ISO + etiqueta amable).
     private let currencies: [(code: String, label: String)] = [
         ("COP", "Peso colombiano"),
@@ -66,6 +69,7 @@ struct SettingsView: View {
                         householdNameInput = app.household?.name ?? ""
                         showHouseholdEdit = true
                     },
+                    onShowQR: { showQR = true },
                     onCopy: copyInviteCode,
                     onRegenerate: { showRegenConfirm = true }
                 )
@@ -136,6 +140,15 @@ struct SettingsView: View {
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text("Así verán tú y tu pareja este hogar.")
+        }
+        // QR del código de invitación para que la pareja lo escanee.
+        .sheet(isPresented: $showQR) {
+            InviteQRSheet(
+                code: app.household?.inviteCode ?? "",
+                householdName: app.household?.name
+            )
+            .presentationDetents([.medium])
+            .presentationBackground(Palette.bg)
         }
     }
 
@@ -272,6 +285,7 @@ private struct SettingsHouseholdSection: View {
     var isRegenerating: Bool = false
     var canEditName: Bool = false
     var onEditName: () -> Void = {}
+    var onShowQR: () -> Void = {}
     let onCopy: () -> Void
     var onRegenerate: () -> Void = {}
 
@@ -323,6 +337,17 @@ private struct SettingsHouseholdSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if inviteCode?.isEmpty == false {
+                    Button(action: onShowQR) {
+                        HStack(spacing: Space.xs) {
+                            Image(systemName: "qrcode")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("QR").font(Typo.caption)
+                        }
+                        .foregroundStyle(Palette.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .pressable(scale: 0.95)
+
                     Button(action: onRegenerate) {
                         HStack(spacing: Space.xs) {
                             if isRegenerating {
@@ -549,5 +574,52 @@ private struct SettingsRow<Trailing: View>: View {
         }
         .padding(.vertical, Space.m)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Sheet con el QR del código de invitación
+
+private struct InviteQRSheet: View {
+    let code: String
+    let householdName: String?
+
+    var body: some View {
+        VStack(spacing: Space.l) {
+            Capsule().fill(Palette.stroke).frame(width: 36, height: 5).padding(.top, Space.s)
+
+            VStack(spacing: Space.xs) {
+                Text("Invitación al hogar")
+                    .font(Typo.title)
+                    .foregroundStyle(Palette.ink)
+                if let name = householdName, !name.isEmpty {
+                    Text(name)
+                        .font(Typo.subhead)
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+
+            QRCodeView(code: code, size: 200)
+
+            VStack(spacing: 2) {
+                Text("O comparte el código")
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.inkTertiary)
+                Text(code)
+                    .font(Typo.amount)
+                    .monospacedDigit()
+                    .tracking(3)
+                    .foregroundStyle(Palette.ink)
+            }
+
+            Text("Tu pareja puede escanear este código al unirse a un hogar.")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.inkTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Space.xl)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.l)
+        .padding(.bottom, Space.l)
     }
 }

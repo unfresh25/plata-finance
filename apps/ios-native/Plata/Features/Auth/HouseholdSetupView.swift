@@ -14,6 +14,7 @@ struct HouseholdSetupView: View {
     @State private var householdName = ""
     @State private var inviteCode = ""
     @State private var isSubmitting = false
+    @State private var showScanner = false
     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
@@ -57,18 +58,37 @@ struct HouseholdSetupView: View {
                         ) {
                             expand(.join)
                         } expandedContent: {
-                            HouseholdInlineForm(
-                                placeholder: "Código de invitación",
-                                icon: "number",
-                                text: $inviteCode,
-                                buttonTitle: "Unirme",
-                                tint: Palette.sky,
-                                isLoading: isSubmitting,
-                                isEnabled: canJoin && !isSubmitting,
-                                autocapitalization: .characters,
-                                focused: $isFieldFocused,
-                                action: joinHousehold
-                            )
+                            VStack(spacing: Space.m) {
+                                HouseholdInlineForm(
+                                    placeholder: "Código de invitación",
+                                    icon: "number",
+                                    text: $inviteCode,
+                                    buttonTitle: "Unirme",
+                                    tint: Palette.sky,
+                                    isLoading: isSubmitting,
+                                    isEnabled: canJoin && !isSubmitting,
+                                    autocapitalization: .characters,
+                                    focused: $isFieldFocused,
+                                    action: joinHousehold
+                                )
+                                // Escanear el QR de la pareja en vez de teclear.
+                                Button {
+                                    isFieldFocused = false
+                                    showScanner = true
+                                } label: {
+                                    HStack(spacing: Space.s) {
+                                        Image(systemName: "qrcode.viewfinder")
+                                        Text("Escanear QR")
+                                    }
+                                    .font(Typo.callout)
+                                    .foregroundStyle(Palette.sky)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, Space.m)
+                                    .background(Palette.sky.opacity(0.12), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .pressable()
+                            }
                         }
                     }
                     .animation(Motion.ui, value: selected)
@@ -96,6 +116,16 @@ struct HouseholdSetupView: View {
                 .animation(Motion.ui, value: app.errorMessage)
             }
             .scrollDismissesKeyboard(.interactively)
+        }
+        .sheet(isPresented: $showScanner) {
+            HouseholdQRScanSheet { scanned in
+                showScanner = false
+                // El QR puede traer el código directo o texto con él; toma solo
+                // caracteres alfanuméricos por si viene envuelto.
+                let code = scanned.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                inviteCode = code
+                joinHousehold()
+            }
         }
     }
 
@@ -301,6 +331,48 @@ private struct HouseholdErrorBanner: View {
             RoundedRectangle(cornerRadius: Radius.s, style: .continuous)
                 .strokeBorder(Palette.pink.opacity(0.3), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Sheet del escáner de QR
+
+private struct HouseholdQRScanSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onScan: (String) -> Void
+
+    var body: some View {
+        ZStack {
+            QRScannerView(onScan: onScan)
+                .ignoresSafeArea()
+
+            // Marco guía + instrucción.
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.black.opacity(0.4), in: Circle())
+                    }
+                    .padding()
+                }
+                Spacer()
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(.white.opacity(0.9), lineWidth: 3)
+                    .frame(width: 240, height: 240)
+                Spacer()
+                Text("Apunta al código QR de tu pareja")
+                    .font(Typo.callout)
+                    .foregroundStyle(.white)
+                    .padding(.vertical, Space.m)
+                    .padding(.horizontal, Space.l)
+                    .background(.black.opacity(0.4), in: Capsule())
+                    .padding(.bottom, Space.xxxl)
+            }
+        }
+        .presentationBackground(.black)
     }
 }
 
