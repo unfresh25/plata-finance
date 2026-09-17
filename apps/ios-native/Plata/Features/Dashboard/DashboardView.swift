@@ -46,8 +46,8 @@ struct DashboardView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.m)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .scrollIndicators(.hidden)
         .background(Palette.bg.ignoresSafeArea())
         .sheet(item: $editTarget) { tx in

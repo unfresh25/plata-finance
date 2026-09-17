@@ -77,8 +77,8 @@ struct ShoppingListDetailView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.vertical, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle(list.name)
         .navigationBarTitleDisplayMode(.inline)

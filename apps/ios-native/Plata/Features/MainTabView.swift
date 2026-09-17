@@ -31,31 +31,30 @@ struct MainTabView: View {
     @State private var activeDestination: AddDestination?
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Contenido del tab activo. Cada destino en su propio NavigationStack
-            // para conservar su pila al cambiar de pestaña. El fondo va como
-            // .background del contenido (NO como hermano del ZStack con
-            // ignoresSafeArea, que arrastraría a los hijos fuera del safe area).
-            Group {
-                switch selection {
-                case .home:
-                    NavigationStack { DashboardView() }
-                case .transactions:
-                    NavigationStack { TransactionsView() }
-                case .finances:
-                    NavigationStack { FinancesView() }
-                case .settings:
-                    NavigationStack { SettingsView() }
-                }
+        // Contenido del tab activo. Cada destino en su propio NavigationStack
+        // para conservar su pila al cambiar de pestaña. La barra flotante se
+        // inyecta como safeAreaInset(.bottom): así reserva EXACTAMENTE su propia
+        // altura y ningún contenido (ni el de pantallas empujadas por push)
+        // queda oculto tras ella. Un spacer fijo se quedaba corto.
+        // La barra FLOTA como overlay sobre el contenido (estilo WhatsApp). Cada
+        // ScrollView de las pantallas reserva su altura con `.floatingTabBarInset()`
+        // para poder scrollear el último elemento hasta quedar visible sobre ella.
+        Group {
+            switch selection {
+            case .home:
+                NavigationStack { DashboardView() }
+            case .transactions:
+                NavigationStack { TransactionsView() }
+            case .finances:
+                NavigationStack { FinancesView() }
+            case .settings:
+                NavigationStack { SettingsView() }
             }
-            .transition(.opacity)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Palette.bg.ignoresSafeArea())
-            // Espacio para que el contenido no quede oculto tras la barra flotante.
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 64)
-            }
-
+        }
+        .transition(.opacity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.bg.ignoresSafeArea())
+        .overlay(alignment: .bottom) {
             MainTabBar(selection: $selection) {
                 showingAddMenu = true
             }
@@ -100,6 +99,21 @@ struct MainTabView: View {
         case .account: AddAccountView()
         case .recurring: AddRecurringView()
         }
+    }
+}
+
+// MARK: - Inset para la barra flotante
+
+/// Altura que la barra flotante ocupa sobre el contenido (cápsula + paddings).
+/// El safe-area inferior (home indicator) lo añade aparte cada ScrollView.
+private let floatingTabBarHeight: CGFloat = 96
+
+extension View {
+    /// Reserva espacio scrolleable al final para que el último elemento pueda
+    /// subir por encima de la barra flotante (estilo WhatsApp). Aplícalo al
+    /// ScrollView de cada pantalla que vive bajo MainTabView.
+    func floatingTabBarInset() -> some View {
+        self.safeAreaPadding(.bottom, floatingTabBarHeight)
     }
 }
 
@@ -164,6 +178,10 @@ private struct MainTabBar: View {
         .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
         .padding(.horizontal, Space.xl)
         .padding(.bottom, Space.s)
+        // Aire por encima de la barra: como se inyecta vía safeAreaInset, este
+        // padding superior se suma al espacio reservado, dando holgura entre el
+        // último elemento del contenido y la barra flotante (antes quedaba pegado).
+        .padding(.top, Space.xl)
     }
 }
 

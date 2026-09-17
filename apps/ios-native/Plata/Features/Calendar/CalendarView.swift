@@ -56,8 +56,8 @@ struct CalendarView: View {
                         .padding(.horizontal, Space.l)
                     }
                     .padding(.top, Space.s)
-                    .padding(.bottom, Space.xxxl)
                 }
+                .floatingTabBarInset()
             }
             .navigationTitle("Calendario")
             .navigationBarTitleDisplayMode(.inline)

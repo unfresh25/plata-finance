@@ -56,8 +56,8 @@ struct SettingsView: View {
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.m)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Ajustes")
         .navigationBarTitleDisplayMode(.large)

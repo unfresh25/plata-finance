@@ -53,8 +53,8 @@ struct RecurringView: View {
                 }
             }
             .padding(.horizontal, Space.l)
-            .padding(.bottom, Space.xxxl)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Recurrentes")
         .toolbar {

@@ -30,6 +30,7 @@ struct ShoppingView: View {
                 .padding(.horizontal, Space.l)
                 .padding(.vertical, Space.l)
             }
+            .floatingTabBarInset()
             .background(Palette.bg.ignoresSafeArea())
             .navigationTitle("Compras")
         }

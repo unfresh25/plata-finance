@@ -56,6 +56,7 @@ struct AccountsView: View {
             }
             .padding(Space.l)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Cuentas")
         .navigationBarTitleDisplayMode(.large)
