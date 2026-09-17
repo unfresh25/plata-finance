@@ -29,7 +29,10 @@ struct AuthView: View {
 
     var body: some View {
         ZStack {
-            Palette.bg.ignoresSafeArea()
+            // Fondo aurora violeta (estilo Fuse): se atenúa al escribir para no
+            // competir con el teclado/campos.
+            AuroraBackground(intensity: focused == nil ? 0.32 : 0.12)
+                .animation(.smooth(duration: 0.5), value: focused)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
