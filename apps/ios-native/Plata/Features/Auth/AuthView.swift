@@ -114,9 +114,10 @@ struct AuthView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
-                Image(systemName: "circle.hexagongrid.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
+                Image("CoinLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 26, height: 26)
                 Text("Plata")
                     .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
