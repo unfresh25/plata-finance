@@ -105,25 +105,19 @@ struct IntroSequence: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
         case .ticker:
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text("con")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(.white.opacity(0.6))
-                Text("PLATA")
-                    .font(.system(size: 52, weight: .heavy))
-                    .foregroundStyle(.white)
-                // Ticker: una frase a la vez, sube y aparece.
-                Text(verbs[tickerIndex % verbs.count])
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(.white)
-                    .id(tickerIndex)
-                    .transition(.asymmetric(
-                        insertion: .push(from: .bottom).combined(with: .opacity),
-                        removal: .push(from: .bottom).combined(with: .opacity)
-                    ))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.horizontal, Space.xl)
+            // Solo el ticker en escena (ya salió "con PLATA"): un verbo a la vez,
+            // sube desde abajo y se va por arriba, como un scroll de una sola línea.
+            Text(verbs[tickerIndex % verbs.count])
+                .font(.system(size: 44, weight: .heavy))
+                .foregroundStyle(.white)
+                .id(tickerIndex)
+                .transition(.asymmetric(
+                    insertion: .push(from: .bottom).combined(with: .opacity),
+                    removal: .push(from: .bottom).combined(with: .opacity)
+                ))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(.horizontal, Space.xl)
+                .clipped()
 
         case .sweep:
             Color.clear
@@ -145,14 +139,18 @@ struct IntroSequence: View {
         typed = ""
         withAnimation(.smooth(duration: 0.4)) { showSmallLines = true }
         await type("PLATA", speed: 0.09)
-        try? await sleep(0.9)
+        try? await sleep(1.0)
 
-        // Ticker.
+        // "con PLATA" sale de escena antes de que entre el ticker.
+        withAnimation(.easeIn(duration: 0.3)) { showSmallLines = false }
+        await erase()
+        try? await sleep(0.15)
+
+        // Ticker (solo el verbo en pantalla). Arranca ya en el primer verbo.
         phase = .ticker
-        try? await sleep(0.3)
         for i in 0..<verbs.count {
             withAnimation(.smooth(duration: 0.45)) { tickerIndex = i }
-            try? await sleep(0.85)
+            try? await sleep(0.9)
         }
         try? await sleep(0.2)
 
