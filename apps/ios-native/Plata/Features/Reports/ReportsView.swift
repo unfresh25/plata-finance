@@ -1,889 +1,840 @@
 import SwiftUI
 import Charts
 
-// Reports / "Estadísticas" — paridad total con apps/mobile/app/(tabs)/reports.tsx.
-//
-// Estructura (idéntica a la original RN, reinterpretada con el design system):
-//   · Header "Estadísticas" + selector de mes con flechas (‹ SEP 2026 ›)
-//   · Balance neto (ingresos − gastos del mes) con dos KPIs (Ingresos / Gastos)
-//   · Toggle de línea Gastos / Ingresos (subrayado, sin contenedor)
-//   · Barras comparativas Ingresos vs Gastos de los últimos 6 meses (Swift Charts)
-//   · Lista de categorías con barra de porcentaje (del tab activo, orden desc)
-//   · Tendencia (área) del tab activo sobre los 6 meses (Swift Charts)
-//   · Presupuesto del mes (solo en tab Gastos): total + progreso por categoría
-//   · Skeleton mientras carga y estados vacíos amables.
-//
-// Todo se calcula desde app.transactions / app.categories / app.budgets. El mes
-// se filtra por prefijo "YYYY-MM" de la fecha (equivalente al monthRange del core).
+// Estadísticas — rediseño 2026. Estructura (investigación fintech: Copilot,
+// Monarch, Revolut, Cash App…):
+//   · Selector de periodo (Semana / Mes / 3M / 6M / Año) con flechas ‹ ›
+//   · HERO: gasto del periodo + delta vs. periodo anterior + neto
+//   · Donut de gasto por categoría (≤5 + "Otros"), total al centro
+//   · División por PAREJA (quién gastó cuánto) — el diferenciador de Plata
+//   · Banner de insight (ahorro / categoría que sube)
+//   · Lista de categorías con barra semáforo vs. presupuesto
+//   · Suscripciones: total mensual comprometido
+// Todo se deriva de app.transactions / categories / budgets / members /
+// recurringEvents. Diseño flat, sin cards; acento violeta.
 
 struct ReportsView: View {
     @Environment(AppState.self) private var app
 
-    // Primer día del mes visible.
-    @State private var monthAnchor: Date = ReportsCalendar.startOfMonth(Date())
-    @State private var activeTab: ReportsTab = .expense
-    @Namespace private var tabNS
+    @State private var period: StatsPeriod = .month
+    /// Desplazamiento de periodos hacia atrás (0 = actual, 1 = anterior…).
+    @State private var offset: Int = 0
+    @Namespace private var periodNS
 
-    // Datos base (derivados de AppState, ya en memoria).
     private var currency: String { app.currency }
 
-    // Transacciones del mes visible (prefijo YYYY-MM).
-    private var monthTxs: [Transaction] {
-        let key = ReportsCalendar.monthKey(monthAnchor)
-        return app.transactions.filter { $0.date.hasPrefix(key) }
-    }
+    // MARK: Rango del periodo visible
 
-    private var income: Double {
-        monthTxs.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
-    }
-    private var expense: Double {
-        monthTxs.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
-    }
-    private var balance: Double { income - expense }
+    private var range: DateInterval { StatsCalendar.interval(period, offset: offset) }
+    private var prevRange: DateInterval { StatsCalendar.interval(period, offset: offset + 1) }
 
-    // Historial de 6 meses (incluyendo el visible) para las gráficas.
-    private var history: [ReportsMonthPoint] {
-        (0..<6).reversed().map { back in
-            let anchor = ReportsCalendar.addingMonths(-back, to: monthAnchor)
-            let key = ReportsCalendar.monthKey(anchor)
-            let txs = app.transactions.filter { $0.date.hasPrefix(key) }
-            let inc = txs.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
-            let exp = txs.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
-            return ReportsMonthPoint(
-                id: key,
-                label: ReportsCalendar.shortMonth(anchor),
-                income: inc,
-                expense: exp
-            )
+    private func txs(in interval: DateInterval) -> [Transaction] {
+        app.transactions.filter { tx in
+            guard let d = StatsCalendar.parse(tx.date) else { return false }
+            return interval.contains(d)
         }
     }
 
-    // Agregado por categoría del tab activo, orden descendente.
-    private var categoryRows: [ReportsCategoryRow] {
-        let type: TransactionType = activeTab == .income ? .income : .expense
+    private var periodTxs: [Transaction] { txs(in: range) }
+    private var prevTxs: [Transaction] { txs(in: prevRange) }
+
+    // MARK: Agregados
+
+    private func expense(_ list: [Transaction]) -> Double {
+        list.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+    }
+    private func income(_ list: [Transaction]) -> Double {
+        list.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var spent: Double { expense(periodTxs) }
+    private var earned: Double { income(periodTxs) }
+    private var net: Double { earned - spent }
+    private var prevSpent: Double { expense(prevTxs) }
+
+    /// Delta de gasto vs. periodo anterior (fracción). Menos gasto = "bueno".
+    private var spendDelta: Double? {
+        guard prevSpent > 0 else { return nil }
+        return (spent - prevSpent) / prevSpent
+    }
+
+    /// Tasa de ahorro del periodo: (ingreso − gasto) / ingreso.
+    private var savingsRate: Double? {
+        guard earned > 0 else { return nil }
+        return max(-1, (earned - spent) / earned)
+    }
+
+    // Categorías de gasto del periodo, orden desc, con "Otros" agrupado a 5.
+    private var categorySlices: [StatsSlice] {
         var totals: [String: Double] = [:]
-        for tx in monthTxs where tx.type == type {
-            guard let catId = tx.categoryId else { continue }
-            totals[catId, default: 0] += tx.amount
+        for tx in periodTxs where tx.type == .expense {
+            let key = tx.categoryId ?? "—"
+            totals[key, default: 0] += tx.amount
         }
         let total = totals.values.reduce(0, +)
-        let rows = totals
-            .sorted { $0.value > $1.value }
-            .enumerated()
-            .map { index, entry -> ReportsCategoryRow in
+        guard total > 0 else { return [] }
+        let sorted = totals.sorted { $0.value > $1.value }
+        var slices: [StatsSlice] = []
+        for (i, entry) in sorted.enumerated() {
+            if i < 5 {
                 let cat = app.category(for: entry.key)
-                let pct = total > 0 ? entry.value / total : 0
-                return ReportsCategoryRow(
+                slices.append(StatsSlice(
                     id: entry.key,
                     name: cat?.name ?? "Otro",
-                    symbol: ReportsCategoryStyle.symbol(for: cat),
-                    color: ReportsCategoryStyle.color(for: cat, index: index),
+                    slug: cat?.icon,
+                    symbol: StatsStyle.symbol(for: cat),
+                    color: StatsStyle.color(for: cat, index: i),
                     amount: entry.value,
-                    fraction: pct
-                )
+                    fraction: entry.value / total
+                ))
+            } else {
+                // Agrupa el resto en "Otros".
+                if slices.last?.id == "__otros__" {
+                    slices[slices.count - 1].amount += entry.value
+                    slices[slices.count - 1].fraction += entry.value / total
+                } else {
+                    slices.append(StatsSlice(
+                        id: "__otros__", name: "Otros", slug: nil,
+                        symbol: "ellipsis", color: Palette.inkTertiary,
+                        amount: entry.value, fraction: entry.value / total
+                    ))
+                }
             }
-        return rows
+        }
+        return slices
     }
 
-    // Presupuestos vigentes del mes (mensuales) con lo gastado en el mes visible.
-    private var budgetRows: [ReportsBudgetRow] {
-        app.budgets
+    // Gasto por miembro del hogar (el diferenciador de pareja, usa createdBy).
+    private var memberSpend: [StatsMemberSpend] {
+        var totals: [String: Double] = [:]
+        for tx in periodTxs where tx.type == .expense {
+            totals[tx.createdBy, default: 0] += tx.amount
+        }
+        let total = totals.values.reduce(0, +)
+        guard total > 0 else { return [] }
+        return totals
+            .sorted { $0.value > $1.value }
+            .enumerated()
+            .map { i, entry in
+                let profile = app.member(for: entry.key)
+                return StatsMemberSpend(
+                    id: entry.key,
+                    name: profile?.name ?? "Miembro",
+                    avatarUrl: profile?.avatarUrl,
+                    amount: entry.value,
+                    fraction: entry.value / total,
+                    color: StatsStyle.memberColor(i)
+                )
+            }
+    }
+
+    // Presupuestos mensuales con lo gastado en el periodo → estado semáforo.
+    private var budgetRows: [StatsBudgetRow] {
+        guard period == .month else { return [] }
+        return app.budgets
             .filter { $0.period == .monthly }
             .map { budget in
-                let spent = monthTxs
+                let spent = periodTxs
                     .filter { $0.type == .expense && $0.categoryId == budget.categoryId }
                     .reduce(0) { $0 + $1.amount }
                 let cat = app.category(for: budget.categoryId)
-                return ReportsBudgetRow(
+                return StatsBudgetRow(
                     id: budget.id,
                     name: cat?.name ?? "Categoría",
-                    symbol: ReportsCategoryStyle.symbol(for: cat),
+                    slug: cat?.icon,
+                    symbol: StatsStyle.symbol(for: cat),
+                    color: StatsStyle.color(for: cat, index: 0),
                     spent: spent,
                     limit: budget.amount
                 )
             }
+            .sorted { $0.ratio > $1.ratio }
+    }
+
+    // Total mensual comprometido en suscripciones activas.
+    private var subscriptionsMonthly: Double {
+        app.recurringEvents
+            .filter { $0.isActive }
+            .reduce(0) { $0 + $1.amount * $1.frequency.monthlyFactor }
     }
 
     private var isLoading: Bool {
-        // Sin datos aún y AppState todavía sincronizando la primera carga.
         app.transactions.isEmpty && app.phase != .ready
     }
+
+    // MARK: - Body
 
     var body: some View {
         ScrollView {
             if isLoading {
-                ReportsSkeleton()
+                StatsSkeleton()
             } else {
-                VStack(spacing: 0) {
-                    heroBlock
-                    ReportsDivider()
-                    tabBlock
-                    ReportsDivider()
-                    comparisonBlock
-                    ReportsDivider()
-                    if !categoryRows.isEmpty {
+                VStack(alignment: .leading, spacing: Space.xxl) {
+                    periodSelector
+                    hero
+                    if categorySlices.isEmpty {
+                        StatsEmpty()
+                    } else {
+                        donutBlock
+                        if let banner = insightBanner { banner }
+                        if !memberSpend.isEmpty { memberBlock }
                         categoryBlock
-                        ReportsDivider()
-                    }
-                    trendBlock
-                    if activeTab == .expense && !budgetRows.isEmpty {
-                        ReportsDivider()
-                        budgetBlock
+                        if !budgetRows.isEmpty { budgetBlock }
+                        if subscriptionsMonthly > 0 { subscriptionsBlock }
                     }
                 }
+                .padding(.horizontal, Space.l)
+                .padding(.top, Space.s)
                 .padding(.bottom, Space.xxxl)
+                .animation(Motion.value, value: period)
+                .animation(Motion.value, value: offset)
             }
         }
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Estadísticas")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Estadísticas")
-                    .font(Typo.headline)
-                    .foregroundStyle(Palette.ink)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                monthSelector
-            }
-        }
+        .navigationBarTitleDisplayMode(.large)
         .refreshable { await app.refreshAll() }
     }
 
-    // MARK: - Selector de mes
+    // MARK: - Selector de periodo
 
-    private var monthSelector: some View {
-        // Selector pill flotante (chrome) sobre el fondo → Liquid Glass en cápsula.
-        HStack(spacing: Space.s) {
-            Button {
-                withAnimation(Motion.value) {
-                    monthAnchor = ReportsCalendar.addingMonths(-1, to: monthAnchor)
+    private var periodSelector: some View {
+        VStack(spacing: Space.m) {
+            // Segmented pills flat; activa = violeta con matchedGeometry.
+            HStack(spacing: 0) {
+                ForEach(StatsPeriod.allCases) { p in
+                    Button {
+                        withAnimation(Motion.ui) { period = p; offset = 0 }
+                    } label: {
+                        Text(p.label)
+                            .font(Typo.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(p == period ? Palette.onAccent : Palette.inkSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Space.s)
+                            .background {
+                                if p == period {
+                                    Capsule().fill(Palette.accent)
+                                        .matchedGeometryEffect(id: "periodPill", in: periodNS)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .contentShape(Rectangle())
             }
-            .pressable(scale: 0.85)
+            .padding(4)
+            .background(Palette.surfaceElevated, in: Capsule())
 
-            Text(ReportsCalendar.monthLabel(monthAnchor))
-                .font(Typo.overline)
-                .tracking(1.4)
-                .foregroundStyle(Palette.ink)
-                .monospacedDigit()
-                .frame(minWidth: 78)
-                .contentTransition(.numericText())
-
-            Button {
-                withAnimation(Motion.value) {
-                    monthAnchor = ReportsCalendar.addingMonths(1, to: monthAnchor)
-                }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
+            // Rango navegable con flechas.
+            HStack {
+                navArrow("chevron.left") { offset += 1 }
+                Spacer()
+                Text(StatsCalendar.label(period, offset: offset))
+                    .font(Typo.subhead)
+                    .fontWeight(.medium)
                     .foregroundStyle(Palette.inkSecondary)
-                    .contentShape(Rectangle())
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Spacer()
+                navArrow("chevron.right", disabled: offset == 0) { if offset > 0 { offset -= 1 } }
             }
-            .pressable(scale: 0.85)
+            .padding(.horizontal, Space.s)
         }
-        .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.xs)
-        .liquidGlassCapsule()
-        .overlay(Capsule().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 0.5))
     }
 
-    // MARK: - Balance neto (hero)
+    private func navArrow(_ system: String, disabled: Bool = false, _ action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(Motion.value, action)
+        } label: {
+            Image(systemName: system)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(disabled ? Palette.inkTertiary.opacity(0.4) : Palette.inkSecondary)
+                .frame(width: 32, height: 32)
+                .background(Palette.surfaceElevated, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .pressable(scale: 0.9)
+    }
 
-    private var heroBlock: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("BALANCE NETO")
+    // MARK: - Hero (gasto del periodo)
+
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Text("GASTO \(period.heroLabel)")
                 .font(Typo.overline)
                 .tracking(1.2)
                 .foregroundStyle(Palette.inkTertiary)
-                .padding(.bottom, Space.s)
 
-            AmountText(
-                amount: balance,
-                currency: currency,
-                font: Typo.amountHero(42),
-                signed: true
-            )
-            // Cifra hero: tracking negativo sutil para que respire mejor a gran tamaño.
-            .tracking(-0.8)
-            .contentTransition(.numericText(value: balance))
-            .animation(Motion.value, value: balance)
-            .padding(.bottom, Space.xl)
+            Text(CurrencyFormatter.string(spent, currency: currency))
+                .font(Typo.amountHero(44))
+                .tracking(-1)
+                .monospacedDigit()
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .contentTransition(.numericText())
 
-            HStack(spacing: 0) {
-                ReportsKPI(
-                    icon: "arrow.up",
-                    iconColor: Palette.green,
-                    label: "Ingresos",
-                    amount: income,
-                    currency: currency
-                )
-                Rectangle()
-                    .fill(Palette.stroke)
-                    .frame(width: 1, height: 36)
-                    .padding(.horizontal, Space.xl)
-                ReportsKPI(
-                    icon: "arrow.down",
-                    iconColor: Palette.pink,
-                    label: "Gastos",
-                    amount: expense,
-                    currency: currency
-                )
+            HStack(spacing: Space.s) {
+                if let delta = spendDelta {
+                    // Menos gasto = verde (positivo); más gasto = rojo.
+                    let down = delta < 0
+                    HStack(spacing: 2) {
+                        Image(systemName: down ? "arrow.down.right" : "arrow.up.right")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("\(abs(Int((delta * 100).rounded()))) %")
+                            .font(Typo.caption)
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(down ? Palette.positive : Palette.negative)
+                    .padding(.horizontal, Space.s)
+                    .padding(.vertical, 3)
+                    .background((down ? Palette.positive : Palette.negative).opacity(0.14), in: Capsule())
+
+                    Text("vs. \(period.prevLabel)")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                Spacer(minLength: 0)
+                Text("Neto \(net >= 0 ? "+" : "")\(CurrencyFormatter.string(net, currency: currency))")
+                    .font(Typo.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(net >= 0 ? Palette.positive : Palette.negative)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.xl)
     }
 
-    // MARK: - Toggle Gastos / Ingresos (subrayado)
+    // MARK: - Donut de categorías
 
-    private var tabBlock: some View {
-        HStack(spacing: Space.xl) {
-            ForEach(ReportsTab.allCases, id: \.self) { tab in
-                let isActive = activeTab == tab
-                Button {
-                    withAnimation(Motion.ui) { activeTab = tab }
-                } label: {
-                    VStack(spacing: Space.s) {
-                        Text(tab.title)
+    private var donutBlock: some View {
+        VStack(spacing: Space.l) {
+            ZStack {
+                Chart(categorySlices) { slice in
+                    SectorMark(
+                        angle: .value("Monto", slice.amount),
+                        innerRadius: .ratio(0.66),
+                        angularInset: 2
+                    )
+                    .cornerRadius(5)
+                    .foregroundStyle(slice.color)
+                }
+                .frame(height: 200)
+
+                VStack(spacing: 2) {
+                    Text("TOTAL")
+                        .font(Typo.overline)
+                        .tracking(1)
+                        .foregroundStyle(Palette.inkTertiary)
+                    Text(CurrencyFormatter.string(spent, currency: currency))
+                        .font(Typo.amountMedium)
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                    Text("\(categorySlices.count) categorías")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                .frame(width: 130)
+            }
+
+            // Leyenda de puntos (envuelve).
+            FlowLegend(slices: categorySlices)
+        }
+    }
+
+    // MARK: - División por pareja
+
+    private var memberBlock: some View {
+        PlainSection(title: "Quién gastó") {
+            VStack(spacing: Space.m) {
+                // Barra 100% apilada de los miembros.
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        ForEach(memberSpend) { m in
+                            Capsule()
+                                .fill(m.color)
+                                .frame(width: max(4, geo.size.width * m.fraction))
+                        }
+                    }
+                }
+                .frame(height: 10)
+
+                ForEach(memberSpend) { m in
+                    HStack(spacing: Space.m) {
+                        AvatarView(name: m.name, urlString: m.avatarUrl, size: 34)
+                            .overlay(Circle().strokeBorder(m.color, lineWidth: 2))
+                        Text(m.name)
                             .font(Typo.callout)
-                            .foregroundStyle(isActive ? tab.tint : Palette.inkTertiary)
-                        ZStack {
-                            Capsule().fill(Color.clear).frame(height: 2)
-                            if isActive {
-                                Capsule()
-                                    .fill(tab.tint)
-                                    .frame(height: 2)
-                                    .matchedGeometryEffect(id: "tabUnderline", in: tabNS)
-                            }
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.m)
-    }
-
-    // MARK: - Comparativa Ingresos vs Gastos (barras)
-
-    private var comparisonBlock: some View {
-        VStack(alignment: .leading, spacing: Space.l) {
-            ReportsBlockTitle("Ingresos vs Gastos")
-
-            if history.allSatisfy({ $0.income == 0 && $0.expense == 0 }) {
-                ReportsInlineEmpty(text: "Sin movimientos en el periodo")
-                    .frame(height: 140)
-            } else {
-                Chart {
-                    ForEach(history) { point in
-                        BarMark(
-                            x: .value("Mes", point.label),
-                            y: .value("Monto", point.income),
-                            width: .fixed(11)
-                        )
-                        .position(by: .value("Tipo", "Ingresos"))
-                        .foregroundStyle(Palette.ink.opacity(0.75))
-                        .cornerRadius(2)
-
-                        BarMark(
-                            x: .value("Mes", point.label),
-                            y: .value("Monto", point.expense),
-                            width: .fixed(11)
-                        )
-                        .position(by: .value("Tipo", "Gastos"))
-                        .foregroundStyle(Palette.pink.opacity(0.8))
-                        .cornerRadius(2)
-                    }
-                }
-                .chartForegroundStyleScale([
-                    "Ingresos": Palette.ink.opacity(0.75),
-                    "Gastos": Palette.pink.opacity(0.8)
-                ])
-                .chartLegend(.hidden)
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                        AxisGridLine().foregroundStyle(Palette.stroke.opacity(0.4))
-                        AxisValueLabel {
-                            if let raw = value.as(Double.self) {
-                                Text(CurrencyFormatter.compact(raw))
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(Palette.inkTertiary)
-                            }
-                        }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic) { _ in
-                        AxisValueLabel()
-                            .font(.system(size: 9))
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: Space.s)
+                        Text("\(Int((m.fraction * 100).rounded())) %")
+                            .font(Typo.caption)
+                            .monospacedDigit()
                             .foregroundStyle(Palette.inkTertiary)
+                        Text(CurrencyFormatter.string(m.amount, currency: currency))
+                            .font(Typo.amount)
+                            .monospacedDigit()
+                            .foregroundStyle(Palette.ink)
                     }
-                }
-                .frame(height: 140)
-
-                // Leyenda manual (idéntica a la original).
-                HStack(spacing: Space.xl) {
-                    ReportsLegendDot(color: Palette.ink.opacity(0.75), text: "INGRESOS")
-                    ReportsLegendDot(color: Palette.pink.opacity(0.8), text: "GASTOS")
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.l)
     }
 
-    // MARK: - Lista de categorías
+    // MARK: - Banner de insight
+
+    @ViewBuilder
+    private var insightBanner: (some View)? {
+        if let text = insightText {
+            StatsBanner(icon: insightIcon, text: text, tint: insightTint)
+        } else {
+            nil as StatsBanner?
+        }
+    }
+
+    private var insightText: String? {
+        // 1) Categoría que más sube vs. periodo anterior.
+        if let up = topRisingCategory {
+            return "\(up.name) subió \(Int((up.delta * 100).rounded())) % vs. \(period.prevLabel)."
+        }
+        // 2) Tasa de ahorro positiva.
+        if let rate = savingsRate, rate > 0 {
+            return "Ahorraron el \(Int((rate * 100).rounded())) % de sus ingresos. ¡Bien!"
+        }
+        // 3) Gasto menor que el periodo anterior.
+        if let d = spendDelta, d < -0.02 {
+            return "Gastaron \(abs(Int((d * 100).rounded()))) % menos que \(period.prevLabel)."
+        }
+        return nil
+    }
+
+    private var insightIcon: String {
+        if topRisingCategory != nil { return "chart.line.uptrend.xyaxis" }
+        return "sparkles"
+    }
+    private var insightTint: Color {
+        topRisingCategory != nil ? Palette.warning : Palette.accent
+    }
+
+    /// Categoría de gasto que más creció respecto al periodo anterior (≥25%).
+    private var topRisingCategory: (name: String, delta: Double)? {
+        var cur: [String: Double] = [:], prev: [String: Double] = [:]
+        for tx in periodTxs where tx.type == .expense { cur[tx.categoryId ?? "—", default: 0] += tx.amount }
+        for tx in prevTxs where tx.type == .expense { prev[tx.categoryId ?? "—", default: 0] += tx.amount }
+        var best: (String, Double)?
+        for (id, now) in cur {
+            guard let before = prev[id], before > 0 else { continue }
+            let delta = (now - before) / before
+            if delta >= 0.25, delta > (best?.1 ?? 0) { best = (id, delta) }
+        }
+        guard let best else { return nil }
+        return (app.category(for: best.0)?.name ?? "Una categoría", best.1)
+    }
+
+    // MARK: - Lista de categorías (barra semáforo)
 
     private var categoryBlock: some View {
-        VStack(alignment: .leading, spacing: Space.l) {
-            ReportsBlockTitle("\(activeTab.title) — por categoría")
-
-            VStack(spacing: Space.l) {
-                ForEach(Array(categoryRows.enumerated()), id: \.element.id) { index, row in
-                    VStack(spacing: Space.m) {
-                        ReportsCategoryRowView(row: row, currency: currency)
-                        if index < categoryRows.count - 1 {
-                            Rectangle()
-                                .fill(Palette.stroke.opacity(0.4))
-                                .frame(height: 1)
-                        }
-                    }
-                }
+        PlainSection(title: "Por categoría") {
+            PlainList(categorySlices, dividerInset: 40 + Space.m) { slice in
+                StatsCategoryRow(slice: slice, budget: budgetFor(slice.id), currency: currency)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.l)
     }
 
-    // MARK: - Tendencia (área)
-
-    private var trendBlock: some View {
-        let points = history.map { point in
-            ReportsTrendPoint(
-                id: point.id,
-                label: point.label,
-                value: activeTab == .income ? point.income : point.expense
-            )
-        }
-        let tint = activeTab.tint
-        let currentTotal = activeTab == .income ? income : expense
-
-        return VStack(alignment: .leading, spacing: Space.l) {
-            HStack(alignment: .firstTextBaseline) {
-                ReportsBlockTitle(activeTab == .income ? "Tendencia ingresos" : "Tendencia gastos")
-                Spacer()
-                Text("\(ReportsCalendar.shortMonth(monthAnchor).uppercased())  \(CurrencyFormatter.string(currentTotal, currency: currency))")
-                    .font(Typo.caption)
-                    .foregroundStyle(tint)
-                    .monospacedDigit()
-            }
-
-            if points.allSatisfy({ $0.value == 0 }) {
-                ReportsInlineEmpty(text: "Sin datos de tendencia")
-                    .frame(height: 140)
-            } else {
-                Chart(points) { point in
-                    AreaMark(
-                        x: .value("Mes", point.label),
-                        y: .value("Monto", point.value)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [tint.opacity(0.22), tint.opacity(0.0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                    LineMark(
-                        x: .value("Mes", point.label),
-                        y: .value("Monto", point.value)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(tint)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                        AxisGridLine().foregroundStyle(Palette.stroke.opacity(0.4))
-                        AxisValueLabel {
-                            if let raw = value.as(Double.self) {
-                                Text(CurrencyFormatter.compact(raw))
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(Palette.inkTertiary)
-                            }
-                        }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic) { _ in
-                        AxisValueLabel()
-                            .font(.system(size: 9))
-                            .foregroundStyle(Palette.inkTertiary)
-                    }
-                }
-                .frame(height: 140)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.l)
+    private func budgetFor(_ categoryId: String) -> Double? {
+        app.budgets.first { $0.categoryId == categoryId && $0.period == .monthly }?.amount
     }
 
-    // MARK: - Presupuesto del mes
+    // MARK: - Presupuestos (semáforo)
 
     private var budgetBlock: some View {
-        let totalSpent = budgetRows.reduce(0) { $0 + $1.spent }
-        let totalLimit = budgetRows.reduce(0) { $0 + $1.limit }
-
-        return VStack(alignment: .leading, spacing: Space.l) {
-            ReportsBlockTitle("Presupuesto mensual")
-            ReportsBudgetArch(spent: totalSpent, limit: totalLimit, currency: currency)
-
+        PlainSection(title: "Presupuestos") {
             VStack(spacing: Space.l) {
                 ForEach(budgetRows) { row in
-                    ReportsBudgetProgress(row: row, currency: currency)
+                    StatsBudgetRowView(row: row, currency: currency)
                 }
             }
-            .padding(.top, Space.s)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.l)
-    }
-}
-
-// MARK: - Modelos de fila / datos
-
-private enum ReportsTab: CaseIterable, Hashable {
-    case expense, income
-
-    var title: String {
-        switch self {
-        case .expense: return "Gastos"
-        case .income: return "Ingresos"
         }
     }
 
-    var tint: Color {
-        switch self {
-        case .expense: return Palette.pink
-        case .income: return Palette.green
+    // MARK: - Suscripciones
+
+    private var subscriptionsBlock: some View {
+        PlainSection(title: "Suscripciones") {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Gasto mensual comprometido")
+                        .font(Typo.subhead)
+                        .foregroundStyle(Palette.inkSecondary)
+                    Text("\(app.recurringEvents.filter(\.isActive).count) activas")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                Spacer()
+                Text(CurrencyFormatter.string(subscriptionsMonthly, currency: currency))
+                    .font(Typo.amountMedium)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.ink)
+            }
+            .padding(.vertical, Space.s)
         }
     }
 }
 
-private struct ReportsMonthPoint: Identifiable {
-    let id: String
-    let label: String
-    let income: Double
-    let expense: Double
-}
+// MARK: - Modelos de fila / slice
 
-private struct ReportsTrendPoint: Identifiable {
-    let id: String
-    let label: String
-    let value: Double
-}
-
-private struct ReportsCategoryRow: Identifiable {
+private struct StatsSlice: Identifiable {
     let id: String
     let name: String
+    let slug: String?
     let symbol: String
     let color: Color
-    let amount: Double
-    let fraction: Double // 0...1
+    var amount: Double
+    var fraction: Double
 }
 
-private struct ReportsBudgetRow: Identifiable {
+private struct StatsMemberSpend: Identifiable {
     let id: String
     let name: String
+    let avatarUrl: String?
+    let amount: Double
+    let fraction: Double
+    let color: Color
+}
+
+private struct StatsBudgetRow: Identifiable {
+    let id: String
+    let name: String
+    let slug: String?
     let symbol: String
+    let color: Color
     let spent: Double
     let limit: Double
+    var ratio: Double { limit > 0 ? spent / limit : 0 }
 }
 
-// MARK: - Subcomponentes
+// MARK: - Fila de categoría (con barra de % o semáforo de presupuesto)
 
-private struct ReportsKPI: View {
-    let icon: String
-    let iconColor: Color
-    let label: String
-    let amount: Double
+private struct StatsCategoryRow: View {
+    let slice: StatsSlice
+    let budget: Double?
     let currency: String
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            HStack(spacing: Space.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(iconColor)
-                Text(label)
-                    .font(Typo.caption)
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            Text(CurrencyFormatter.string(amount, currency: currency))
-                .font(Typo.amount)
-                .foregroundStyle(Palette.ink)
-                .monospacedDigit()
-                .contentTransition(.numericText(value: amount))
-                .animation(Motion.value, value: amount)
+    private var ratio: Double { budget.map { $0 > 0 ? slice.amount / $0 : 0 } ?? slice.fraction }
+    private var barColor: Color {
+        guard budget != nil else { return slice.color }
+        switch ratio {
+        case ..<0.8: return Palette.positive
+        case ..<1.0: return Palette.warning
+        default: return Palette.negative
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
-}
-
-private struct ReportsCategoryRowView: View {
-    let row: ReportsCategoryRow
-    let currency: String
 
     var body: some View {
         VStack(spacing: Space.s) {
             HStack(spacing: Space.m) {
-                Image(systemName: row.symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(row.color)
-                    .frame(width: 20)
-
-                Text(row.name)
-                    .font(Typo.subhead)
+                RowLeadingIcon(
+                    categoryIcon: CategoryIconAsset.image(forSlug: slice.slug),
+                    systemName: slice.symbol,
+                    color: slice.color,
+                    size: 40
+                )
+                Text(slice.name)
+                    .font(Typo.headline)
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
-
                 Spacer(minLength: Space.s)
-
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(CurrencyFormatter.string(row.amount, currency: currency))
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.ink)
-                        .monospacedDigit()
-                    Text("\(Int((row.fraction * 100).rounded())) %")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(row.color)
-                        .monospacedDigit()
-                }
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Palette.stroke.opacity(0.5))
-                    Capsule()
-                        .fill(row.color)
-                        .frame(width: max(2, geo.size.width * min(1, max(0, row.fraction))))
-                        .animation(Motion.value, value: row.fraction)
-                }
-            }
-            .frame(height: 3)
-        }
-    }
-}
-
-private struct ReportsBudgetArch: View {
-    let spent: Double
-    let limit: Double
-    let currency: String
-
-    private var ratio: Double { limit > 0 ? min(spent / limit, 1) : 0 }
-    private var barColor: Color {
-        switch ratio {
-        case ..<0.7: return Palette.ink
-        case ..<0.9: return Palette.inkSecondary
-        default: return Palette.pink
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Text("GASTO TOTAL")
-                        .font(Typo.overline)
-                        .tracking(1.2)
-                        .foregroundStyle(Palette.inkTertiary)
-                    Text(CurrencyFormatter.string(spent, currency: currency))
-                        .font(Typo.amountMedium)
-                        .foregroundStyle(Palette.ink)
-                        .monospacedDigit()
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: Space.xs) {
-                    Text("Límite")
-                        .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                    Text(CurrencyFormatter.string(limit, currency: currency))
-                        .font(Typo.callout)
-                        .foregroundStyle(Palette.inkSecondary)
-                        .monospacedDigit()
-                }
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Palette.surfaceElevated)
-                    Capsule()
-                        .fill(barColor)
-                        .frame(width: max(4, geo.size.width * ratio))
-                        .animation(Motion.value, value: ratio)
-                }
-            }
-            .frame(height: 4)
-
-            Text("\(Int((ratio * 100).rounded())) % consumido")
-                .font(Typo.caption)
-                .foregroundStyle(barColor)
-                .monospacedDigit()
-        }
-    }
-}
-
-private struct ReportsBudgetProgress: View {
-    let row: ReportsBudgetRow
-    let currency: String
-
-    private var ratio: Double { row.limit > 0 ? min(row.spent / row.limit, 1) : 0 }
-    private var barColor: Color {
-        switch ratio {
-        case ..<0.7: return Palette.ink
-        case ..<0.9: return Palette.inkSecondary
-        default: return Palette.pink
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                Image(systemName: row.symbol)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                Text(row.name)
-                    .font(Typo.subhead)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                Spacer()
-                Text("\(CurrencyFormatter.compact(row.spent)) / \(CurrencyFormatter.compact(row.limit))")
+                Text("\(Int((slice.fraction * 100).rounded())) %")
                     .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
                     .monospacedDigit()
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Palette.surfaceElevated)
-                    Capsule()
-                        .fill(barColor)
-                        .frame(width: max(3, geo.size.width * ratio))
-                        .animation(Motion.value, value: ratio)
-                }
-            }
-            .frame(height: 3)
-
-            Text("\(Int((ratio * 100).rounded())) % usado")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(barColor)
-                .monospacedDigit()
-        }
-    }
-}
-
-private struct ReportsBlockTitle: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text.uppercased())
-            .font(Typo.overline)
-            .tracking(1.4)
-            .foregroundStyle(Palette.inkTertiary)
-    }
-}
-
-private struct ReportsLegendDot: View {
-    let color: Color
-    let text: String
-
-    var body: some View {
-        HStack(spacing: Space.s) {
-            Capsule()
-                .fill(color)
-                .frame(width: 10, height: 3)
-            Text(text)
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(Palette.inkTertiary)
-        }
-    }
-}
-
-private struct ReportsInlineEmpty: View {
-    let text: String
-    var body: some View {
-        HStack {
-            Spacer()
-            VStack(spacing: Space.s) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 22, weight: .regular))
                     .foregroundStyle(Palette.inkTertiary)
-                Text(text)
+                Text(CurrencyFormatter.string(slice.amount, currency: currency))
+                    .font(Typo.amount)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.ink)
+            }
+            StatsBar(fraction: budget != nil ? ratio : slice.fraction, color: barColor)
+                .padding(.leading, 40 + Space.m)
+        }
+        .padding(.vertical, Space.m)
+    }
+}
+
+private struct StatsBudgetRowView: View {
+    let row: StatsBudgetRow
+    let currency: String
+
+    private var barColor: Color {
+        switch row.ratio {
+        case ..<0.8: return Palette.positive
+        case ..<1.0: return Palette.warning
+        default: return Palette.negative
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: Space.s) {
+            HStack {
+                RowLeadingIcon(
+                    categoryIcon: CategoryIconAsset.image(forSlug: row.slug),
+                    systemName: row.symbol,
+                    color: row.color,
+                    size: 34
+                )
+                Text(row.name)
+                    .font(Typo.callout)
+                    .foregroundStyle(Palette.ink)
+                Spacer(minLength: Space.s)
+                Text("\(CurrencyFormatter.string(row.spent, currency: currency)) / \(CurrencyFormatter.compact(row.limit))")
                     .font(Typo.caption)
-                    .foregroundStyle(Palette.inkTertiary)
+                    .monospacedDigit()
+                    .foregroundStyle(row.ratio >= 1 ? Palette.negative : Palette.inkSecondary)
             }
-            Spacer()
+            StatsBar(fraction: row.ratio, color: barColor)
+                .padding(.leading, 34 + Space.m)
         }
     }
 }
 
-private struct ReportsDivider: View {
-    var body: some View {
-        Rectangle()
-            .fill(Palette.stroke.opacity(0.6))
-            .frame(height: 1)
-    }
-}
+// MARK: - Barra de progreso inline
 
-// MARK: - Skeleton (pulso mientras carga)
-
-private struct ReportsSkeleton: View {
-    @State private var pulse = false
+private struct StatsBar: View {
+    let fraction: Double
+    let color: Color
+    var height: CGFloat = 6
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Hero
-            VStack(alignment: .leading, spacing: Space.m) {
-                bone(width: 80, height: 11)
-                bone(width: 180, height: 40)
-                HStack(spacing: Space.xxl) {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        bone(width: 60, height: 10)
-                        bone(width: 110, height: 18)
-                    }
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        bone(width: 60, height: 10)
-                        bone(width: 110, height: 18)
-                    }
-                }
-                .padding(.top, Space.s)
-            }
-            .padding(.horizontal, Space.xl)
-            .padding(.vertical, Space.xl)
-
-            ReportsDivider()
-
-            // Barras
-            VStack(alignment: .leading, spacing: Space.m) {
-                bone(width: 120, height: 10)
-                HStack(alignment: .bottom, spacing: Space.s) {
-                    ForEach([80, 50, 60, 90, 70, 110, 45, 100, 55, 130, 75, 140], id: \.self) { h in
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Palette.inkTertiary.opacity(pulse ? 0.18 : 0.07))
-                            .frame(width: 12, height: CGFloat(h))
-                    }
-                }
-                .frame(height: 140, alignment: .bottom)
-            }
-            .padding(.horizontal, Space.xl)
-            .padding(.vertical, Space.l)
-
-            ReportsDivider()
-
-            // Lista de categorías
-            VStack(alignment: .leading, spacing: Space.l) {
-                bone(width: 140, height: 10)
-                ForEach([100, 70, 55], id: \.self) { w in
-                    VStack(spacing: Space.s) {
-                        HStack {
-                            bone(width: 16, height: 16)
-                            bone(width: CGFloat(w), height: 12)
-                            Spacer()
-                            bone(width: 70, height: 12)
-                        }
-                        bone(width: .infinity, height: 3)
-                    }
-                }
-            }
-            .padding(.horizontal, Space.xl)
-            .padding(.vertical, Space.l)
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                pulse = true
+        GeometryReader { geo in
+            let clamped = max(0, min(1, fraction))
+            ZStack(alignment: .leading) {
+                Capsule().fill(Palette.surfaceElevated)
+                Capsule()
+                    .fill(color)
+                    .frame(width: max(height, geo.size.width * clamped))
+                    .animation(Motion.value, value: clamped)
             }
         }
-    }
-
-    private func bone(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: height / 2)
-            .fill(Palette.inkTertiary.opacity(pulse ? 0.18 : 0.07))
-            .frame(width: width == .infinity ? nil : width, height: height)
-            .frame(maxWidth: width == .infinity ? .infinity : nil)
+        .frame(height: height)
     }
 }
 
-// MARK: - Utilidades de calendario / mes
+// MARK: - Leyenda que envuelve (puntos + label)
 
-private enum ReportsCalendar {
-    private static let months = [
-        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
-    ]
+private struct FlowLegend: View {
+    let slices: [StatsSlice]
 
-    static func startOfMonth(_ date: Date) -> Date {
-        let cal = Calendar.current
-        return cal.date(from: cal.dateComponents([.year, .month], from: date)) ?? date
-    }
-
-    static func addingMonths(_ delta: Int, to date: Date) -> Date {
-        Calendar.current.date(byAdding: .month, value: delta, to: date) ?? date
-    }
-
-    /// Clave "YYYY-MM" para filtrar por prefijo de fecha.
-    static func monthKey(_ date: Date) -> String {
-        let cal = Calendar.current
-        let y = cal.component(.year, from: date)
-        let m = cal.component(.month, from: date)
-        return String(format: "%04d-%02d", y, m)
-    }
-
-    /// "Sep" — nombre corto del mes.
-    static func shortMonth(_ date: Date) -> String {
-        let m = Calendar.current.component(.month, from: date)
-        return months[(m - 1 + 12) % 12]
-    }
-
-    /// "SEP 2026" — etiqueta del selector.
-    static func monthLabel(_ date: Date) -> String {
-        let cal = Calendar.current
-        let y = cal.component(.year, from: date)
-        return "\(shortMonth(date).uppercased()) \(y)"
+    var body: some View {
+        // Grid de 2 columnas para que quepan hasta 6 entradas ordenadas.
+        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading),
+                            GridItem(.flexible(), alignment: .leading)],
+                  alignment: .leading, spacing: Space.s) {
+            ForEach(slices) { s in
+                HStack(spacing: Space.s) {
+                    Circle().fill(s.color).frame(width: 8, height: 8)
+                    Text(s.name)
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1)
+                    Text("\(Int((s.fraction * 100).rounded())) %")
+                        .font(Typo.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+        }
     }
 }
 
-// MARK: - Estilo de categoría (color hex + símbolo SF)
+// MARK: - Banner de insight (flat, fondo tinte)
 
-private enum ReportsCategoryStyle {
+private struct StatsBanner: View {
+    let icon: String
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(Typo.subhead)
+                .foregroundStyle(Palette.ink)
+            Spacer(minLength: 0)
+        }
+        .padding(Space.m)
+        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+    }
+}
+
+// MARK: - Estados vacío / carga
+
+private struct StatsEmpty: View {
+    var body: some View {
+        VStack(spacing: Space.m) {
+            Image(systemName: "chart.pie")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundStyle(Palette.inkTertiary)
+            Text("Sin gastos en este periodo")
+                .font(Typo.headline)
+                .foregroundStyle(Palette.ink)
+            Text("Cuando registren movimientos aparecerán aquí sus estadísticas.")
+                .font(Typo.subhead)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Space.xl)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Space.xxxl)
+    }
+}
+
+private struct StatsSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.xxl) {
+            RoundedRectangle(cornerRadius: Radius.pill).fill(Palette.surfaceElevated).frame(height: 40)
+            RoundedRectangle(cornerRadius: Radius.s).fill(Palette.surfaceElevated).frame(width: 220, height: 44)
+            Circle().fill(Palette.surfaceElevated).frame(width: 200, height: 200).frame(maxWidth: .infinity)
+            ForEach(0..<4, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: Radius.s).fill(Palette.surfaceElevated).frame(height: 44)
+            }
+        }
+        .padding(Space.l)
+        .redacted(reason: .placeholder)
+    }
+}
+
+// MARK: - Periodo
+
+enum StatsPeriod: String, CaseIterable, Identifiable {
+    case week, month, quarter, semester, year
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .week: return "Sem"
+        case .month: return "Mes"
+        case .quarter: return "3M"
+        case .semester: return "6M"
+        case .year: return "Año"
+        }
+    }
+    /// Sufijo del label del hero ("GASTO DE LA SEMANA/DEL MES…").
+    var heroLabel: String {
+        switch self {
+        case .week: return "DE LA SEMANA"
+        case .month: return "DEL MES"
+        case .quarter: return "DEL TRIMESTRE"
+        case .semester: return "DEL SEMESTRE"
+        case .year: return "DEL AÑO"
+        }
+    }
+    var prevLabel: String {
+        switch self {
+        case .week: return "la semana pasada"
+        case .month: return "el mes pasado"
+        case .quarter: return "el trimestre pasado"
+        case .semester: return "el semestre pasado"
+        case .year: return "el año pasado"
+        }
+    }
+}
+
+// MARK: - Cálculo de rangos y etiquetas
+
+enum StatsCalendar {
+    private static var cal: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.firstWeekday = 2 // lunes
+        return c
+    }
+
+    /// Intervalo de fechas del periodo, desplazado `offset` periodos hacia atrás.
+    static func interval(_ period: StatsPeriod, offset: Int) -> DateInterval {
+        let now = Date()
+        switch period {
+        case .week:
+            let start = startOfWeek(cal.date(byAdding: .weekOfYear, value: -offset, to: now) ?? now)
+            return DateInterval(start: start, end: cal.date(byAdding: .weekOfYear, value: 1, to: start) ?? start)
+        case .month:
+            let base = cal.date(byAdding: .month, value: -offset, to: now) ?? now
+            let start = startOfMonth(base)
+            return DateInterval(start: start, end: cal.date(byAdding: .month, value: 1, to: start) ?? start)
+        case .quarter:
+            let base = cal.date(byAdding: .month, value: -offset * 3, to: now) ?? now
+            let start = startOfMonth(cal.date(byAdding: .month, value: -2, to: base) ?? base)
+            return DateInterval(start: start, end: cal.date(byAdding: .month, value: 3, to: start) ?? start)
+        case .semester:
+            let base = cal.date(byAdding: .month, value: -offset * 6, to: now) ?? now
+            let start = startOfMonth(cal.date(byAdding: .month, value: -5, to: base) ?? base)
+            return DateInterval(start: start, end: cal.date(byAdding: .month, value: 6, to: start) ?? start)
+        case .year:
+            let base = cal.date(byAdding: .year, value: -offset, to: now) ?? now
+            let start = startOfYear(base)
+            return DateInterval(start: start, end: cal.date(byAdding: .year, value: 1, to: start) ?? start)
+        }
+    }
+
+    /// Etiqueta legible del periodo visible.
+    static func label(_ period: StatsPeriod, offset: Int) -> String {
+        let iv = interval(period, offset: offset)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_CO")
+        switch period {
+        case .week:
+            f.dateFormat = "d MMM"
+            let endDay = cal.date(byAdding: .day, value: -1, to: iv.end) ?? iv.end
+            return "\(f.string(from: iv.start)) – \(f.string(from: endDay))".replacingOccurrences(of: ".", with: "")
+        case .month:
+            f.dateFormat = "MMMM yyyy"
+            return f.string(from: iv.start).capitalized
+        case .quarter, .semester:
+            f.dateFormat = "MMM"
+            let endMonth = cal.date(byAdding: .day, value: -1, to: iv.end) ?? iv.end
+            return "\(f.string(from: iv.start)) – \(f.string(from: endMonth)) \(cal.component(.year, from: endMonth))".replacingOccurrences(of: ".", with: "")
+        case .year:
+            return "\(cal.component(.year, from: iv.start))"
+        }
+    }
+
+    static func parse(_ raw: String) -> Date? {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = cal.timeZone
+        df.dateFormat = "yyyy-MM-dd"
+        if let d = df.date(from: String(raw.prefix(10))) { return d }
+        return ISO8601DateFormatter().date(from: raw)
+    }
+
+    private static func startOfWeek(_ d: Date) -> Date {
+        cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)) ?? d
+    }
+    private static func startOfMonth(_ d: Date) -> Date {
+        cal.date(from: cal.dateComponents([.year, .month], from: d)) ?? d
+    }
+    private static func startOfYear(_ d: Date) -> Date {
+        cal.date(from: cal.dateComponents([.year], from: d)) ?? d
+    }
+}
+
+// MARK: - Estilo de categoría / colores
+
+private enum StatsStyle {
     static func color(for category: Category?, index: Int) -> Color {
         if let parsed = parseHex(category?.color) { return parsed }
         return Palette.categoryColor(for: index)
     }
-
     static func symbol(for category: Category?) -> String {
         guard let category else { return "circle.grid.2x2.fill" }
-        if category.icon.contains(".") { return category.icon } // ya parece SF Symbol
+        if category.icon.contains(".") { return category.icon }
         return IconMapping.sfSymbol(for: category.icon.isEmpty ? category.name : category.icon)
     }
-
+    /// Color por miembro: violeta de marca para el 1º, luego CustomPalette.
+    static func memberColor(_ index: Int) -> Color {
+        index == 0 ? Palette.accent : CustomPalette.colors[(index + 4) % CustomPalette.colors.count]
+    }
     private static func parseHex(_ hex: String?) -> Color? {
         guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return nil }
         if s.hasPrefix("#") { s.removeFirst() }
@@ -896,9 +847,7 @@ private enum ReportsCategoryStyle {
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        ReportsView()
-    }
-    .environment(AppState.previewMocked)
-    .preferredColorScheme(.dark)
+    NavigationStack { ReportsView() }
+        .environment(AppState.previewMocked)
+        .preferredColorScheme(.dark)
 }

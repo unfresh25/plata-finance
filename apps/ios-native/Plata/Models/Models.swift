@@ -142,6 +142,18 @@ enum Frequency: String, Codable, Hashable, CaseIterable {
         case .yearly: return "Anual"
         }
     }
+
+    /// Factor para normalizar un monto de esta frecuencia a su equivalente
+    /// MENSUAL (para sumar el gasto recurrente comprometido al mes).
+    var monthlyFactor: Double {
+        switch self {
+        case .daily: return 30
+        case .weekly: return 52.0 / 12.0
+        case .biweekly: return 26.0 / 12.0
+        case .monthly: return 1
+        case .yearly: return 1.0 / 12.0
+        }
+    }
 }
 
 struct RecurringEvent: Codable, Identifiable, Hashable {
