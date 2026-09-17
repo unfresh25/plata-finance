@@ -203,7 +203,7 @@ private struct MainTabAddButton: View {
         Button(action: action) {
             Image(systemName: "plus")
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Palette.onAccent)
                 .frame(width: 52, height: 52)
                 .background(Palette.accent, in: Circle())
                 // Sombra neutra sutil (no glow de color): da elevación sin ruido.

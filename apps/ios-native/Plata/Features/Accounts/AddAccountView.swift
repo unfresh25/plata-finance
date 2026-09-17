@@ -312,23 +312,11 @@ private struct AccountPatch: Encodable {
 
 // MARK: - Paleta del selector
 
-/// Muestras de color para el selector, alineadas con `Palette.categoryWheel`.
-/// Se guarda el hex string en la columna `color` de la cuenta.
+/// Muestras de color del selector de cuentas: la paleta ÚNICA de personalización
+/// (CustomPalette, 12 colores). Se guarda el hex string en la columna `color`.
 enum AddAccountPalette {
-    struct Swatch {
-        let hex: String
-        let color: Color
-    }
-
-    static let swatches: [Swatch] = [
-        Swatch(hex: "#34D399", color: Palette.green),
-        Swatch(hex: "#38BDF8", color: Palette.sky),
-        Swatch(hex: "#818CF8", color: Palette.indigo),
-        Swatch(hex: "#C084FC", color: Palette.purple),
-        Swatch(hex: "#F43F5E", color: Palette.pink),
-        Swatch(hex: "#FDE047", color: Palette.amber),
-        Swatch(hex: "#FB923C", color: Palette.orange),
-    ]
+    typealias Swatch = CustomPalette.Swatch
+    static let swatches: [Swatch] = CustomPalette.swatches
 
     static func color(for hex: String) -> Color {
         swatches.first { $0.hex.caseInsensitiveCompare(hex) == .orderedSame }?.color

@@ -11,16 +11,16 @@ extension AppState {
         app.categories = [
             // Íconos con slugs Hugeicons (como siembra la BD real) para que el
             // preview refleje los assets de CategoryIcons, no SF Symbols.
-            Category(id: "c1", householdId: "h1", name: "Alimentación", icon: "hamburger-01", color: "#34D399", type: .expense),
-            Category(id: "c2", householdId: "h1", name: "Transporte", icon: "taxi", color: "#38BDF8", type: .expense),
-            Category(id: "c3", householdId: "h1", name: "Vivienda", icon: "home-01", color: "#818CF8", type: .expense),
-            Category(id: "c4", householdId: "h1", name: "Entretenimiento", icon: "tv-01", color: "#C084FC", type: .expense),
-            Category(id: "c5", householdId: "h1", name: "Salario", icon: "coins-01", color: "#34D399", type: .income),
+            Category(id: "c1", householdId: "h1", name: "Alimentación", icon: "hamburger-01", color: "#C45E52", type: .expense),
+            Category(id: "c2", householdId: "h1", name: "Transporte", icon: "taxi", color: "#3E83A3", type: .expense),
+            Category(id: "c3", householdId: "h1", name: "Vivienda", icon: "home-01", color: "#875989", type: .expense),
+            Category(id: "c4", householdId: "h1", name: "Entretenimiento", icon: "tv-01", color: "#5369B2", type: .expense),
+            Category(id: "c5", householdId: "h1", name: "Salario", icon: "coins-01", color: "#3B815C", type: .income),
         ]
         app.accounts = [
-            Account(id: "a1", householdId: "h1", ownerId: "u1", name: "Efectivo", type: .cash, balance: 850_000, currency: "COP", color: "#34D399", icon: "banknote"),
-            Account(id: "a2", householdId: "h1", ownerId: "u1", name: "Bancolombia", type: .debit, balance: 3_240_000, currency: "COP", color: "#818CF8", icon: "creditcard"),
-            Account(id: "a3", householdId: "h1", ownerId: "u1", name: "Ahorros", type: .savings, balance: 5_600_000, currency: "COP", color: "#38BDF8", icon: "building.columns"),
+            Account(id: "a1", householdId: "h1", ownerId: "u1", name: "Efectivo", type: .cash, balance: 850_000, currency: "COP", color: "#2B887A", icon: "banknote"),
+            Account(id: "a2", householdId: "h1", ownerId: "u1", name: "Bancolombia", type: .debit, balance: 3_240_000, currency: "COP", color: "#5369B2", icon: "creditcard"),
+            Account(id: "a3", householdId: "h1", ownerId: "u1", name: "Ahorros", type: .savings, balance: 5_600_000, currency: "COP", color: "#3977B8", icon: "building.columns"),
         ]
         let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
         app.transactions = [
@@ -35,8 +35,8 @@ extension AppState {
             Budget(id: "b2", householdId: "h1", categoryId: "c4", amount: 200_000, period: .monthly, startDate: today),
         ]
         app.goals = [
-            SavingsGoal(id: "g1", householdId: "h1", name: "Viaje a Cartagena", targetAmount: 3_000_000, currentAmount: 1_950_000, deadline: nil, icon: "airplane", color: "#38BDF8", accountId: "a3", status: .active),
-            SavingsGoal(id: "g2", householdId: "h1", name: "Fondo de emergencia", targetAmount: 6_000_000, currentAmount: 5_600_000, deadline: nil, icon: "shield.fill", color: "#34D399", accountId: "a3", status: .active),
+            SavingsGoal(id: "g1", householdId: "h1", name: "Viaje a Cartagena", targetAmount: 3_000_000, currentAmount: 1_950_000, deadline: nil, icon: "airplane", color: "#3977B8", accountId: "a3", status: .active),
+            SavingsGoal(id: "g2", householdId: "h1", name: "Fondo de emergencia", targetAmount: 6_000_000, currentAmount: 5_600_000, deadline: nil, icon: "shield.fill", color: "#3B815C", accountId: "a3", status: .active),
         ]
         app.debts = [
             Debt(id: "d1", householdId: "h1", createdBy: "u1", direction: .owedToUs, personName: "Camila", amount: 300_000, amountPaid: 100_000, dueDate: nil, description: "Préstamo", status: .active),
