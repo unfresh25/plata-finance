@@ -31,7 +31,7 @@ struct VoiceCaptureView: View {
                 if phase == .recording || phase == .processing {
                     ListeningWaveform(level: phase == .recording ? speech.level : 0.7,
                                       processing: phase == .processing)
-                        .frame(height: 300)
+                        .frame(height: 230)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .ignoresSafeArea()
                         .transition(.opacity)

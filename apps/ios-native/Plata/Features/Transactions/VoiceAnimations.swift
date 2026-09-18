@@ -43,7 +43,7 @@ struct ListeningWaveform: View {
                 let h = geo.size.height
 
                 // Geometría según el modo.
-                let peak: CGFloat = processing ? h * 0.5 : h * 1.05 * lvl
+                let peak: CGFloat = processing ? h * 0.5 : h * 0.9 * lvl   // dentro del contenedor
                 let spread: CGFloat = processing ? w * 0.14 : w * 0.3  // beam angosto al procesar
                 // Balanceo lado a lado al procesar (eased en cada extremo), o
                 // deriva lenta del gradiente al escuchar.

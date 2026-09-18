@@ -194,10 +194,11 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
         var sum: Float = 0
         for i in 0..<frames { sum += channel[i] * channel[i] }
         let rms = (sum / Float(frames)).squareRoot()
-        // Ganancia alta + curva raíz: la voz normal tiene RMS bajo (~0.02–0.1);
-        // así el nivel se nota claramente en la animación en vez de quedar plano.
-        let boosted = min(1, rms * 14)
-        return sqrt(boosted)   // expande la parte baja del rango
+        // La voz baja tiene RMS muy pequeño (~0.01–0.05). Ganancia alta + curva
+        // agresiva (^0.35) expande fuerte la parte baja, de modo que hablar
+        // bajito ya llena la onda. Piso pequeño para que respire en silencio.
+        let boosted = min(1, rms * 30)
+        return pow(boosted, 0.35)
     }
 }
 
