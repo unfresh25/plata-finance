@@ -34,8 +34,8 @@ struct MainTabView: View {
     @State private var voiceResult: VoiceResult?
     // Guarda el parseo mientras el sheet de voz termina de cerrarse.
     @State private var pendingVoiceParsed: ParsedTransaction?
-    // Tab a la que volver al cerrar el chat (que se muestra a pantalla completa).
-    @State private var previousTab: MainTab = .home
+    // Chat IA (pantalla completa) desde el botón flotante.
+    @State private var showingChat = false
 
     var body: some View {
         // Contenido del tab activo. Cada destino en su propio NavigationStack
@@ -54,9 +54,6 @@ struct MainTabView: View {
                 NavigationStack { TransactionsView() }
             case .finances:
                 NavigationStack { FinancesView() }
-            case .assistant:
-                // El chat es inmersivo: sin tab bar, con botón de cerrar propio.
-                NavigationStack { ChatView(onClose: { selection = previousTab }) }
             case .settings:
                 NavigationStack { SettingsView() }
             }
@@ -64,29 +61,26 @@ struct MainTabView: View {
         .transition(.opacity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg.ignoresSafeArea())
-        // Tab bar + FAB: ocultos en el chat (pantalla inmersiva).
         .overlay(alignment: .bottom) {
-            if selection != .assistant {
-                MainTabBar(selection: $selection)
-            }
-        }
-        .onChange(of: selection) { old, new in
-            if new == .assistant { previousTab = old == .assistant ? .home : old }
+            MainTabBar(selection: $selection)
         }
         .overlay {
-            // El FAB (crear + dictar) no aparece en el chat: ahí estorba el input.
-            if selection != .assistant {
-                FloatingActionMenu(
-                    onSelect: { destination in activeDestination = destination },
-                    onVoice: { showingVoiceCapture = true }
-                )
-            }
+            // FAB: chat + micrófono + crear (apilados abajo-derecha).
+            FloatingActionMenu(
+                onSelect: { destination in activeDestination = destination },
+                onVoice: { showingVoiceCapture = true },
+                onChat: { showingChat = true }
+            )
         }
         .task {
             // En modo preview (-uiPreview) se conservan los datos mock inyectados.
             if !ProcessInfo.processInfo.arguments.contains("-uiPreview") {
                 await app.refreshAll()
             }
+        }
+        // Chat IA a pantalla completa, con botón de volver propio.
+        .fullScreenCover(isPresented: $showingChat) {
+            NavigationStack { ChatView(onClose: { showingChat = false }) }
         }
         .sheet(item: $activeDestination) { destination in
             addView(for: destination)
@@ -154,14 +148,13 @@ extension View {
 // MARK: - Modelo de pestañas
 
 private enum MainTab: Hashable, CaseIterable {
-    case home, transactions, finances, assistant, settings
+    case home, transactions, finances, settings
 
     var title: String {
         switch self {
         case .home: "Inicio"
         case .transactions: "Movim."
         case .finances: "Finanzas"
-        case .assistant: "Plata IA"
         case .settings: "Ajustes"
         }
     }
@@ -171,7 +164,6 @@ private enum MainTab: Hashable, CaseIterable {
         case .home: "house"
         case .transactions: "list.bullet"
         case .finances: "chart.pie"
-        case .assistant: "sparkles"
         case .settings: "gearshape"
         }
     }
@@ -181,7 +173,6 @@ private enum MainTab: Hashable, CaseIterable {
         case .home: "house.fill"
         case .transactions: "list.bullet"
         case .finances: "chart.pie.fill"
-        case .assistant: "sparkles"
         case .settings: "gearshape.fill"
         }
     }
@@ -197,7 +188,6 @@ private struct MainTabBar: View {
             MainTabBarButton(tab: .home, selection: $selection)
             MainTabBarButton(tab: .transactions, selection: $selection)
             MainTabBarButton(tab: .finances, selection: $selection)
-            MainTabBarButton(tab: .assistant, selection: $selection)
             MainTabBarButton(tab: .settings, selection: $selection)
         }
         .padding(.horizontal, Space.s)
