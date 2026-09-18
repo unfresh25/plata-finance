@@ -8,8 +8,22 @@ struct OnboardingView: View {
     @Environment(AppState.self) private var app
 
     @State private var appeared = false
+    @State private var showIntro = false
 
     var body: some View {
+        ZStack {
+            welcome
+
+            // Intro cinemática (encima), tras tocar "Empezar".
+            if showIntro {
+                IntroSequence(onFinish: finish)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    private var welcome: some View {
         ZStack {
             // Degradado estilo Fuse: violeta abajo que sube y muere en el fondo
             // por arriba. Intensidad contenida para un look elegante, no brillante.
@@ -20,12 +34,12 @@ struct OnboardingView: View {
 
                 // Contenido anclado abajo, sobre el color → texto en blanco.
                 VStack(alignment: .leading, spacing: Space.l) {
-                    // Ícono de marca en cuadro blanco (como el logo de Fuse).
-                    Image(systemName: "circle.hexagongrid.fill")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(Palette.accent)
-                        .frame(width: 60, height: 60)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    // Moneda de marca (tortuga) como logo.
+                    Image("CoinLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 10)
 
@@ -74,7 +88,13 @@ struct OnboardingView: View {
         }
     }
 
+    /// "Empezar" → arranca la intro cinemática (una sola vez).
     private func start() {
+        withAnimation(.easeInOut(duration: 0.4)) { showIntro = true }
+    }
+
+    /// Fin de la intro (o "Saltar") → avanza a la fase de autenticación.
+    private func finish() {
         OnboardingFlag.hasSeen = true
         withAnimation(Motion.ui) { app.phase = .unauthenticated }
     }
