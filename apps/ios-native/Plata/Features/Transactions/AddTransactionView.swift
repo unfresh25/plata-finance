@@ -17,8 +17,12 @@ struct AddTransactionView: View {
     /// formulario y guarda con updateTransaction (ajustando saldos). Si es nil,
     /// es alta normal. Un mismo view para las dos rutas evita duplicar la UI.
     var editing: Transaction? = nil
+    /// Campos interpretados por voz (dictado desde el FAB) para precargar el alta.
+    var voicePrefill: ParsedTransaction? = nil
     /// Garantiza que la precarga del modo edición ocurra una sola vez.
     @State private var didSeedEdit = false
+    /// Garantiza que la precarga por voz ocurra una sola vez.
+    @State private var didSeedVoice = false
 
     // Estado del formulario
     @State private var type: TransactionType = .expense
@@ -604,6 +608,13 @@ struct AddTransactionView: View {
         }
         if accountId == nil { accountId = app.accounts.first?.id }
         reconcileCategoryForType()
+
+        // Precarga por voz (dictado desde el FAB): aplica lo interpretado una vez,
+        // después de fijar los defaults para no pisarlos.
+        if let prefill = voicePrefill, !didSeedVoice {
+            didSeedVoice = true
+            applyParsed(prefill)
+        }
     }
 
     /// La categoría seleccionada debe coincidir con el tipo actual. Transfer no
