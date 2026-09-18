@@ -22,8 +22,9 @@ struct FloatingActionMenu: View {
     ]
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            // Backdrop: oscurece y captura el tap para cerrar.
+        ZStack {
+            // Backdrop: oscurece y captura el tap para cerrar. Solo con el menú
+            // abierto; ocupa toda la pantalla.
             if isOpen {
                 Color.black.opacity(0.55)
                     .ignoresSafeArea()
@@ -32,10 +33,11 @@ struct FloatingActionMenu: View {
                     .transition(.opacity)
             }
 
-            // Columna de acciones (speed-dial) + FAB + micrófono, anclada abajo-dcha.
+            // Columna de acciones (speed-dial) + FAB + micrófono, anclada
+            // explícitamente abajo-derecha ocupando toda el área disponible.
             VStack(alignment: .trailing, spacing: Space.m) {
                 if isOpen {
-                    ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                    ForEach(actions) { action in
                         SpeedDialRow(destination: action) {
                             select(action)
                         }
@@ -58,10 +60,13 @@ struct FloatingActionMenu: View {
                     isOpen ? close() : open()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, Space.l)
             // Sube sobre el tab bar flotante (cápsula ~96pt) + aire.
             .padding(.bottom, 96 + Space.m)
         }
+        // No interceptar toques fuera de los botones cuando el menú está cerrado.
+        .allowsHitTesting(true)
         .animation(.spring(response: 0.34, dampingFraction: 0.78), value: isOpen)
     }
 
@@ -91,9 +96,9 @@ private struct SpeedDialRow: View {
                 Text(destination.label)
                     .font(Typo.subhead.weight(.semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, Space.m)
-                    .padding(.vertical, Space.xs)
-                    .background(.black.opacity(0.35), in: Capsule())
+                    // Sin fondo: el texto vive sobre el backdrop oscuro del menú.
+                    // Sombra sutil para legibilidad si queda sobre una zona clara.
+                    .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
 
                 Image(systemName: destination.icon)
                     .font(.system(size: 18, weight: .semibold))
@@ -138,12 +143,12 @@ private struct MicFloatingButton: View {
         Button(action: action) {
             Image(systemName: "mic.fill")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Palette.accent)
+                .foregroundStyle(Palette.onAccent)
                 .frame(width: 48, height: 48)
-                .liquidGlassCapsule(interactive: true)
-                .overlay(Circle().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 1))
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
+                .background(Palette.accent.opacity(0.9), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                .contentShape(Circle())
         }
         .pressable(scale: 0.9)
         .accessibilityLabel("Dictar movimiento")
