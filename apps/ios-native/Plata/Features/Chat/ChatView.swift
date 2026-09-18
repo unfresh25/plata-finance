@@ -93,12 +93,16 @@ struct ChatView: View {
         ZStack {
             Palette.bg.ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            Group {
                 if model.messages.isEmpty {
                     emptyState
                 } else {
                     conversation
                 }
+            }
+            // El input flota anclado al fondo (sube con el teclado) y deja hueco
+            // para el tab bar flotante para no quedar tapado por él.
+            .safeAreaInset(edge: .bottom) {
                 inputBar
             }
         }
@@ -160,7 +164,6 @@ struct ChatView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Space.l)
-            .floatingTabBarInset()
         }
     }
 
@@ -192,7 +195,6 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.top, Space.m)
-                .floatingTabBarInset()
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: model.messages.count) { _, _ in scrollToEnd(proxy) }
@@ -237,7 +239,9 @@ struct ChatView: View {
             .pressable()
         }
         .padding(.horizontal, Space.l)
-        .padding(.vertical, Space.s)
+        .padding(.top, Space.s)
+        // Hueco para el tab bar flotante debajo (queda por encima de él).
+        .padding(.bottom, 84)
         .background(.ultraThinMaterial)
     }
 
