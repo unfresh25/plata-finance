@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import predictions, insights, ocr, parse
+from app.routers import predictions, insights, ocr, parse, chat
 
 app = FastAPI(
     title="Plata Finance API",
@@ -28,6 +28,7 @@ app.include_router(predictions.router, prefix="/predictions", tags=["predictions
 app.include_router(insights.router, prefix="/insights", tags=["insights"])
 app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 app.include_router(parse.router, prefix="/parse", tags=["parse"])
+app.include_router(chat.router, prefix="/chat", tags=["chat"])
 
 
 @app.get("/health")

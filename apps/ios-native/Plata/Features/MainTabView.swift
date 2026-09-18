@@ -34,6 +34,8 @@ struct MainTabView: View {
     @State private var voiceResult: VoiceResult?
     // Guarda el parseo mientras el sheet de voz termina de cerrarse.
     @State private var pendingVoiceParsed: ParsedTransaction?
+    // Chat IA (pantalla completa) desde el botón flotante.
+    @State private var showingChat = false
 
     var body: some View {
         // Contenido del tab activo. Cada destino en su propio NavigationStack
@@ -59,14 +61,15 @@ struct MainTabView: View {
         .transition(.opacity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg.ignoresSafeArea())
-        // Tab bar (4 destinos, sin botón central) + FAB speed-dial encima.
         .overlay(alignment: .bottom) {
             MainTabBar(selection: $selection)
         }
         .overlay {
+            // FAB: chat + micrófono + crear (apilados abajo-derecha).
             FloatingActionMenu(
                 onSelect: { destination in activeDestination = destination },
-                onVoice: { showingVoiceCapture = true }
+                onVoice: { showingVoiceCapture = true },
+                onChat: { showingChat = true }
             )
         }
         .task {
@@ -74,6 +77,10 @@ struct MainTabView: View {
             if !ProcessInfo.processInfo.arguments.contains("-uiPreview") {
                 await app.refreshAll()
             }
+        }
+        // Chat IA a pantalla completa, con botón de volver propio.
+        .fullScreenCover(isPresented: $showingChat) {
+            NavigationStack { ChatView(onClose: { showingChat = false }) }
         }
         .sheet(item: $activeDestination) { destination in
             addView(for: destination)

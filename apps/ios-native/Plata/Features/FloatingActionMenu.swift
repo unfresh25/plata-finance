@@ -12,6 +12,7 @@ import SwiftUI
 struct FloatingActionMenu: View {
     var onSelect: (AddDestination) -> Void
     var onVoice: () -> Void
+    var onChat: () -> Void = {}
 
     @State private var isOpen = false
 
@@ -48,9 +49,11 @@ struct FloatingActionMenu: View {
                     }
                 }
 
-                // Micrófono: acceso rápido al dictado. Se oculta cuando el menú
-                // está abierto para no competir con la "×".
+                // Chat IA + micrófono: accesos rápidos. Se ocultan con el menú
+                // abierto para no competir con la "×".
                 if !isOpen {
+                    ChatFloatingButton { onChat() }
+                        .transition(.scale.combined(with: .opacity))
                     MicFloatingButton { onVoice() }
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -133,6 +136,29 @@ private struct PlusFloatingButton: View {
         }
         .pressable(scale: 0.9)
         .accessibilityLabel(isOpen ? "Cerrar menú" : "Crear")
+    }
+}
+
+// MARK: - Botón de chat IA flotante
+
+private struct ChatFloatingButton: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image("GenerateIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+                .foregroundStyle(Palette.onAccent)
+                .frame(width: 56, height: 56)
+                .background(Palette.accent, in: Circle())
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+                .contentShape(Circle())
+        }
+        .pressable(scale: 0.9)
+        .accessibilityLabel("Preguntarle a Plata IA")
     }
 }
 
