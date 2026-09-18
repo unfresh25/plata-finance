@@ -5,10 +5,10 @@ La api_key de Syncfy vive solo aquí (server-side). La app pide un token tempora
 (/bank/session) y consulta catálogo (/bank/countries, /bank/sites). Cada usuario
 Plata se asocia a un id_user de Syncfy, guardado en profiles.syncfy_user_id.
 
-Fase 1: catálogo. Fase 2: crear conexión + estado del job + TWOFA.
-(accounts/transactions, sync y webhook llegan en fases siguientes.)
+Cubre: catálogo, crear conexión + TWOFA, sync de accounts/transactions, listar
+desde la BD, desconectar/reconectar y webhook de actualización.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app import syncfy
@@ -371,3 +371,63 @@ async def bank_reconnect(body: ReconnectRequest, user=Depends(get_current_user))
         "status": "syncing", "provider_credential_id": id_credential,
     }).eq("id", connection_id).execute()
     return ConnectResponse(id_credential=id_credential, id_job=id_job, connection_id=connection_id)
+
+
+# ─── Fase 4b: webhook de Syncfy ──────────────────────────────────────────────
+
+@router.post("/webhook")
+async def bank_webhook(request: Request):
+    """Recibe notificaciones de Syncfy (credential_create/update, refresh) y re-
+    sincroniza la credencial afectada. Sin JWT de usuario: se resuelve el dueño
+    por la conexión guardada y se usa la api_key para crear su sesión.
+
+    La forma exacta del payload no está documentada por Syncfy; se busca el
+    id_credential en las claves habituales de forma defensiva."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"ok": True}   # nunca fallar hacia Syncfy
+
+    # Buscar id_credential en el payload (claves posibles).
+    id_credential = None
+    if isinstance(payload, dict):
+        for k in ("id_credential", "id_credential_pull", "credential", "id"):
+            v = payload.get(k)
+            if isinstance(v, str):
+                id_credential = v
+                break
+        # a veces viene anidado en response/data
+        if not id_credential:
+            for wrap in ("response", "data", "body"):
+                inner = payload.get(wrap)
+                if isinstance(inner, dict):
+                    id_credential = inner.get("id_credential")
+                    if id_credential:
+                        break
+    if not id_credential:
+        return {"ok": True}   # no accionable
+
+    supa = db()
+    conn = (
+        supa.table("bank_connections").select("id, household_id, owner_id")
+        .eq("provider_credential_id", id_credential).limit(1).execute()
+    )
+    row = (conn.data or [{}])[0]
+    connection_id = row.get("id")
+    owner_id = row.get("owner_id")
+    household_id = row.get("household_id")
+    if not connection_id or not owner_id:
+        return {"ok": True}   # credencial que no es nuestra
+
+    # Sesión Syncfy del dueño (id_user en su perfil) usando la api_key.
+    prof = supa.table("profiles").select("syncfy_user_id").eq("id", owner_id).limit(1).execute()
+    id_user = (prof.data or [{}])[0].get("syncfy_user_id")
+    if not id_user:
+        return {"ok": True}
+
+    try:
+        token = await syncfy.create_session(id_user)
+        await _sync_credential(token, household_id, connection_id, id_credential)
+    except syncfy.SyncfyError:
+        supa.table("bank_connections").update({"status": "error"}).eq("id", connection_id).execute()
+    return {"ok": True}
