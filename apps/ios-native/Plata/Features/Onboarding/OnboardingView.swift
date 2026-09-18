@@ -9,6 +9,7 @@ struct OnboardingView: View {
 
     @State private var appeared = false
     @State private var showIntro = false
+    @State private var showSurvey = false
 
     var body: some View {
         ZStack {
@@ -16,9 +17,16 @@ struct OnboardingView: View {
 
             // Intro cinemática (encima), tras tocar "Empezar".
             if showIntro {
-                IntroSequence(onFinish: finish)
+                IntroSequence(onFinish: introDidFinish)
                     .transition(.opacity)
                     .zIndex(1)
+            }
+
+            // Cuestionario, después de la intro y antes de autenticarse.
+            if showSurvey {
+                OnboardingQuestionsView(onFinish: finish)
+                    .transition(.opacity)
+                    .zIndex(2)
             }
         }
     }
@@ -93,7 +101,15 @@ struct OnboardingView: View {
         withAnimation(.easeInOut(duration: 0.4)) { showIntro = true }
     }
 
-    /// Fin de la intro (o "Saltar") → avanza a la fase de autenticación.
+    /// Fin de la intro (o "Saltar" de la intro) → muestra el cuestionario.
+    private func introDidFinish() {
+        withAnimation(.easeInOut(duration: 0.4)) {
+            showSurvey = true
+            showIntro = false
+        }
+    }
+
+    /// Fin del cuestionario (o "Saltar") → avanza a la fase de autenticación.
     private func finish() {
         OnboardingFlag.hasSeen = true
         withAnimation(Motion.ui) { app.phase = .unauthenticated }
