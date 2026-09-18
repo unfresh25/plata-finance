@@ -30,7 +30,7 @@ struct VoiceCaptureView: View {
                 // la voz (solo mientras se escucha).
                 if phase == .recording {
                     ListeningWaveform(level: speech.level)
-                        .frame(height: 260)
+                        .frame(height: 190)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .ignoresSafeArea()
                         .transition(.opacity)

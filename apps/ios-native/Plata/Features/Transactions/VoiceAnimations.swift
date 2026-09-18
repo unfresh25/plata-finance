@@ -39,8 +39,8 @@ struct ListeningWaveform: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 let h = geo.size.height
-                let peak = h * 0.9 * lvl
-                let spread = w * 0.26                 // ancho del domo
+                let peak = h * 0.55 * lvl             // altura según el nivel (contenida)
+                let spread = w * 0.3                  // ancho del domo
                 // Deriva lenta del gradiente: los colores "viajan" (flow).
                 let shift = CGFloat(sin(t * 0.35)) * w * 0.12
 
