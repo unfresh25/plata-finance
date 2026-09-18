@@ -293,6 +293,12 @@ struct Repository {
             match: ["id": userId])
     }
 
+    /// Guarda las respuestas del cuestionario de onboarding (columna jsonb).
+    func saveOnboarding(userId: String, survey: OnboardingSurvey) async throws {
+        struct Patch: Encodable { let onboarding: OnboardingSurvey }
+        try await client.update("profiles", values: Patch(onboarding: survey), match: ["id": userId])
+    }
+
     /// Sube una imagen de avatar al Storage y devuelve su URL pública.
     func uploadAvatar(userId: String, jpeg: Data) async throws -> String {
         let path = "\(userId)-\(Int(Date().timeIntervalSince1970)).jpg"

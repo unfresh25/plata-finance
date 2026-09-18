@@ -62,6 +62,7 @@ final class AppState {
             }
             self.household = try await repo.fetchHousehold(id: hh)
             await refreshAll()
+            await uploadPendingOnboarding(userId: uid)
             phase = .ready
         } catch {
             errorMessage = error.localizedDescription
@@ -166,6 +167,20 @@ final class AppState {
     func shoppingListDelete(id: String) async {
         do { try await repo.shoppingListDelete(id: id); await refreshAll() }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    // MARK: Onboarding
+
+    /// Sube al perfil las respuestas del cuestionario guardadas localmente antes
+    /// de crear la cuenta (si las hay) y limpia el pendiente.
+    private func uploadPendingOnboarding(userId: String) async {
+        guard let survey = OnboardingSurveyStore.loadPending() else { return }
+        do {
+            try await repo.saveOnboarding(userId: userId, survey: survey)
+            OnboardingSurveyStore.clearPending()
+        } catch {
+            // Si falla, se reintenta en el próximo arranque (no se limpia).
+        }
     }
 
     // MARK: Preferencias
