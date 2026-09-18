@@ -34,24 +34,36 @@ final class SpeechRecognizer {
     // MARK: - Permisos
 
     func requestAuthorization() async -> Bool {
-        let speechOK = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            SFSpeechRecognizer.requestAuthorization { status in
-                cont.resume(returning: status == .authorized)
-            }
-        }
+        // Los callbacks de permisos llegan en hilos de fondo arbitrarios. Se
+        // esperan en funciones nonisolated (sin capturar self ni el MainActor);
+        // si el continuation quedara ligado al MainActor, al reanudar en un hilo
+        // de fondo Swift 6 dispara _swift_task_checkIsolatedSwift → crash.
+        let speechOK = await Self.requestSpeechAuth()
         guard speechOK else {
             errorMessage = "Activa el reconocimiento de voz en Ajustes para dictar."
             return false
         }
-        let micOK = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            AVAudioApplication.requestRecordPermission { granted in
-                cont.resume(returning: granted)
-            }
-        }
+        let micOK = await Self.requestMicAuth()
         if !micOK {
             errorMessage = "Activa el micrófono en Ajustes para dictar."
         }
         return micOK
+    }
+
+    private nonisolated static func requestSpeechAuth() async -> Bool {
+        await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { status in
+                cont.resume(returning: status == .authorized)
+            }
+        }
+    }
+
+    private nonisolated static func requestMicAuth() async -> Bool {
+        await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            AVAudioApplication.requestRecordPermission { granted in
+                cont.resume(returning: granted)
+            }
+        }
     }
 
     // MARK: - Captura
