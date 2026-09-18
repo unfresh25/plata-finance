@@ -301,3 +301,73 @@ async def bank_connections(user=Depends(get_current_user)):
     for c in conns:
         c["accounts"] = by_conn.get(c["id"], [])
     return {"connections": conns}
+
+
+# ─── Fase 4: desconectar / reconectar ────────────────────────────────────────
+
+class DisconnectRequest(BaseModel):
+    token: str
+    id_credential: str
+
+
+@router.post("/disconnect")
+async def bank_disconnect(body: DisconnectRequest, user=Depends(get_current_user)):
+    """Elimina la credencial en Syncfy y borra la conexión (y en cascada sus
+    cuentas/movimientos) de nuestra BD."""
+    hh = _household_id(user.id)
+    supa = db()
+    conn = (
+        supa.table("bank_connections").select("id")
+        .eq("household_id", hh)
+        .eq("provider_credential_id", body.id_credential)
+        .limit(1).execute()
+    )
+    connection_id = (conn.data or [{}])[0].get("id")
+    if not connection_id:
+        raise HTTPException(status_code=404, detail="Conexión no encontrada.")
+    try:
+        await syncfy.delete_credential(body.token, body.id_credential)
+    except syncfy.SyncfyError:
+        pass   # si ya no existe en Syncfy, igual limpiamos nuestra BD
+    supa.table("bank_connections").delete().eq("id", connection_id).execute()
+    return {"ok": True}
+
+
+class ReconnectRequest(BaseModel):
+    token: str
+    id_credential: str
+    endpoint: str
+    id_site: str
+    credentials: dict
+
+
+@router.post("/reconnect", response_model=ConnectResponse)
+async def bank_reconnect(body: ReconnectRequest, user=Depends(get_current_user)):
+    """Re-autentica una conexión existente (re-POST credentials/pulls). NO borra
+    los datos ya sincronizados; marca la conexión como 'syncing'."""
+    hh = _household_id(user.id)
+    supa = db()
+    conn = (
+        supa.table("bank_connections").select("id")
+        .eq("household_id", hh)
+        .eq("provider_credential_id", body.id_credential)
+        .limit(1).execute()
+    )
+    connection_id = (conn.data or [{}])[0].get("id")
+    if not connection_id:
+        raise HTTPException(status_code=404, detail="Conexión no encontrada.")
+    try:
+        result = await syncfy.create_credential(
+            body.token, body.endpoint, body.id_site, body.credentials
+        )
+    except syncfy.SyncfyError as e:
+        raise HTTPException(status_code=502, detail=f"Syncfy: {e.message}")
+
+    id_credential = result.get("id_credential", body.id_credential)
+    id_job = result.get("id_job")
+    if not id_job:
+        raise HTTPException(status_code=502, detail="Syncfy no devolvió el job.")
+    supa.table("bank_connections").update({
+        "status": "syncing", "provider_credential_id": id_credential,
+    }).eq("id", connection_id).execute()
+    return ConnectResponse(id_credential=id_credential, id_job=id_job, connection_id=connection_id)

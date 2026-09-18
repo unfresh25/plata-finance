@@ -395,6 +395,22 @@ private struct SettingsManagementSection: View {
             }
             .buttonStyle(.plain)
             .pressable()
+
+            NavigationLink {
+                BankConnectionsView()
+            } label: {
+                SettingsRow(
+                    icon: "building.columns.fill",
+                    tint: Palette.accent,
+                    title: "Cuentas conectadas"
+                ) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable()
         }
     }
 }
