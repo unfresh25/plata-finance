@@ -1,12 +1,15 @@
 """
-Parseo de un movimiento dictado por voz — ejecutado server-side con Gemini.
+Parseo de un movimiento dictado por voz — ejecutado server-side con Claude.
 
 La app transcribe la voz on-device (Speech framework) y manda el texto plano
-junto con las categorías y cuentas del hogar. Gemini interpreta lenguaje natural
-("gasté cincuenta mil en el mercado con la débito", "ayer", etc.) y devuelve los
-campos del formulario, haciendo match del category_id / account_id contra las
-listas provistas. La app precarga el formulario; el usuario confirma antes de
-guardar. Mismo patrón (key server-side, httpx) que ocr.py.
+junto con las categorías y cuentas del hogar. Claude Haiku interpreta lenguaje
+natural ("gasté cincuenta mil en el mercado con la débito", "ayer", etc.) y
+devuelve los campos del formulario, haciendo match del category_id / account_id
+contra las listas provistas. La app precarga el formulario; el usuario confirma
+antes de guardar.
+
+Se usa Claude (no Gemini) porque el nivel gratuito de Gemini se agota rápido
+(~20 requests/día). Claude Haiku no tiene ese límite y cuesta ~$0.001 por dictado.
 """
 import asyncio
 import json
@@ -21,12 +24,8 @@ from app.deps import get_current_user
 
 router = APIRouter()
 
-# gemini-2.5-flash dejó de estar disponible para nuevas keys (404). Se usa 3.6;
-# configurable por GEMINI_MODEL para cambiarlo sin tocar código.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
-GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-)
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 
 
 class CategoryRef(BaseModel):
@@ -63,8 +62,8 @@ def _build_prompt(body: ParseRequest) -> str:
     accs = "\n".join(f'- id={a.id} | "{a.name}"' for a in body.accounts) or "(ninguna)"
     return (
         "Eres un asistente de finanzas para una app de pareja en Colombia. "
-        "El usuario dictó por voz un movimiento. Interpreta el texto y devuelve "
-        "ÚNICAMENTE un JSON válido con estos campos:\n"
+        "El usuario dictó por voz un movimiento. Interpreta el texto y responde "
+        "ÚNICAMENTE con un JSON válido (sin markdown, sin explicación) con estos campos:\n"
         '  "amount": número sin signos ni separadores (ej. 50000). Interpreta '
         'lenguaje natural: "cincuenta mil" = 50000, "50 lucas"/"50 mil" = 50000, '
         '"2.5 millones" = 2500000.\n'
@@ -99,21 +98,27 @@ async def parse_transaction(
     if len(text) > 2000:
         raise HTTPException(status_code=413, detail="El texto es demasiado largo.")
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="El parseo no está configurado en el servidor.")
 
     payload = {
-        "contents": [{"parts": [{"text": _build_prompt(body)}]}],
-        "generationConfig": {"responseMimeType": "application/json"},
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 400,
+        "messages": [{"role": "user", "content": _build_prompt(body)}],
+    }
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
     }
 
-    # Gemini flash da 503/429 transitorios bajo demanda: reintentar con backoff.
+    # Reintento ante 429/5xx transitorios.
     resp = None
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for attempt in range(3):
-                resp = await client.post(GEMINI_URL, params={"key": api_key}, json=payload)
+                resp = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
                 if resp.status_code not in (429, 500, 502, 503, 504):
                     break
                 if attempt < 2:
@@ -128,14 +133,12 @@ async def parse_transaction(
         )
 
     data = resp.json()
-    # Gemini 3.x puede anteponer un part de "thoughtSignature" sin texto; hay que
-    # buscar el primer part que realmente tenga "text", no asumir el índice 0.
     try:
-        parts = data["candidates"][0]["content"]["parts"]
-        raw = next(p["text"] for p in parts if "text" in p)
-    except (KeyError, IndexError, StopIteration):
+        raw = data["content"][0]["text"]
+    except (KeyError, IndexError):
         raise HTTPException(status_code=422, detail="No se pudo interpretar el dictado.")
 
+    # Claude a veces envuelve el JSON en ```json ... ```.
     if "```" in raw:
         raw = raw.replace("```json", "").replace("```", "").strip()
 
