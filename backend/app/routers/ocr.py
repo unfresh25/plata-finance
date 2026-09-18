@@ -6,6 +6,7 @@ con generativelanguage.googleapis.com (donde la key quedaba embebida en el
 bundle y era extraíble). En su lugar llama a este endpoint autenticado, que
 usa la key desde el entorno del servidor.
 """
+import asyncio
 import base64
 import json
 import os
@@ -78,18 +79,24 @@ async def scan_receipt(
         "generationConfig": {"responseMimeType": "application/json"},
     }
 
+    # Gemini flash da 503/429 transitorios bajo demanda: reintentar con backoff.
+    resp = None
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                GEMINI_URL,
-                params={"key": api_key},
-                json=payload,
-            )
+            for attempt in range(3):
+                resp = await client.post(GEMINI_URL, params={"key": api_key}, json=payload)
+                if resp.status_code not in (429, 500, 502, 503, 504):
+                    break
+                if attempt < 2:
+                    await asyncio.sleep(0.8 * (attempt + 1))
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Error contactando el servicio de OCR: {e}")
 
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail="El servicio de OCR devolvió un error.")
+    if resp is None or resp.status_code != 200:
+        raise HTTPException(
+            status_code=503,
+            detail="El servicio está ocupado ahora mismo. Inténtalo de nuevo.",
+        )
 
     data = resp.json()
     # Gemini 3.x puede anteponer un part de "thoughtSignature" sin texto; buscar

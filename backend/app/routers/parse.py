@@ -8,6 +8,7 @@ campos del formulario, haciendo match del category_id / account_id contra las
 listas provistas. La app precarga el formulario; el usuario confirma antes de
 guardar. Mismo patrón (key server-side, httpx) que ocr.py.
 """
+import asyncio
 import json
 import os
 from datetime import date
@@ -107,14 +108,24 @@ async def parse_transaction(
         "generationConfig": {"responseMimeType": "application/json"},
     }
 
+    # Gemini flash da 503/429 transitorios bajo demanda: reintentar con backoff.
+    resp = None
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(GEMINI_URL, params={"key": api_key}, json=payload)
+            for attempt in range(3):
+                resp = await client.post(GEMINI_URL, params={"key": api_key}, json=payload)
+                if resp.status_code not in (429, 500, 502, 503, 504):
+                    break
+                if attempt < 2:
+                    await asyncio.sleep(0.8 * (attempt + 1))
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Error contactando el servicio: {e}")
 
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail="El servicio de interpretación devolvió un error.")
+    if resp is None or resp.status_code != 200:
+        raise HTTPException(
+            status_code=503,
+            detail="El asistente está ocupado ahora mismo. Inténtalo de nuevo.",
+        )
 
     data = resp.json()
     # Gemini 3.x puede anteponer un part de "thoughtSignature" sin texto; hay que
