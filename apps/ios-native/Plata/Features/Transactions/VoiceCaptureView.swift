@@ -209,8 +209,10 @@ struct VoiceCaptureView: View {
             }
 
             let parsed = try JSONDecoder().decode(ParsedTransaction.self, from: data)
+            // El cierre lo maneja quien recibe onParsed (setea su propio flag de
+            // sheet). No llamamos dismiss() aquí para evitar un doble cierre que
+            // dejaba el prefill sin propagarse.
             onParsed(parsed)
-            dismiss()
         } catch {
             phase = .idle
             errorMessage = error.localizedDescription

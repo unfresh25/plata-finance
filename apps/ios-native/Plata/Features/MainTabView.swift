@@ -28,8 +28,12 @@ struct MainTabView: View {
     @State private var activeDestination: AddDestination?
     // Dictado por voz desde el botón flotante de micrófono.
     @State private var showingVoiceCapture = false
-    // Campos interpretados por voz, para prellenar el alta de transacción.
-    @State private var voicePrefill: ParsedTransaction?
+    // Resultado del dictado: se presenta como sheet propio, llevando el prefill
+    // DENTRO del item (no como estado paralelo, que llegaba nil por el timing de
+    // sheet(item:)).
+    @State private var voiceResult: VoiceResult?
+    // Guarda el parseo mientras el sheet de voz termina de cerrarse.
+    @State private var pendingVoiceParsed: ParsedTransaction?
 
     var body: some View {
         // Contenido del tab activo. Cada destino en su propio NavigationStack
@@ -71,23 +75,35 @@ struct MainTabView: View {
                 await app.refreshAll()
             }
         }
-        .sheet(item: $activeDestination, onDismiss: { voicePrefill = nil }) { destination in
+        .sheet(item: $activeDestination) { destination in
             addView(for: destination)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Palette.bg)
         }
-        // Al cerrarse el sheet de voz, si hubo dictado, abrir el alta ya prellenada.
-        // Se promueve en onDismiss (no en el callback) para no presentar un sheet
-        // mientras el de voz aún se está descartando (iOS ignora esa presentación).
-        .sheet(isPresented: $showingVoiceCapture, onDismiss: {
-            if voicePrefill != nil {
-                activeDestination = .transaction
-            }
-        }) {
+        // Alta prellenada por voz: sheet propio cuyo item LLEVA el prefill, así
+        // AddTransactionView siempre lo recibe (no depende de estado paralelo).
+        .sheet(item: $voiceResult) { result in
+            AddTransactionView(voicePrefill: result.parsed)
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Palette.bg)
+        }
+        // Dictado desde el FAB. Al terminar guarda el resultado y cierra el sheet;
+        // el alta se presenta cuando el sheet de voz ya cerró (onDismiss), porque
+        // iOS ignora presentar un sheet mientras otro se descarta.
+        .sheet(isPresented: $showingVoiceCapture, onDismiss: presentVoiceResult) {
             VoiceCaptureView { parsed in
-                voicePrefill = parsed
+                pendingVoiceParsed = parsed
                 showingVoiceCapture = false
             }
+        }
+    }
+
+    /// Tras cerrar el sheet de voz, si hubo dictado presenta el alta prellenada.
+    private func presentVoiceResult() {
+        guard let parsed = pendingVoiceParsed else { return }
+        pendingVoiceParsed = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            voiceResult = VoiceResult(parsed: parsed)
         }
     }
 
@@ -96,7 +112,7 @@ struct MainTabView: View {
     @ViewBuilder
     private func addView(for destination: AddDestination) -> some View {
         switch destination {
-        case .transaction: AddTransactionView(voicePrefill: voicePrefill)
+        case .transaction: AddTransactionView()
         case .budget: AddBudgetView()
         case .shoppingList: AddShoppingListView()
         case .goal: AddGoalView()
@@ -214,3 +230,12 @@ private struct MainTabBarButton: View {
     }
 }
 
+
+// MARK: - Resultado del dictado (item de sheet con el prefill dentro)
+
+/// Envuelve el parseo del dictado como Identifiable para presentarlo con
+/// sheet(item:), garantizando que AddTransactionView reciba el prefill.
+struct VoiceResult: Identifiable {
+    let id = UUID()
+    let parsed: ParsedTransaction
+}
