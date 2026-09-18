@@ -3,54 +3,45 @@ import Speech
 import AVFoundation
 
 // Transcripción de voz a texto on-device. Envuelve SFSpeechRecognizer +
-// AVAudioEngine y expone un texto observable que la UI muestra en vivo mientras
-// el usuario habla. La interpretación a campos del movimiento la hace el backend
-// (Gemini); esto solo entrega el texto plano.
+// AVAudioEngine.
 //
-// Concurrencia: el tap de audio corre en un hilo de audio en tiempo real, NO en
-// el main actor. Por eso el buffer se procesa en una función `nonisolated` y solo
-// el resultado (nivel suavizado) se reenvía al main actor. Tocar estado
-// @MainActor directamente desde el hilo de audio crashea la app.
+// Concurrencia: los callbacks de Speech y del tap de audio llegan en hilos de
+// fondo arbitrarios. Por eso esta clase NO está aislada al MainActor: manejarla
+// como @MainActor hacía que esos callbacks (permisos, recognitionTask, tap)
+// cruzaran el aislamiento y la app crasheara con _dispatch_assert_queue_fail.
+// El estado observable para la UI vive en SpeechCapture (@MainActor); esta clase
+// solo publica cambios llamando handlers que ya saltan al MainActor.
 //
-// Uso: `start()` al mantener pulsado el micrófono, `stop()` al soltar.
+// Uso: fijar onTranscript/onLevel/onFinish, luego start()/stop().
 
-@Observable
-@MainActor
-final class SpeechRecognizer {
-    private(set) var transcript = ""
-    private(set) var isRecording = false
-    private(set) var errorMessage: String?
-    private(set) var level: Float = 0
+// nonisolated a nivel de tipo: con SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor todo
+// heredaría el MainActor; esta clase debe vivir FUERA de él porque sus callbacks
+// (permisos, recognitionTask, tap de audio) llegan en hilos de fondo.
+nonisolated final class SpeechRecognizer: @unchecked Sendable {
+    // Handlers hacia la UI. Se invocan siempre en el MainActor (ver SpeechCapture).
+    var onTranscript: (@Sendable (String) -> Void)?
+    var onLevel: (@Sendable (Float) -> Void)?
+    var onFinish: (@Sendable () -> Void)?
+    var onError: (@Sendable (String) -> Void)?
 
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "es_CO"))
         ?? SFSpeechRecognizer()
-
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private let lock = NSLock()
+    private var recording = false
 
-    var isAvailable: Bool { recognizer?.isAvailable ?? false }
+    var isRecording: Bool { lock.withLock { recording } }
 
     // MARK: - Permisos
 
-    func requestAuthorization() async -> Bool {
-        // Los callbacks de permisos llegan en hilos de fondo arbitrarios. Se
-        // esperan en funciones nonisolated (sin capturar self ni el MainActor);
-        // si el continuation quedara ligado al MainActor, al reanudar en un hilo
-        // de fondo Swift 6 dispara _swift_task_checkIsolatedSwift → crash.
-        let speechOK = await Self.requestSpeechAuth()
-        guard speechOK else {
-            errorMessage = "Activa el reconocimiento de voz en Ajustes para dictar."
-            return false
-        }
-        let micOK = await Self.requestMicAuth()
-        if !micOK {
-            errorMessage = "Activa el micrófono en Ajustes para dictar."
-        }
-        return micOK
-    }
-
-    private nonisolated static func requestSpeechAuth() async -> Bool {
+    // nonisolated EXPLÍCITO: con SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor, un
+    // método async sin marcar hereda el MainActor y la continuation se reanuda
+    // esperando ese executor; como el callback de TCC/permits reanuda en una cola
+    // de fondo, Swift dispara _dispatch_assert_queue_fail. nonisolated desliga la
+    // continuation de cualquier actor.
+    nonisolated static func requestSpeechAuth() async -> Bool {
         await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
                 cont.resume(returning: status == .authorized)
@@ -58,7 +49,7 @@ final class SpeechRecognizer {
         }
     }
 
-    private nonisolated static func requestMicAuth() async -> Bool {
+    nonisolated static func requestMicAuth() async -> Bool {
         await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission { granted in
                 cont.resume(returning: granted)
@@ -70,22 +61,26 @@ final class SpeechRecognizer {
 
     func start() async {
         guard !isRecording else { return }
-        errorMessage = nil
-        transcript = ""
 
-        guard await requestAuthorization() else { return }
+        guard await Self.requestSpeechAuth() else {
+            onError?("Activa el reconocimiento de voz en Ajustes para dictar.")
+            return
+        }
+        guard await Self.requestMicAuth() else {
+            onError?("Activa el micrófono en Ajustes para dictar.")
+            return
+        }
         guard let recognizer, recognizer.isAvailable else {
-            errorMessage = "El reconocimiento de voz no está disponible ahora."
+            onError?("El reconocimiento de voz no está disponible ahora.")
             return
         }
 
-        // Sesión de audio.
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            errorMessage = "No se pudo iniciar el audio."
+            onError?("No se pudo iniciar el audio.")
             return
         }
 
@@ -96,24 +91,19 @@ final class SpeechRecognizer {
         }
         self.request = request
 
-        // El formato DEBE venir del hardware del input node; usar uno inventado
-        // crashea installTap. Si el sample rate es 0 (hardware no listo), abortar.
         let inputNode = audioEngine.inputNode
         let format = inputNode.inputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
-            errorMessage = "El micrófono no está disponible ahora."
+            onError?("El micrófono no está disponible ahora.")
             deactivateSession()
             self.request = nil
             return
         }
 
-        // Callback en un handler nonisolated que salta al main actor. El closure
-        // corre en el hilo de audio; NO debe tocar estado @MainActor directamente.
-        let onLevel = self.onLevel
+        let levelHandler = onLevel
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             request.append(buffer)
-            let value = Self.rmsLevel(buffer)
-            onLevel(value)
+            if let levelHandler { levelHandler(Self.rmsLevel(buffer)) }
         }
 
         audioEngine.prepare()
@@ -121,52 +111,42 @@ final class SpeechRecognizer {
             try audioEngine.start()
         } catch {
             inputNode.removeTap(onBus: 0)
-            errorMessage = "No se pudo iniciar el micrófono."
+            onError?("No se pudo iniciar el micrófono.")
             cleanup()
             deactivateSession()
             return
         }
 
-        isRecording = true
+        lock.withLock { recording = true }
 
+        let transcriptHandler = onTranscript
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            // Este callback puede llegar en un hilo de fondo → saltar al main actor.
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if let result {
-                    self.transcript = result.bestTranscription.formattedString
-                }
-                if error != nil || (result?.isFinal ?? false) {
-                    self.stop()
-                }
+            if let result {
+                transcriptHandler?(result.bestTranscription.formattedString)
+            }
+            if error != nil || (result?.isFinal ?? false) {
+                self?.stop()
             }
         }
     }
 
     func stop() {
-        guard isRecording else { return }
-        isRecording = false
-        level = 0
+        let wasRecording = lock.withLock { () -> Bool in
+            let w = recording
+            recording = false
+            return w
+        }
+        guard wasRecording else { return }
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         request?.endAudio()
         task?.cancel()
         cleanup()
         deactivateSession()
+        onFinish?()
     }
 
     // MARK: - Interno
-
-    /// Handler seguro para el hilo de audio: recibe el nivel ya calculado y lo
-    /// entrega al main actor con suavizado. `nonisolated` a propósito.
-    private nonisolated var onLevel: @Sendable (Float) -> Void {
-        { value in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.level = self.level * 0.7 + value * 0.3
-            }
-        }
-    }
 
     private func deactivateSession() {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -178,7 +158,7 @@ final class SpeechRecognizer {
     }
 
     /// RMS del buffer → 0…1. Función pura, segura para el hilo de audio.
-    private nonisolated static func rmsLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+    private static func rmsLevel(_ buffer: AVAudioPCMBuffer) -> Float {
         guard let channel = buffer.floatChannelData?[0] else { return 0 }
         let frames = Int(buffer.frameLength)
         guard frames > 0 else { return 0 }
@@ -186,5 +166,55 @@ final class SpeechRecognizer {
         for i in 0..<frames { sum += channel[i] * channel[i] }
         let rms = (sum / Float(frames)).squareRoot()
         return min(1, max(0, rms * 6))
+    }
+}
+
+// Estado observable para la UI. Vive en el MainActor y traduce los callbacks del
+// SpeechRecognizer (que llegan en hilos de fondo) a mutaciones en el MainActor.
+
+@Observable
+@MainActor
+final class SpeechCapture {
+    private(set) var transcript = ""
+    private(set) var isRecording = false
+    private(set) var errorMessage: String?
+    private(set) var level: Float = 0
+
+    private let recognizer = SpeechRecognizer()
+
+    init() {
+        recognizer.onTranscript = { [weak self] text in
+            Task { @MainActor in self?.transcript = text }
+        }
+        recognizer.onLevel = { [weak self] value in
+            Task { @MainActor in
+                guard let self else { return }
+                self.level = self.level * 0.7 + value * 0.3
+            }
+        }
+        recognizer.onFinish = { [weak self] in
+            Task { @MainActor in
+                self?.isRecording = false
+                self?.level = 0
+            }
+        }
+        recognizer.onError = { [weak self] message in
+            Task { @MainActor in
+                self?.errorMessage = message
+                self?.isRecording = false
+            }
+        }
+    }
+
+    func start() {
+        errorMessage = nil
+        transcript = ""
+        isRecording = true
+        Task { await recognizer.start() }
+        // Si arrancar falló, onError/onFinish revertirán isRecording.
+    }
+
+    func stop() {
+        recognizer.stop()
     }
 }

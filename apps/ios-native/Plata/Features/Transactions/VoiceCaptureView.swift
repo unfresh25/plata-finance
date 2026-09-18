@@ -13,7 +13,7 @@ struct VoiceCaptureView: View {
     /// Devuelve los campos interpretados a AddTransactionView.
     var onParsed: (ParsedTransaction) -> Void
 
-    @State private var speech = SpeechRecognizer()
+    @State private var speech = SpeechCapture()
     @State private var phase: Phase = .idle
     @State private var errorMessage: String?
 
@@ -62,6 +62,20 @@ struct VoiceCaptureView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "Inténtalo de nuevo.")
+        }
+        // Un error del motor de voz (permiso denegado, no disponible) vuelve a
+        // idle y muestra el mensaje.
+        .onChange(of: speech.errorMessage) { _, msg in
+            if let msg {
+                errorMessage = msg
+                phase = .idle
+            }
+        }
+        // Si el motor deja de grabar solo (fin/error) mientras estábamos grabando.
+        .onChange(of: speech.isRecording) { _, recording in
+            if !recording, phase == .recording {
+                phase = .idle
+            }
         }
     }
 
@@ -148,14 +162,9 @@ struct VoiceCaptureView: View {
 
     private func beginRecording() {
         phase = .recording
-        Task {
-            await speech.start()
-            // Si arrancar falló (permiso/no disponible), volver a idle y mostrar error.
-            if !speech.isRecording {
-                phase = .idle
-                if let msg = speech.errorMessage { errorMessage = msg }
-            }
-        }
+        speech.start()
+        // Los permisos/errores se reflejan de forma asíncrona; se observan con
+        // .onChange sobre speech.errorMessage para volver a idle y avisar.
     }
 
     private func endRecording() {
