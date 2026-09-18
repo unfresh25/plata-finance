@@ -19,6 +19,7 @@ struct ConnectBankView: View {
     @State private var twofaFields: [BankField] = []
     @State private var twofaAnswers: [String: String] = [:]
     @State private var idJob = ""
+    @State private var idCredential = ""
     @State private var errorMessage: String?
 
     // Sandbox mientras no haya bancos reales (Colombia real cambia solo el catálogo).
@@ -270,6 +271,7 @@ struct ConnectBankView: View {
         do {
             let r = try await BankService.connect(token: token, site: s, credentials: credentials)
             idJob = r.id_job
+            idCredential = r.id_credential
             await pollJob()
         } catch {
             errorMessage = error.localizedDescription; step = .failed
@@ -294,6 +296,8 @@ struct ConnectBankView: View {
                 let status = try await BankService.jobStatus(token: token, idJob: idJob)
                 switch status.code {
                 case 200:
+                    // Conectado: traer y persistir cuentas + movimientos.
+                    try? await BankService.sync(token: token, idCredential: idCredential)
                     step = .done; return
                 case 410:
                     twofaFields = status.twofa ?? []

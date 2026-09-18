@@ -172,3 +172,132 @@ async def bank_twofa(body: TwofaRequest, user=Depends(get_current_user)):
     except syncfy.SyncfyError as e:
         raise HTTPException(status_code=502, detail=f"Syncfy: {e.message}")
     return {"ok": True}
+
+
+# ─── Fase 3: sync (accounts + transactions) + listar desde la BD ─────────────
+
+def _iso(ts) -> str | None:
+    """UNIX (segundos) → ISO8601, o None."""
+    from datetime import datetime, timezone
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+async def _sync_credential(token: str, household_id: str, connection_id: str, id_credential: str) -> dict:
+    """Trae accounts + transactions de una credencial y hace upsert en la BD.
+    Devuelve conteos. Sync incremental por dt_refresh_from si ya había datos."""
+    supa = db()
+    accs = await syncfy.accounts(token, id_credential)
+    acc_id_map: dict[str, str] = {}   # provider_account_id -> nuestro id
+
+    for a in accs or []:
+        prov_id = a.get("id_account")
+        if not prov_id:
+            continue
+        row = supa.table("bank_accounts").upsert({
+            "connection_id": connection_id,
+            "household_id": household_id,
+            "provider_account_id": prov_id,
+            "name": a.get("name") or "Cuenta",
+            "type": (a.get("site") or {}).get("name"),
+            "balance": a.get("balance") or 0,
+            "currency": a.get("currency"),
+            "last_synced_at": _iso(a.get("dt_refresh")),
+        }, on_conflict="connection_id,provider_account_id").execute()
+        acc_id_map[prov_id] = (row.data or [{}])[0].get("id", "")
+
+    # Sync incremental: solo transacciones refrescadas después del último sync.
+    conn = supa.table("bank_connections").select("last_successful_sync_at").eq("id", connection_id).limit(1).execute()
+    dt_from = None
+    prev = (conn.data or [{}])[0].get("last_successful_sync_at")
+    if prev:
+        from datetime import datetime
+        try:
+            dt_from = int(datetime.fromisoformat(prev).timestamp())
+        except (TypeError, ValueError):
+            dt_from = None
+
+    txs = await syncfy.transactions(token, id_credential, dt_refresh_from=dt_from)
+    tx_count = 0
+    for t in txs or []:
+        prov_acc = t.get("id_account")
+        our_acc = acc_id_map.get(prov_acc)
+        prov_tx = t.get("id_transaction")
+        if not our_acc or not prov_tx:
+            continue
+        supa.table("bank_transactions").upsert({
+            "account_id": our_acc,
+            "household_id": household_id,
+            "provider_transaction_id": prov_tx,
+            "amount": t.get("amount") or 0,
+            "description": t.get("description"),
+            "currency": t.get("currency"),
+            "transaction_date": _iso(t.get("dt_transaction")),
+            "pending": bool(t.get("is_pending")),
+            "provider_refresh_at": _iso(t.get("dt_refresh")),
+        }, on_conflict="account_id,provider_transaction_id").execute()
+        tx_count += 1
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    supa.table("bank_connections").update({
+        "status": "active", "last_sync_at": now, "last_successful_sync_at": now,
+    }).eq("id", connection_id).execute()
+
+    return {"accounts": len(accs or []), "transactions": tx_count}
+
+
+class SyncRequest(BaseModel):
+    token: str
+    id_credential: str
+
+
+@router.post("/sync")
+async def bank_sync(body: SyncRequest, user=Depends(get_current_user)):
+    """Trae y persiste accounts + transactions de una credencial ya conectada."""
+    hh = _household_id(user.id)
+    supa = db()
+    conn = (
+        supa.table("bank_connections")
+        .select("id")
+        .eq("household_id", hh)
+        .eq("provider_credential_id", body.id_credential)
+        .limit(1)
+        .execute()
+    )
+    connection_id = (conn.data or [{}])[0].get("id")
+    if not connection_id:
+        raise HTTPException(status_code=404, detail="Conexión no encontrada.")
+    try:
+        result = await _sync_credential(body.token, hh, connection_id, body.id_credential)
+    except syncfy.SyncfyError as e:
+        supa.table("bank_connections").update({"status": "error"}).eq("id", connection_id).execute()
+        raise HTTPException(status_code=502, detail=f"Syncfy: {e.message}")
+    return result
+
+
+@router.get("/connections")
+async def bank_connections(user=Depends(get_current_user)):
+    """Conexiones + sus cuentas del hogar, desde NUESTRA BD (no llama a Syncfy)."""
+    hh = _household_id(user.id)
+    supa = db()
+    conns = (
+        supa.table("bank_connections")
+        .select("*")
+        .eq("household_id", hh)
+        .order("connected_at", desc=True)
+        .execute()
+    ).data or []
+    accts = (
+        supa.table("bank_accounts").select("*").eq("household_id", hh).execute()
+    ).data or []
+    by_conn: dict = {}
+    for a in accts:
+        by_conn.setdefault(a["connection_id"], []).append(a)
+    for c in conns:
+        c["accounts"] = by_conn.get(c["id"], [])
+    return {"connections": conns}
