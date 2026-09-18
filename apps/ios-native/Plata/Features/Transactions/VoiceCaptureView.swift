@@ -58,6 +58,7 @@ struct VoiceCaptureView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
+        .task { speech.prewarm() }
         .alert("No se pudo dictar", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
         } message: {
