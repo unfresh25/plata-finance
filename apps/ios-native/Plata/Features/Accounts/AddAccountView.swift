@@ -21,6 +21,7 @@ struct AddAccountView: View {
 
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showConnectBank = false
 
     private var balance: Double {
         Double(balanceText.replacingOccurrences(of: ",", with: ".")) ?? 0
@@ -34,6 +35,36 @@ struct AddAccountView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
+                    // Alta: ofrecer conectar el banco automáticamente (Syncfy).
+                    if editing == nil {
+                        Button { showConnectBank = true } label: {
+                            HStack(spacing: Space.m) {
+                                Image(systemName: "building.columns.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Palette.onAccent)
+                                    .frame(width: 40, height: 40)
+                                    .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Conectar banco automáticamente")
+                                        .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.ink)
+                                    Text("Trae saldos y movimientos solos")
+                                        .font(Typo.caption).foregroundStyle(Palette.inkSecondary)
+                                }
+                                Spacer(minLength: Space.s)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.inkTertiary)
+                            }
+                            .padding(Space.m)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
+                        }
+                        .pressable()
+
+                        Text("O créala manualmente:")
+                            .font(Typo.caption).foregroundStyle(Palette.inkTertiary)
+                    }
+
                     previewCard
 
                     fieldGroup(label: "Nombre") {
@@ -108,6 +139,12 @@ struct AddAccountView: View {
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
         .onAppear(perform: seedEdit)
+        .sheet(isPresented: $showConnectBank) {
+            ConnectBankView {
+                Task { await app.refreshAll() }
+                dismiss()
+            }
+        }
     }
 
     // MARK: - Precarga (modo edición)
