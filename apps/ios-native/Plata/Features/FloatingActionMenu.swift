@@ -101,11 +101,11 @@ private struct SpeedDialRow: View {
                     .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
 
                 Image(systemName: destination.icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Palette.onAccent)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 56, height: 56)
                     .background(destination.tint, in: Circle())
-                    .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                    .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
             }
         }
         .pressable(scale: 0.94)
@@ -121,13 +121,13 @@ private struct PlusFloatingButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "plus")
-                .font(.system(size: 26, weight: .semibold))
+                .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Palette.onAccent)
                 .rotationEffect(.degrees(isOpen ? 135 : 0))
-                .frame(width: 60, height: 60)
+                .frame(width: 56, height: 56)
                 .background(Palette.accent, in: Circle())
-                .shadow(color: Palette.accent.opacity(0.4), radius: 12, y: 5)
-                .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+                // Sombra neutra sutil (no glow de acento): elevación sin ruido.
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
         }
         .pressable(scale: 0.9)
         .accessibilityLabel(isOpen ? "Cerrar menú" : "Crear")
@@ -144,10 +144,9 @@ private struct MicFloatingButton: View {
             Image(systemName: "mic.fill")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Palette.onAccent)
-                .frame(width: 48, height: 48)
-                .background(Palette.accent.opacity(0.9), in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.18), lineWidth: 1))
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                .frame(width: 56, height: 56)
+                .background(Palette.accent, in: Circle())
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
                 .contentShape(Circle())
         }
         .pressable(scale: 0.9)
