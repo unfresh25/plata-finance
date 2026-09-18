@@ -279,7 +279,7 @@ private struct ChatBubble: View {
     var body: some View {
         HStack {
             if message.role == .user { Spacer(minLength: 40) }
-            Text(message.text)
+            Text(Self.rendered(message.text))
                 .font(Typo.callout)
                 .foregroundStyle(message.role == .user ? Palette.onAccent : Palette.ink)
                 .padding(.horizontal, Space.m)
@@ -295,6 +295,26 @@ private struct ChatBubble: View {
                 .textSelection(.enabled)
             if message.role == .assistant { Spacer(minLength: 40) }
         }
+    }
+
+    /// Parsea markdown inline (negrita, cursiva, etc.) preservando los saltos de
+    /// línea: AttributedString(markdown:) los colapsa, así que se procesa línea a
+    /// línea y se reensambla con '\n'.
+    private static func rendered(_ text: String) -> AttributedString {
+        var out = AttributedString()
+        let lines = text.components(separatedBy: "\n")
+        for (i, line) in lines.enumerated() {
+            if let parsed = try? AttributedString(
+                markdown: line,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            ) {
+                out += parsed
+            } else {
+                out += AttributedString(line)
+            }
+            if i < lines.count - 1 { out += AttributedString("\n") }
+        }
+        return out
     }
 }
 
