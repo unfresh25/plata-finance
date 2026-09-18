@@ -26,10 +26,11 @@ struct VoiceCaptureView: View {
             ZStack {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
 
-                // Voice-glow: nace del borde inferior de la pantalla y florece con
-                // la voz (solo mientras se escucha).
-                if phase == .recording {
-                    ListeningWaveform(level: speech.level)
+                // Voice-glow en el borde inferior: florece con la voz al escuchar;
+                // al procesar se recoge en un beam que se balancea de lado a lado.
+                if phase == .recording || phase == .processing {
+                    ListeningWaveform(level: phase == .recording ? speech.level : 0.7,
+                                      processing: phase == .processing)
                         .frame(height: 190)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .ignoresSafeArea()
@@ -125,9 +126,11 @@ struct VoiceCaptureView: View {
         ZStack {
             switch phase {
             case .processing:
-                // Interpretando: orbe girando/respirando.
-                WorkingOrb()
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                // Interpretando: el show visual es el beam que se balancea abajo;
+                // el mic central se atenúa para no competir.
+                MicPulse(active: false, level: 0)
+                    .opacity(0.35)
+                    .transition(.opacity)
             case .idle, .recording:
                 // Micrófono. En reposo estático; grabando, pulsa suave (el glow
                 // reactivo al audio vive en el borde inferior).
