@@ -93,6 +93,13 @@ enum BankService {
         _ = try await request("bank/twofa", method: "POST", body: body)
     }
 
+    /// Trae y persiste accounts + transactions de una credencial ya conectada.
+    static func sync(token: String, idCredential: String) async throws {
+        _ = try await request("bank/sync", method: "POST", body: SyncBody(token: token, id_credential: idCredential))
+    }
+
+    private struct SyncBody: Encodable { let token: String; let id_credential: String }
+
     // Payloads
     private struct EmptyBody: Encodable {}
     private struct ConnectBody: Encodable {
