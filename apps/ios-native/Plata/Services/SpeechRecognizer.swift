@@ -222,7 +222,9 @@ final class SpeechCapture {
         recognizer.onLevel = { [weak self] value in
             Task { @MainActor in
                 guard let self else { return }
-                self.level = self.level * 0.7 + value * 0.3
+                // Suavizado ligero; la interpolación fina la hace la vista por
+                // frame (lerp), así que aquí solo se quita el ruido más brusco.
+                self.level = self.level * 0.4 + value * 0.6
             }
         }
         recognizer.onFinish = { [weak self] in
