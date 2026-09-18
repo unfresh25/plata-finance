@@ -71,17 +71,22 @@ struct MainTabView: View {
                 await app.refreshAll()
             }
         }
-        .sheet(item: $activeDestination) { destination in
+        .sheet(item: $activeDestination, onDismiss: { voicePrefill = nil }) { destination in
             addView(for: destination)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Palette.bg)
         }
-        .sheet(isPresented: $showingVoiceCapture) {
-            VoiceCaptureView { parsed in
-                // Tras dictar desde cualquier pantalla, abrir el alta de transacción
-                // ya prellenada con lo interpretado.
-                voicePrefill = parsed
+        // Al cerrarse el sheet de voz, si hubo dictado, abrir el alta ya prellenada.
+        // Se promueve en onDismiss (no en el callback) para no presentar un sheet
+        // mientras el de voz aún se está descartando (iOS ignora esa presentación).
+        .sheet(isPresented: $showingVoiceCapture, onDismiss: {
+            if voicePrefill != nil {
                 activeDestination = .transaction
+            }
+        }) {
+            VoiceCaptureView { parsed in
+                voicePrefill = parsed
+                showingVoiceCapture = false
             }
         }
     }
