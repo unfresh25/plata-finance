@@ -36,6 +36,26 @@ struct BankSite: Decodable, Identifiable, Hashable {
     var id: String { id_site }
 }
 
+// Conexión y cuentas ya persistidas (desde nuestra BD).
+struct BankConnection: Decodable, Identifiable, Hashable {
+    let id: String
+    let institution: String
+    let status: String                 // active | requires_reauth | error | syncing
+    let provider_credential_id: String
+    let provider_site_id: String
+    let last_successful_sync_at: String?
+    let accounts: [BankAccountRow]?
+}
+
+struct BankAccountRow: Decodable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let type: String?
+    let balance: Double
+    let currency: String?
+    let last_synced_at: String?
+}
+
 struct BankSession: Decodable { let token: String; let syncfy_user_id: String }
 struct BankConnectResult: Decodable { let id_credential: String; let id_job: String; let connection_id: String }
 struct BankJobStatus: Decodable { let code: Int?; let twofa: [BankField]? }
@@ -98,7 +118,18 @@ enum BankService {
         _ = try await request("bank/sync", method: "POST", body: SyncBody(token: token, id_credential: idCredential))
     }
 
+    /// Conexiones + cuentas del hogar (desde nuestra BD).
+    static func connections() async throws -> [BankConnection] {
+        let data = try await request("bank/connections")
+        return try JSONDecoder().decode(ConnectionsBody.self, from: data).connections
+    }
+
+    static func disconnect(token: String, idCredential: String) async throws {
+        _ = try await request("bank/disconnect", method: "POST", body: SyncBody(token: token, id_credential: idCredential))
+    }
+
     private struct SyncBody: Encodable { let token: String; let id_credential: String }
+    private struct ConnectionsBody: Decodable { let connections: [BankConnection] }
 
     // Payloads
     private struct EmptyBody: Encodable {}
