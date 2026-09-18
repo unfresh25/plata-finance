@@ -22,17 +22,29 @@ targets:
     platform: iOS
     sources:
       - path: Plata
+    # Info.plist explícito (gestionado por XcodeGen): la generación automática no
+    # soporta el dict anidado UILaunchScreen → UIColorName, y sin él el launch
+    # screen sale blanco (flash al abrir). Aquí se fija el fondo del launch al
+    # color de marca (#141119) para que el arranque sea del color de la app.
+    info:
+      path: Plata/Info.plist
+      properties:
+        CFBundleDisplayName: Plata
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        NSCameraUsageDescription: "Plata usa la cámara para escanear recibos y códigos QR de invitación."
+        NSPhotoLibraryUsageDescription: "Plata accede a tus fotos para adjuntar recibos."
+        NSMicrophoneUsageDescription: "Plata usa el micrófono para registrar movimientos dictándolos por voz."
+        NSSpeechRecognitionUsageDescription: "Plata transcribe lo que dictas para autocompletar el movimiento."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.plata.finance
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSCameraUsageDescription: "Plata usa la cámara para escanear recibos y códigos QR de invitación."
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Plata accede a tus fotos para adjuntar recibos."
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Plata usa el micrófono para registrar movimientos dictándolos por voz."
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Plata transcribe lo que dictas para autocompletar el movimiento."
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Plata/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
