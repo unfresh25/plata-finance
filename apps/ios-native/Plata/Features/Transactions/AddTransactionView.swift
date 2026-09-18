@@ -48,7 +48,6 @@ struct AddTransactionView: View {
     @State private var scanError: String?
 
     // Dictado por voz
-    @State private var showVoiceCapture = false
 
     var body: some View {
         NavigationStack {
@@ -90,7 +89,7 @@ struct AddTransactionView: View {
                     amountDisplay
                         .padding(.vertical, Space.m)
 
-                    quickCaptureButtons
+                    scanReceiptButton
 
                     selectors
                 }
@@ -154,12 +153,6 @@ struct AddTransactionView: View {
         } message: {
             Text(scanError ?? "Inténtalo de nuevo.")
         }
-        .sheet(isPresented: $showVoiceCapture) {
-            VoiceCaptureView { parsed in
-                applyParsed(parsed)
-                showVoiceCapture = false
-            }
-        }
     }
 
     // MARK: - Monto gigante
@@ -186,53 +179,30 @@ struct AddTransactionView: View {
 
     // MARK: - Escanear recibo
 
-    /// Acciones rápidas bajo el monto: dictar por voz o escanear un recibo. Ambas
-    /// autocompletan el formulario (voz vía /parse, recibo vía /ocr en el backend)
-    /// y el usuario confirma antes de guardar. Cápsulas de glass tenue.
-    private var quickCaptureButtons: some View {
-        HStack(spacing: Space.s) {
-            quickCapture(
-                icon: "mic.fill",
-                title: "Dictar",
-                busy: false,
-                busyTitle: ""
-            ) {
-                showVoiceCapture = true
-            }
-
-            quickCapture(
-                icon: "viewfinder",
-                title: "Escanear",
-                busy: isScanning,
-                busyTitle: "Escaneando…"
-            ) {
-                showScanSource = true
-            }
-            .disabled(isScanning)
-        }
-        .animation(Motion.ui, value: isScanning)
-    }
-
-    private func quickCapture(
-        icon: String, title: String, busy: Bool, busyTitle: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
+    /// Acción bajo el monto: escanear un recibo (OCR en el backend) para
+    /// autocompletar el formulario. El dictado por voz vive en el FAB flotante.
+    /// Botón plano (sin fondo), solo ícono + texto en el color de acento.
+    private var scanReceiptButton: some View {
+        Button {
+            showScanSource = true
+        } label: {
             HStack(spacing: Space.s) {
-                if busy {
+                if isScanning {
                     ProgressView().controlSize(.small).tint(Palette.accent)
                 } else {
-                    Image(systemName: icon).font(.system(size: 15, weight: .semibold))
+                    Image(systemName: "viewfinder").font(.system(size: 15, weight: .semibold))
                 }
-                Text(busy ? busyTitle : title)
+                Text(isScanning ? "Escaneando…" : "Escanear recibo")
                     .font(Typo.callout.weight(.medium))
             }
-            .foregroundStyle(busy ? Palette.inkSecondary : Palette.accent)
+            .foregroundStyle(isScanning ? Palette.inkSecondary : Palette.accent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, Space.s)
-            .padding(.horizontal, Space.m)
-            .liquidGlassCapsule(interactive: true)
+            .contentShape(Rectangle())
         }
         .pressable()
+        .disabled(isScanning)
+        .animation(Motion.ui, value: isScanning)
     }
 
     // MARK: - Selectores (filas planas con separador, sin cards)

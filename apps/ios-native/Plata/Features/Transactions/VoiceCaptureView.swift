@@ -108,40 +108,35 @@ struct VoiceCaptureView: View {
         }
     }
 
-    // MARK: - Botón de micrófono (hold-to-talk) con ondas
+    // MARK: - Botón de micrófono (hold-to-talk)
 
     private var micButton: some View {
         ZStack {
-            // Ondas reactivas al nivel de audio (solo mientras graba).
-            if phase == .recording {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .stroke(Palette.accent.opacity(0.35 - Double(i) * 0.1), lineWidth: 2)
-                        .frame(width: 96, height: 96)
-                        .scaleEffect(1 + CGFloat(speech.level) * (0.6 + CGFloat(i) * 0.4))
-                        .opacity(phase == .recording ? 1 : 0)
-                        .animation(.easeOut(duration: 0.15), value: speech.level)
-                }
-            }
-
-            Circle()
-                .fill(phase == .recording ? Palette.accent : Palette.accent.opacity(0.9))
-                .frame(width: 96, height: 96)
-                .overlay {
-                    if phase == .processing {
-                        ProgressView().tint(Palette.onAccent).controlSize(.large)
-                    } else {
+            switch phase {
+            case .recording:
+                // Escuchando: waveform reactiva al nivel de audio.
+                ListeningWaveform(level: speech.level)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            case .processing:
+                // Interpretando: orbe girando/respirando.
+                WorkingOrb()
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            case .idle:
+                // Reposo: micrófono estático.
+                Circle()
+                    .fill(Palette.accent.opacity(0.9))
+                    .frame(width: 96, height: 96)
+                    .overlay(
                         Image(systemName: "mic.fill")
                             .font(.system(size: 34, weight: .semibold))
                             .foregroundStyle(Palette.onAccent)
-                            .scaleEffect(phase == .recording ? 1.1 : 1)
-                    }
-                }
-                .scaleEffect(phase == .recording ? 1.08 : 1)
-                .shadow(color: Palette.accent.opacity(0.4), radius: phase == .recording ? 24 : 12, y: 6)
-                .animation(Motion.ui, value: phase)
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
         }
         .frame(height: 180)
+        .animation(.smooth(duration: 0.28), value: phase)
         // Hold-to-talk: presionar inicia, soltar procesa. Umbral 0 para arrancar ya.
         .gesture(
             DragGesture(minimumDistance: 0)
