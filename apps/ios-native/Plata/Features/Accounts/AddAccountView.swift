@@ -189,29 +189,38 @@ struct AddAccountView: View {
     // MARK: - Selector de color
 
     private var colorPicker: some View {
-        HStack(spacing: Space.m) {
-            ForEach(AddAccountPalette.swatches, id: \.hex) { swatch in
-                let isSelected = swatch.hex == colorHex
-                Button {
-                    withAnimation(Motion.ui) { colorHex = swatch.hex }
-                } label: {
-                    Circle()
-                        .fill(swatch.color)
-                        .frame(width: 34, height: 34)
-                        // Borde luminoso hairline del propio color: define sin glow.
-                        .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
-                        // Anillo de selección concéntrico, del propio color (no ink duro).
-                        .overlay(
-                            Circle()
-                                .strokeBorder(swatch.color.opacity(isSelected ? 0.9 : 0), lineWidth: 2)
-                                .padding(-4)
-                        )
-                        .animation(Motion.ui, value: isSelected)
+        // 12 muestras no caben en el ancho de la pantalla: van en un scroll
+        // horizontal. Sin esto, el HStack forzaba el ancho de TODO el formulario
+        // más allá de la pantalla y corría los inputs fuera del margen.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.m) {
+                ForEach(AddAccountPalette.swatches, id: \.hex) { swatch in
+                    let isSelected = swatch.hex == colorHex
+                    Button {
+                        withAnimation(Motion.ui) { colorHex = swatch.hex }
+                    } label: {
+                        Circle()
+                            .fill(swatch.color)
+                            .frame(width: 34, height: 34)
+                            // Borde luminoso hairline del propio color: define sin glow.
+                            .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+                            // Anillo de selección concéntrico, del propio color (no ink duro).
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(swatch.color.opacity(isSelected ? 0.9 : 0), lineWidth: 2)
+                                    .padding(-4)
+                            )
+                            .animation(Motion.ui, value: isSelected)
+                    }
+                    .pressable()
                 }
-                .pressable()
             }
-            Spacer(minLength: 0)
+            // Aire para que el anillo de selección (padding -4) no se recorte.
+            .padding(.vertical, 4)
+            .padding(.horizontal, 2)
         }
+        // El scroll no debe dictar el ancho del formulario.
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Contenedor de campo
