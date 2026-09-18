@@ -7,22 +7,21 @@ import AVFoundation
 // el usuario habla. La interpretación a campos del movimiento la hace el backend
 // (Gemini); esto solo entrega el texto plano.
 //
-// Uso: `start()` al mantener pulsado el micrófono, `stop()` al soltar. `transcript`
-// se actualiza en vivo. Pide permisos la primera vez.
+// Concurrencia: el tap de audio corre en un hilo de audio en tiempo real, NO en
+// el main actor. Por eso el buffer se procesa en una función `nonisolated` y solo
+// el resultado (nivel suavizado) se reenvía al main actor. Tocar estado
+// @MainActor directamente desde el hilo de audio crashea la app.
+//
+// Uso: `start()` al mantener pulsado el micrófono, `stop()` al soltar.
 
 @Observable
 @MainActor
 final class SpeechRecognizer {
-    /// Texto transcrito hasta el momento (parcial mientras se habla, final al parar).
     private(set) var transcript = ""
-    /// Está capturando audio ahora mismo.
     private(set) var isRecording = false
-    /// Mensaje de error legible (permiso denegado, no disponible, etc.).
     private(set) var errorMessage: String?
-    /// Nivel de audio 0…1 para animar las ondas (RMS suavizado).
     private(set) var level: Float = 0
 
-    // es-CO con respaldo al locale del dispositivo si no está disponible.
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "es_CO"))
         ?? SFSpeechRecognizer()
 
@@ -34,8 +33,6 @@ final class SpeechRecognizer {
 
     // MARK: - Permisos
 
-    /// Pide autorización de reconocimiento de voz y micrófono. Devuelve true si
-    /// ambos quedaron concedidos.
     func requestAuthorization() async -> Bool {
         let speechOK = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -70,8 +67,11 @@ final class SpeechRecognizer {
             return
         }
 
+        // Sesión de audio.
         do {
-            try configureSession()
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             errorMessage = "No se pudo iniciar el audio."
             return
@@ -79,33 +79,48 @@ final class SpeechRecognizer {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        // Preferir on-device cuando el dispositivo lo soporta (privacidad + offline).
         if recognizer.supportsOnDeviceRecognition {
             request.requiresOnDeviceRecognition = true
         }
         self.request = request
 
+        // El formato DEBE venir del hardware del input node; usar uno inventado
+        // crashea installTap. Si el sample rate es 0 (hardware no listo), abortar.
         let inputNode = audioEngine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        let format = inputNode.inputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            errorMessage = "El micrófono no está disponible ahora."
+            deactivateSession()
+            self.request = nil
+            return
+        }
+
+        // Callback en un handler nonisolated que salta al main actor. El closure
+        // corre en el hilo de audio; NO debe tocar estado @MainActor directamente.
+        let onLevel = self.onLevel
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             request.append(buffer)
-            self?.updateLevel(from: buffer)
+            let value = Self.rmsLevel(buffer)
+            onLevel(value)
         }
 
         audioEngine.prepare()
         do {
             try audioEngine.start()
         } catch {
+            inputNode.removeTap(onBus: 0)
             errorMessage = "No se pudo iniciar el micrófono."
             cleanup()
+            deactivateSession()
             return
         }
 
         isRecording = true
 
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard let self else { return }
-            Task { @MainActor in
+            // Este callback puede llegar en un hilo de fondo → saltar al main actor.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 if let result {
                     self.transcript = result.bestTranscription.formattedString
                 }
@@ -123,17 +138,22 @@ final class SpeechRecognizer {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         request?.endAudio()
-        task?.finish()
+        task?.cancel()
         cleanup()
         deactivateSession()
     }
 
     // MARK: - Interno
 
-    private func configureSession() throws {
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-        try session.setActive(true, options: .notifyOthersOnDeactivation)
+    /// Handler seguro para el hilo de audio: recibe el nivel ya calculado y lo
+    /// entrega al main actor con suavizado. `nonisolated` a propósito.
+    private nonisolated var onLevel: @Sendable (Float) -> Void {
+        { value in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.level = self.level * 0.7 + value * 0.3
+            }
+        }
     }
 
     private func deactivateSession() {
@@ -145,19 +165,14 @@ final class SpeechRecognizer {
         task = nil
     }
 
-    /// RMS del buffer → nivel suavizado 0…1 para las ondas.
-    private func updateLevel(from buffer: AVAudioPCMBuffer) {
-        guard let channel = buffer.floatChannelData?[0] else { return }
+    /// RMS del buffer → 0…1. Función pura, segura para el hilo de audio.
+    private nonisolated static func rmsLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channel = buffer.floatChannelData?[0] else { return 0 }
         let frames = Int(buffer.frameLength)
-        guard frames > 0 else { return }
+        guard frames > 0 else { return 0 }
         var sum: Float = 0
         for i in 0..<frames { sum += channel[i] * channel[i] }
         let rms = (sum / Float(frames)).squareRoot()
-        // Escala perceptual: rms típico de voz ~0.02–0.2.
-        let scaled = min(1, max(0, rms * 6))
-        Task { @MainActor in
-            // Suavizado para que las ondas no tiemblen.
-            self.level = self.level * 0.7 + scaled * 0.3
-        }
+        return min(1, max(0, rms * 6))
     }
 }
