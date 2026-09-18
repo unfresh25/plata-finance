@@ -157,6 +157,7 @@ struct AddTransactionView: View {
         .sheet(isPresented: $showVoiceCapture) {
             VoiceCaptureView { parsed in
                 applyParsed(parsed)
+                showVoiceCapture = false
             }
         }
     }
