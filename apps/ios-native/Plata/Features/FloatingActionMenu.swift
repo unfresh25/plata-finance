@@ -62,8 +62,10 @@ struct FloatingActionMenu: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, Space.l)
-            // Sube sobre el tab bar flotante (cápsula ~96pt) + aire.
-            .padding(.bottom, 96 + Space.m)
+            // Justo encima de la cápsula del tab bar flotante (altura real ~64pt
+            // + su padding inferior), con un aire pequeño. Antes 96+ dejaba un
+            // hueco enorme.
+            .padding(.bottom, 72)
         }
         // No interceptar toques fuera de los botones cuando el menú está cerrado.
         .allowsHitTesting(true)
