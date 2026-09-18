@@ -194,10 +194,11 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
         var sum: Float = 0
         for i in 0..<frames { sum += channel[i] * channel[i] }
         let rms = (sum / Float(frames)).squareRoot()
-        // Ganancia alta + curva raíz: la voz normal tiene RMS bajo (~0.02–0.1);
-        // así el nivel se nota claramente en la animación en vez de quedar plano.
-        let boosted = min(1, rms * 14)
-        return sqrt(boosted)   // expande la parte baja del rango
+        // La voz baja tiene RMS muy pequeño (~0.01–0.05). Ganancia alta + curva
+        // agresiva (^0.35) expande fuerte la parte baja, de modo que hablar
+        // bajito ya llena la onda. Piso pequeño para que respire en silencio.
+        let boosted = min(1, rms * 30)
+        return pow(boosted, 0.35)
     }
 }
 
@@ -221,7 +222,9 @@ final class SpeechCapture {
         recognizer.onLevel = { [weak self] value in
             Task { @MainActor in
                 guard let self else { return }
-                self.level = self.level * 0.7 + value * 0.3
+                // Suavizado ligero; la interpolación fina la hace la vista por
+                // frame (lerp), así que aquí solo se quita el ruido más brusco.
+                self.level = self.level * 0.4 + value * 0.6
             }
         }
         recognizer.onFinish = { [weak self] in
@@ -241,18 +244,22 @@ final class SpeechCapture {
     /// Pide permisos por adelantado al abrir el sheet (evita la carrera con el
     /// diálogo de permisos durante el primer hold, que dejaba el motor colgado).
     func prewarm() {
-        Task { await recognizer.prewarmPermissions() }
+        let r = recognizer
+        Task.detached { await r.prewarmPermissions() }
     }
 
     func start() {
         errorMessage = nil
         transcript = ""
         isRecording = true
-        Task { await recognizer.start() }
-        // Si arrancar falló, onError/onFinish revertirán isRecording.
+        // detached: activar la AVAudioSession y arrancar el engine bloquea; hacerlo
+        // fuera del main evita el warning de "UI unresponsiveness" y posibles hitches.
+        let r = recognizer
+        Task.detached { await r.start() }
     }
 
     func stop() {
-        recognizer.stop()
+        let r = recognizer
+        Task.detached { r.stop() }
     }
 }

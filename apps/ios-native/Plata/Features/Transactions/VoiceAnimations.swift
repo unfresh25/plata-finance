@@ -33,37 +33,44 @@ struct ListeningWaveform: View {
         Color(red: 0.55, green: 0.60, blue: 1.0),   // periwinkle
     ]
 
+    // Nivel suavizado, interpolado CADA frame hacia el nivel de audio (que llega
+    // a saltos, ~cada 90ms). Esto elimina los "tirones": el halo se mueve continuo
+    // entre actualizaciones de audio en vez de saltar de un valor al siguiente.
+    @State private var smoothed: CGFloat = 0.12
+    @State private var lastTick: TimeInterval = 0
+
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let lvl = CGFloat(max(0.12, level))
 
             GeometryReader { geo in
                 let w = geo.size.width
                 let h = geo.size.height
 
-                // Geometría según el modo.
-                let peak: CGFloat = processing ? h * 0.5 : h * 0.75 * lvl
-                let spread: CGFloat = processing ? w * 0.14 : w * 0.3  // beam angosto al procesar
-                // Balanceo lado a lado al procesar (eased en cada extremo), o
-                // deriva lenta del gradiente al escuchar.
+                let peak: CGFloat = processing ? h * 0.5 : h * 0.9 * smoothed
+                let spread: CGFloat = processing ? w * 0.14 : w * 0.3
                 let sweep = processing ? sweepOffset(t) * w * 0.35 : 0
                 let shift = processing ? sweep : CGFloat(sin(t * 0.35)) * w * 0.12
 
-                LinearGradient(
-                    colors: rainbow,
-                    startPoint: .leading, endPoint: .trailing
-                )
-                .frame(width: w * 1.25)
-                .offset(x: CGFloat(sin(t * 0.35)) * w * 0.12)   // los colores fluyen dentro
-                .frame(width: w)
-                .mask(
-                    BellShape(peak: peak, spread: spread, centerOffset: shift,
-                              breathe: CGFloat(0.9 + 0.1 * sin(t * 2.2)), curve: curve)
-                )
-                .blur(radius: processing ? 18 : 24)
-                .frame(width: w, height: h, alignment: .bottom)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lvl)
+                LinearGradient(colors: rainbow, startPoint: .leading, endPoint: .trailing)
+                    .frame(width: w * 1.25)
+                    .offset(x: CGFloat(sin(t * 0.35)) * w * 0.12)   // los colores fluyen dentro
+                    .frame(width: w)
+                    .mask(
+                        BellShape(peak: peak, spread: spread, centerOffset: shift,
+                                  breathe: CGFloat(0.9 + 0.1 * sin(t * 2.2)), curve: curve)
+                    )
+                    .blur(radius: processing ? 18 : 24)
+                    .frame(width: w, height: h, alignment: .bottom)
+                    .onChange(of: t) { _, now in
+                        // Lerp exponencial hacia el target, independiente del framerate.
+                        let target = CGFloat(max(0.12, level))
+                        let dt = lastTick == 0 ? 0.016 : min(0.05, now - lastTick)
+                        lastTick = now
+                        let rate: CGFloat = processing ? 8 : 12   // mayor = sigue más rápido
+                        let k = 1 - exp(-rate * CGFloat(dt))
+                        smoothed += (target - smoothed) * k
+                    }
             }
         }
     }
