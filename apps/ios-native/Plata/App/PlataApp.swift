@@ -37,7 +37,7 @@ struct RootView: View {
             } else {
                 switch app.phase {
                 case .loading:
-                    ProgressView().tint(Palette.accent)
+                    LaunchView()
                 case .onboarding:
                     OnboardingView()
                 case .unauthenticated:
@@ -61,6 +61,31 @@ struct RootView: View {
         case "recurring": return AnyView(RecurringView())
         case "categories": return AnyView(CategoriesView())
         default: return nil
+        }
+    }
+}
+
+/// Pantalla de carga (fase .loading): el logotipo de marca centrado sobre el
+/// fondo oscuro de la app, sin spinner. Se dibuja el wordmark "plata." de forma
+/// nativa (mono + punto azul) para que quede perfectamente centrado y nítido a
+/// cualquier tamaño. El fondo coincide con el del launch screen del sistema
+/// (#141119), así el arranque es continuo y sin flash. Fija a apariencia oscura.
+struct LaunchView: View {
+    private let brandBackground = Color(red: 0x14 / 255, green: 0x11 / 255, blue: 0x19 / 255)
+    private let brandDot = Color(red: 0x1E / 255, green: 0x3F / 255, blue: 0xF5 / 255)
+
+    var body: some View {
+        ZStack {
+            brandBackground.ignoresSafeArea()
+            HStack(alignment: .lastTextBaseline, spacing: 0) {
+                Text("plata")
+                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                    .tracking(6)
+                    .foregroundStyle(.white)
+                Text(".")
+                    .font(.system(size: 44, weight: .bold, design: .monospaced))
+                    .foregroundStyle(brandDot)
+            }
         }
     }
 }

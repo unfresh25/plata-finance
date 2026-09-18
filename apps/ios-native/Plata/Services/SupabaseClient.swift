@@ -92,6 +92,34 @@ final class SupabaseClient {
         TokenStore.clear()
     }
 
+    /// Refresca la sesión con el refresh_token guardado. Devuelve true si se
+    /// renovó (y persiste la nueva sesión). Se coalescen las llamadas concurrentes
+    /// para no refrescar varias veces a la vez cuando caducan muchas requests.
+    private var refreshTask: Task<Bool, Never>?
+
+    @discardableResult
+    func refreshSessionIfPossible() async -> Bool {
+        if let existing = refreshTask { return await existing.value }
+        let task = Task { () -> Bool in
+            defer { refreshTask = nil }
+            guard let refreshToken = TokenStore.load()?.refreshToken else { return false }
+            do {
+                let session: Session = try await request(
+                    path: "/auth/v1/token?grant_type=refresh_token",
+                    method: "POST",
+                    body: ["refresh_token": refreshToken],
+                    authed: false
+                )
+                persist(session)
+                return true
+            } catch {
+                return false
+            }
+        }
+        refreshTask = task
+        return await task.value
+    }
+
     private func persist(_ session: Session) {
         accessToken = session.accessToken
         TokenStore.save(session)
@@ -173,6 +201,26 @@ final class SupabaseClient {
         prefer: String? = nil,
         single: Bool = false
     ) async throws -> T {
+        let (data, http) = try await send(url: url, method: method, body: body, authed: authed, prefer: prefer)
+
+        // Sesión caducada: intentar refrescar UNA vez con el refresh_token y
+        // reintentar la request original. Solo aplica a peticiones autenticadas.
+        if http.statusCode == 401, authed, accessToken != nil {
+            if await refreshSessionIfPossible() {
+                let (retryData, retryHTTP) = try await send(url: url, method: method, body: body, authed: authed, prefer: prefer)
+                return try decode(retryData, status: retryHTTP.statusCode)
+            }
+            // No se pudo refrescar: sesión realmente inválida.
+            throw SessionExpiredError()
+        }
+
+        return try decode(data, status: http.statusCode)
+    }
+
+    /// Ejecuta una request y devuelve datos + respuesta HTTP (sin interpretar el status).
+    private func send(
+        url: URL, method: String, body: Data?, authed: Bool, prefer: String?
+    ) async throws -> (Data, HTTPURLResponse) {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
@@ -180,10 +228,8 @@ final class SupabaseClient {
         if let prefer { req.setValue(prefer, forHTTPHeaderField: "Prefer") }
         if authed, let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else if !authed {
+        } else {
             req.setValue("Bearer \(SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
-        } else if let token = accessToken {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         req.httpBody = body
 
@@ -191,17 +237,26 @@ final class SupabaseClient {
         guard let http = response as? HTTPURLResponse else {
             throw SupabaseError(message: "Respuesta inválida del servidor.")
         }
-        guard (200..<300).contains(http.statusCode) else {
+        return (data, http)
+    }
+
+    private func decode<T: Decodable>(_ data: Data, status: Int) throws -> T {
+        guard (200..<300).contains(status) else {
             let msg = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["msg"] as? String
                 ?? String(data: data, encoding: .utf8)
-                ?? "Error \(http.statusCode)"
+                ?? "Error \(status)"
             throw SupabaseError(message: msg)
         }
-
         if T.self == EmptyResponse.self { return EmptyResponse() as! T }
         if data.isEmpty { return EmptyResponse() as! T }
         return try decoder.decode(T.self, from: data)
     }
+}
+
+/// La sesión caducó y no se pudo refrescar: el usuario debe volver a entrar.
+/// Se distingue de otros errores para mostrar un mensaje limpio (no el JSON crudo).
+struct SessionExpiredError: LocalizedError {
+    var errorDescription: String? { "Tu sesión expiró. Vuelve a iniciar sesión." }
 }
 
 struct EmptyResponse: Decodable {}

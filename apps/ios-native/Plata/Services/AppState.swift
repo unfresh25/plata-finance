@@ -64,8 +64,15 @@ final class AppState {
             await refreshAll()
             await uploadPendingOnboarding(userId: uid)
             phase = .ready
+        } catch is SessionExpiredError {
+            // El token caducó y no se pudo refrescar: limpiar sesión y volver a
+            // login con un mensaje claro (no el JSON crudo de PostgREST).
+            SupabaseClient.shared.signOut()
+            profile = nil; household = nil
+            errorMessage = "Tu sesión expiró. Vuelve a iniciar sesión."
+            phase = .unauthenticated
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "No pudimos cargar tus datos. Revisa tu conexión e inténtalo de nuevo."
             phase = .unauthenticated
         }
     }
