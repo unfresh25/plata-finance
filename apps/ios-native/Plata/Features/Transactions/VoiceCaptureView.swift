@@ -26,6 +26,18 @@ struct VoiceCaptureView: View {
             ZStack {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
 
+                // Voice-glow en el borde inferior: florece con la voz al escuchar;
+                // al procesar se recoge en un beam que se balancea de lado a lado.
+                if phase == .recording || phase == .processing {
+                    ListeningWaveform(level: phase == .recording ? speech.level : 0.7,
+                                      processing: phase == .processing)
+                        .frame(height: 190)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
+
                 VStack(spacing: Space.xl) {
                     Spacer(minLength: 0)
 
@@ -108,40 +120,26 @@ struct VoiceCaptureView: View {
         }
     }
 
-    // MARK: - Botón de micrófono (hold-to-talk) con ondas
+    // MARK: - Botón de micrófono (hold-to-talk)
 
     private var micButton: some View {
         ZStack {
-            // Ondas reactivas al nivel de audio (solo mientras graba).
-            if phase == .recording {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle()
-                        .stroke(Palette.accent.opacity(0.35 - Double(i) * 0.1), lineWidth: 2)
-                        .frame(width: 96, height: 96)
-                        .scaleEffect(1 + CGFloat(speech.level) * (0.6 + CGFloat(i) * 0.4))
-                        .opacity(phase == .recording ? 1 : 0)
-                        .animation(.easeOut(duration: 0.15), value: speech.level)
-                }
+            switch phase {
+            case .processing:
+                // Interpretando: el show visual es el beam que se balancea abajo;
+                // el mic central se atenúa para no competir.
+                MicPulse(active: false, level: 0)
+                    .opacity(0.35)
+                    .transition(.opacity)
+            case .idle, .recording:
+                // Micrófono. En reposo estático; grabando, pulsa suave (el glow
+                // reactivo al audio vive en el borde inferior).
+                MicPulse(active: phase == .recording, level: speech.level)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
-
-            Circle()
-                .fill(phase == .recording ? Palette.accent : Palette.accent.opacity(0.9))
-                .frame(width: 96, height: 96)
-                .overlay {
-                    if phase == .processing {
-                        ProgressView().tint(Palette.onAccent).controlSize(.large)
-                    } else {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(Palette.onAccent)
-                            .scaleEffect(phase == .recording ? 1.1 : 1)
-                    }
-                }
-                .scaleEffect(phase == .recording ? 1.08 : 1)
-                .shadow(color: Palette.accent.opacity(0.4), radius: phase == .recording ? 24 : 12, y: 6)
-                .animation(Motion.ui, value: phase)
         }
         .frame(height: 180)
+        .animation(.smooth(duration: 0.28), value: phase)
         // Hold-to-talk: presionar inicia, soltar procesa. Umbral 0 para arrancar ya.
         .gesture(
             DragGesture(minimumDistance: 0)
