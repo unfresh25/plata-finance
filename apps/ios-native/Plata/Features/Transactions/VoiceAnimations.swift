@@ -47,7 +47,7 @@ struct ListeningWaveform: View {
                 let spread: CGFloat = processing ? w * 0.14 : w * 0.3  // beam angosto al procesar
                 // Balanceo lado a lado al procesar (eased en cada extremo), o
                 // deriva lenta del gradiente al escuchar.
-                let sweep = processing ? sweepOffset(t) * w * 0.32 : 0
+                let sweep = processing ? sweepOffset(t) * w * 0.35 : 0
                 let shift = processing ? sweep : CGFloat(sin(t * 0.35)) * w * 0.12
 
                 LinearGradient(
@@ -68,17 +68,20 @@ struct ListeningWaveform: View {
         }
     }
 
-    /// Posición del beam al procesar: recorre -1…1 y vuelve, con ease en cada
-    /// extremo (processingCurve ~2.1, processingDuration ~1.1s por pasada).
+    /// Posición del beam al procesar, con la fórmula EXACTA de VoiceBeam:
+    ///   _ = t / duration ;  G = floor(_) ;  U = _ - G
+    ///   D = U<0.5 ? 0.5·(2U)^E : 1 - 0.5·(2-2U)^E     (ease-in-out por potencia)
+    ///   C = G par ? 2D-1 : 1-2D                        (alterna dirección, continuo)
+    /// Da un vaivén literal de un lado a otro, eased en cada extremo, sin saltos.
     private func sweepOffset(_ t: Double) -> CGFloat {
-        let period = 2.2                               // ida + vuelta
-        let phase = (t.truncatingRemainder(dividingBy: period)) / period  // 0…1
-        // Triángulo 0→1→0 y luego signo, suavizado con easeInOut (curva).
-        let tri = phase < 0.5 ? phase * 2 : (1 - phase) * 2   // 0…1…0
-        let eased = tri * tri * (3 - 2 * tri)          // smoothstep
-        let dir: Double = phase < 0.5 ? 1 : -1         // primera mitad derecha, segunda izquierda
-        // Mapear a -1…1: en el centro del semiciclo llega al extremo.
-        return CGFloat(dir * eased)
+        let duration = 1.1                              // processingDuration (s por pasada)
+        let e = 2.1                                     // processingCurve
+        let n = t / duration
+        let g = floor(n)
+        let u = n - g
+        let d = u < 0.5 ? 0.5 * pow(2 * u, e) : 1 - 0.5 * pow(2 - 2 * u, e)
+        let c = Int(g) % 2 == 0 ? (2 * d - 1) : (1 - 2 * d)
+        return CGFloat(c)
     }
 }
 
