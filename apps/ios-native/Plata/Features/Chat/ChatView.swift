@@ -114,7 +114,7 @@ struct ChatView: View {
                 Button {
                     onClose()
                 } label: {
-                    Image(systemName: "chevron.down")
+                    Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Palette.inkSecondary)
                 }
