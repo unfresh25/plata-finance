@@ -24,11 +24,12 @@ struct MainTabView: View {
         }
         return .home
     }()
-    @State private var showingAddMenu = false
-    // Destino elegido en el menú "+", promovido tras cerrar el menú para evitar
-    // presentar un sheet mientras otro se está descartando.
-    @State private var pendingDestination: AddDestination?
+    // Destino elegido en el speed-dial; se presenta el add correspondiente.
     @State private var activeDestination: AddDestination?
+    // Dictado por voz desde el botón flotante de micrófono.
+    @State private var showingVoiceCapture = false
+    // Campos interpretados por voz, para prellenar el alta de transacción.
+    @State private var voicePrefill: ParsedTransaction?
 
     var body: some View {
         // Contenido del tab activo. Cada destino en su propio NavigationStack
@@ -54,10 +55,15 @@ struct MainTabView: View {
         .transition(.opacity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg.ignoresSafeArea())
+        // Tab bar (4 destinos, sin botón central) + FAB speed-dial encima.
         .overlay(alignment: .bottom) {
-            MainTabBar(selection: $selection) {
-                showingAddMenu = true
-            }
+            MainTabBar(selection: $selection)
+        }
+        .overlay {
+            FloatingActionMenu(
+                onSelect: { destination in activeDestination = destination },
+                onVoice: { showingVoiceCapture = true }
+            )
         }
         .task {
             // En modo preview (-uiPreview) se conservan los datos mock inyectados.
@@ -65,24 +71,18 @@ struct MainTabView: View {
                 await app.refreshAll()
             }
         }
-        // Menú "+": las 7 acciones de creación. Al elegir una se cierra el menú
-        // y, en su onDismiss, se promueve el destino elegido para presentar el
-        // add correspondiente (evita presentar mientras otro sheet se descarta).
-        .sheet(isPresented: $showingAddMenu, onDismiss: {
-            if let pending = pendingDestination {
-                pendingDestination = nil
-                activeDestination = pending
-            }
-        }) {
-            AddMenuView { destination in
-                pendingDestination = destination
-                showingAddMenu = false
-            }
-        }
         .sheet(item: $activeDestination) { destination in
             addView(for: destination)
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Palette.bg)
+        }
+        .sheet(isPresented: $showingVoiceCapture) {
+            VoiceCaptureView { parsed in
+                // Tras dictar desde cualquier pantalla, abrir el alta de transacción
+                // ya prellenada con lo interpretado.
+                voicePrefill = parsed
+                activeDestination = .transaction
+            }
         }
     }
 
@@ -91,7 +91,7 @@ struct MainTabView: View {
     @ViewBuilder
     private func addView(for destination: AddDestination) -> some View {
         switch destination {
-        case .transaction: AddTransactionView()
+        case .transaction: AddTransactionView(voicePrefill: voicePrefill)
         case .budget: AddBudgetView()
         case .shoppingList: AddShoppingListView()
         case .goal: AddGoalView()
@@ -154,16 +154,11 @@ private enum MainTab: Hashable, CaseIterable {
 
 private struct MainTabBar: View {
     @Binding var selection: MainTab
-    var onAdd: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
             MainTabBarButton(tab: .home, selection: $selection)
             MainTabBarButton(tab: .transactions, selection: $selection)
-
-            MainTabAddButton(action: onAdd)
-                .padding(.horizontal, Space.s)
-
             MainTabBarButton(tab: .finances, selection: $selection)
             MainTabBarButton(tab: .settings, selection: $selection)
         }
@@ -214,20 +209,3 @@ private struct MainTabBarButton: View {
     }
 }
 
-private struct MainTabAddButton: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(Palette.onAccent)
-                .frame(width: 52, height: 52)
-                .background(Palette.accent, in: Circle())
-                // Sombra neutra sutil (no glow de color): da elevación sin ruido.
-                .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
-        }
-        .pressable(scale: 0.94)
-        .accessibilityLabel("Añadir movimiento")
-    }
-}
