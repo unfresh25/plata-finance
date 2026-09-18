@@ -45,55 +45,65 @@ struct ListeningWaveform: View {
     }
 }
 
-// MARK: - Orbe "interpretando"
+// MARK: - Orbe "interpretando" (estado "working" de thinking-orbs)
 
+/// Puerto a SwiftUI del estado "working" de thinking-orbs (libraries.dev/orbs):
+/// partículas en órbitas 3D inclinadas, dibujadas como puntos monocromáticos
+/// sobre un Canvas 2D (igual que la librería original). La profundidad (z) modula
+/// tamaño y opacidad para dar volumen esférico.
 struct WorkingOrb: View {
     var tint: Color = Palette.accent
-    var size: CGFloat = 96
+    var size: CGFloat = 120
+
+    // Órbitas: cada una es un anillo de puntos con su inclinación y velocidad.
+    private let rings: [Ring] = [
+        Ring(tiltX: 1.15, tiltZ: 0.30, speed: 1.0, count: 14, phase: 0.0),
+        Ring(tiltX: 0.55, tiltZ: -0.65, speed: -0.82, count: 12, phase: 1.7),
+        Ring(tiltX: 1.4, tiltZ: 0.9, speed: 0.66, count: 10, phase: 3.4),
+    ]
+
+    private struct Ring {
+        let tiltX: Double   // inclinación del plano de la órbita
+        let tiltZ: Double
+        let speed: Double   // rad/s (signo = sentido de giro)
+        let count: Int
+        let phase: Double
+    }
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let rotation = Angle.degrees((t * 90).truncatingRemainder(dividingBy: 360))
-            // Respiración suave (escala 0.94…1.06).
-            let breathe = 1 + 0.06 * sin(t * 2.2)
+            Canvas { ctx, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) / 2 * 0.72
 
-            ZStack {
-                // Halo difuso que pulsa.
-                Circle()
-                    .fill(tint.opacity(0.18))
-                    .frame(width: size * 1.5, height: size * 1.5)
-                    .scaleEffect(breathe)
-                    .blur(radius: 12)
-
-                // Cuerpo del orbe: gradiente cónico girando.
-                Circle()
-                    .fill(
-                        AngularGradient(
-                            gradient: Gradient(colors: [
-                                tint, tint.opacity(0.35), Palette.onAccent.opacity(0.9),
-                                tint.opacity(0.55), tint,
-                            ]),
-                            center: .center
-                        )
-                    )
-                    .frame(width: size, height: size)
-                    .rotationEffect(rotation)
-                    // Brillo especular fijo encima (no rota): da volumen.
-                    .overlay(
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [.white.opacity(0.5), .clear],
-                                    center: .init(x: 0.32, y: 0.28),
-                                    startRadius: 0, endRadius: size * 0.55
-                                )
-                            )
-                    )
-                    .scaleEffect(breathe)
-                    .shadow(color: tint.opacity(0.4), radius: 14, y: 4)
+                // Recolectar puntos con su z (para pintar de atrás hacia adelante).
+                var pts: [(p: CGPoint, z: Double, r: CGFloat)] = []
+                for ring in rings {
+                    for i in 0..<ring.count {
+                        let a = ring.phase + t * ring.speed + Double(i) / Double(ring.count) * 2 * .pi
+                        // Punto en el plano de la órbita (círculo unitario).
+                        let ux = cos(a)
+                        let uy = sin(a)
+                        // Inclinar el plano en 3D (rotaciones simples).
+                        let x = ux
+                        let y = uy * cos(ring.tiltX)
+                        let z = uy * sin(ring.tiltX) * cos(ring.tiltZ) + ux * sin(ring.tiltZ) * 0.4
+                        let px = center.x + CGFloat(x) * radius
+                        let py = center.y + CGFloat(y) * radius
+                        pts.append((CGPoint(x: px, y: py), z, 0))
+                    }
+                }
+                // Pintar de atrás (z pequeño) a adelante (z grande).
+                for item in pts.sorted(by: { $0.z < $1.z }) {
+                    let depth = (item.z + 1) / 2                 // 0…1
+                    let dotR = 1.5 + 3.0 * depth                  // más grande al frente
+                    let alpha = 0.25 + 0.75 * depth               // más opaco al frente
+                    let rect = CGRect(x: item.p.x - dotR, y: item.p.y - dotR, width: dotR * 2, height: dotR * 2)
+                    ctx.fill(Circle().path(in: rect), with: .color(tint.opacity(alpha)))
+                }
             }
-            .frame(width: size * 1.5, height: size * 1.5)
+            .frame(width: size, height: size)
         }
     }
 }
