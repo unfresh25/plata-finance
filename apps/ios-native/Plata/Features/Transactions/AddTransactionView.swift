@@ -43,6 +43,9 @@ struct AddTransactionView: View {
     @State private var isScanning = false
     @State private var scanError: String?
 
+    // Dictado por voz
+    @State private var showVoiceCapture = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -83,7 +86,7 @@ struct AddTransactionView: View {
                     amountDisplay
                         .padding(.vertical, Space.m)
 
-                    scanReceiptButton
+                    quickCaptureButtons
 
                     selectors
                 }
@@ -147,6 +150,11 @@ struct AddTransactionView: View {
         } message: {
             Text(scanError ?? "Inténtalo de nuevo.")
         }
+        .sheet(isPresented: $showVoiceCapture) {
+            VoiceCaptureView { parsed in
+                applyParsed(parsed)
+            }
+        }
     }
 
     // MARK: - Monto gigante
@@ -173,34 +181,53 @@ struct AddTransactionView: View {
 
     // MARK: - Escanear recibo
 
-    /// Acción destacada bajo el monto: escanea un recibo y autocompleta el
-    /// formulario vía OCR en el backend. Cápsula de glass tenue (nada de glass
-    /// sobre glass: vive sobre el velo del sheet, no dentro de una Card).
-    private var scanReceiptButton: some View {
-        Button {
-            showScanSource = true
-        } label: {
+    /// Acciones rápidas bajo el monto: dictar por voz o escanear un recibo. Ambas
+    /// autocompletan el formulario (voz vía /parse, recibo vía /ocr en el backend)
+    /// y el usuario confirma antes de guardar. Cápsulas de glass tenue.
+    private var quickCaptureButtons: some View {
+        HStack(spacing: Space.s) {
+            quickCapture(
+                icon: "mic.fill",
+                title: "Dictar",
+                busy: false,
+                busyTitle: ""
+            ) {
+                showVoiceCapture = true
+            }
+
+            quickCapture(
+                icon: "viewfinder",
+                title: "Escanear",
+                busy: isScanning,
+                busyTitle: "Escaneando…"
+            ) {
+                showScanSource = true
+            }
+            .disabled(isScanning)
+        }
+        .animation(Motion.ui, value: isScanning)
+    }
+
+    private func quickCapture(
+        icon: String, title: String, busy: Bool, busyTitle: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             HStack(spacing: Space.s) {
-                if isScanning {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Palette.accent)
+                if busy {
+                    ProgressView().controlSize(.small).tint(Palette.accent)
                 } else {
-                    Image(systemName: "viewfinder")
-                        .font(.system(size: 15, weight: .semibold))
+                    Image(systemName: icon).font(.system(size: 15, weight: .semibold))
                 }
-                Text(isScanning ? "Escaneando…" : "Escanear recibo")
+                Text(busy ? busyTitle : title)
                     .font(Typo.callout.weight(.medium))
             }
-            .foregroundStyle(isScanning ? Palette.inkSecondary : Palette.accent)
+            .foregroundStyle(busy ? Palette.inkSecondary : Palette.accent)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, Space.s)
-            .padding(.horizontal, Space.l)
+            .padding(.horizontal, Space.m)
             .liquidGlassCapsule(interactive: true)
         }
         .pressable()
-        .disabled(isScanning)
-        .frame(maxWidth: .infinity)
-        .animation(Motion.ui, value: isScanning)
     }
 
     // MARK: - Selectores (filas planas con separador, sin cards)
@@ -457,6 +484,34 @@ struct AddTransactionView: View {
         }
         if let dateString = result.date, let scanned = Self.parseOCRDate(dateString) {
             date = min(scanned, Date()) // el DatePicker no permite futuro
+        }
+    }
+
+    /// Rellena el formulario con lo interpretado del dictado por voz. Respeta el
+    /// tipo (para reconciliar categoría) y solo aplica ids válidos (el backend ya
+    /// los validó contra las categorías/cuentas del hogar). El usuario confirma.
+    private func applyParsed(_ result: ParsedTransaction) {
+        if let t = result.type, let parsedType = TransactionType(rawValue: t) {
+            type = parsedType
+        }
+        reconcileCategoryForType()
+
+        if let amount = result.amount, amount > 0 {
+            let whole = Int(amount.rounded())
+            amountDigits = String(min(whole, 999_999_999_999))
+        }
+        if let description = result.description, !description.isEmpty {
+            note = description
+        }
+        if type != .transfer, let cat = result.categoryId,
+           app.category(for: cat)?.type == (type == .income ? .income : .expense) {
+            categoryId = cat
+        }
+        if let acc = result.accountId, app.accounts.contains(where: { $0.id == acc }) {
+            accountId = acc
+        }
+        if let dateString = result.date, let parsed = Self.parseOCRDate(dateString) {
+            date = min(parsed, Date())
         }
     }
 
