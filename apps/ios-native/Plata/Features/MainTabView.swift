@@ -52,6 +52,8 @@ struct MainTabView: View {
                 NavigationStack { TransactionsView() }
             case .finances:
                 NavigationStack { FinancesView() }
+            case .assistant:
+                NavigationStack { ChatView() }
             case .settings:
                 NavigationStack { SettingsView() }
             }
@@ -64,10 +66,13 @@ struct MainTabView: View {
             MainTabBar(selection: $selection)
         }
         .overlay {
-            FloatingActionMenu(
-                onSelect: { destination in activeDestination = destination },
-                onVoice: { showingVoiceCapture = true }
-            )
+            // El FAB (crear + dictar) no aparece en el chat: ahí estorba el input.
+            if selection != .assistant {
+                FloatingActionMenu(
+                    onSelect: { destination in activeDestination = destination },
+                    onVoice: { showingVoiceCapture = true }
+                )
+            }
         }
         .task {
             // En modo preview (-uiPreview) se conservan los datos mock inyectados.
@@ -141,13 +146,14 @@ extension View {
 // MARK: - Modelo de pestañas
 
 private enum MainTab: Hashable, CaseIterable {
-    case home, transactions, finances, settings
+    case home, transactions, finances, assistant, settings
 
     var title: String {
         switch self {
         case .home: "Inicio"
         case .transactions: "Movim."
         case .finances: "Finanzas"
+        case .assistant: "Plata IA"
         case .settings: "Ajustes"
         }
     }
@@ -157,6 +163,7 @@ private enum MainTab: Hashable, CaseIterable {
         case .home: "house"
         case .transactions: "list.bullet"
         case .finances: "chart.pie"
+        case .assistant: "sparkles"
         case .settings: "gearshape"
         }
     }
@@ -166,6 +173,7 @@ private enum MainTab: Hashable, CaseIterable {
         case .home: "house.fill"
         case .transactions: "list.bullet"
         case .finances: "chart.pie.fill"
+        case .assistant: "sparkles"
         case .settings: "gearshape.fill"
         }
     }
@@ -181,6 +189,7 @@ private struct MainTabBar: View {
             MainTabBarButton(tab: .home, selection: $selection)
             MainTabBarButton(tab: .transactions, selection: $selection)
             MainTabBarButton(tab: .finances, selection: $selection)
+            MainTabBarButton(tab: .assistant, selection: $selection)
             MainTabBarButton(tab: .settings, selection: $selection)
         }
         .padding(.horizontal, Space.s)
