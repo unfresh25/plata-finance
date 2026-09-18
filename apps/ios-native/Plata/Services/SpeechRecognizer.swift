@@ -31,6 +31,10 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
     private var task: SFSpeechRecognitionTask?
     private let lock = NSLock()
     private var recording = false
+    // Intención del usuario de estar grabando. Si suelta el botón mientras el
+    // motor aún arranca (p. ej. esperando el diálogo de permisos la 1ª vez), esto
+    // se pone en false y start() aborta en vez de quedar grabando indefinidamente.
+    private var wantsRecording = false
 
     var isRecording: Bool { lock.withLock { recording } }
 
@@ -59,8 +63,16 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
 
     // MARK: - Captura
 
+    /// Pide permisos por adelantado (idempotente). Llamar al abrir el sheet para
+    /// que el primer hold no compita con el diálogo de permisos.
+    func prewarmPermissions() async {
+        _ = await Self.requestSpeechAuth()
+        _ = await Self.requestMicAuth()
+    }
+
     func start() async {
         guard !isRecording else { return }
+        lock.withLock { wantsRecording = true }
 
         guard await Self.requestSpeechAuth() else {
             onError?("Activa el reconocimiento de voz en Ajustes para dictar.")
@@ -68,6 +80,11 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
         }
         guard await Self.requestMicAuth() else {
             onError?("Activa el micrófono en Ajustes para dictar.")
+            return
+        }
+        // El usuario pudo soltar el botón mientras se pedían permisos/arrancaba.
+        guard lock.withLock({ wantsRecording }) else {
+            onFinish?()
             return
         }
         guard let recognizer, recognizer.isAvailable else {
@@ -106,6 +123,15 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
             if let levelHandler { levelHandler(Self.rmsLevel(buffer)) }
         }
 
+        // Última comprobación antes de arrancar: si ya soltó, abortar limpio.
+        guard lock.withLock({ wantsRecording }) else {
+            inputNode.removeTap(onBus: 0)
+            cleanup()
+            deactivateSession()
+            onFinish?()
+            return
+        }
+
         audioEngine.prepare()
         do {
             try audioEngine.start()
@@ -131,7 +157,10 @@ nonisolated final class SpeechRecognizer: @unchecked Sendable {
     }
 
     func stop() {
+        // Cancela también una grabación aún en arranque (wantsRecording): así, si
+        // el usuario suelta antes de que el motor arranque, start() aborta.
         let wasRecording = lock.withLock { () -> Bool in
+            wantsRecording = false
             let w = recording
             recording = false
             return w
@@ -204,6 +233,12 @@ final class SpeechCapture {
                 self?.isRecording = false
             }
         }
+    }
+
+    /// Pide permisos por adelantado al abrir el sheet (evita la carrera con el
+    /// diálogo de permisos durante el primer hold, que dejaba el motor colgado).
+    func prewarm() {
+        Task { await recognizer.prewarmPermissions() }
     }
 
     func start() {
