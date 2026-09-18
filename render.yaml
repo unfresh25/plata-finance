@@ -14,7 +14,9 @@ services:
       - key: SUPABASE_JWT_SECRET
         sync: false   # Supabase → Settings → API → JWT Secret
       - key: GEMINI_API_KEY
-        sync: false   # la nueva clave de Gemini (server-side)
+        sync: false   # clave de Gemini (server-side) — OCR de recibos
+      - key: ANTHROPIC_API_KEY
+        sync: false   # clave de Claude (server-side) — parseo del dictado por voz
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
