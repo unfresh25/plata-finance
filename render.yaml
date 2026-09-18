@@ -21,5 +21,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SYNCFY_API_KEY
+        sync: false   # clave de Syncfy (server-side) — conexión bancaria
       - key: ALLOWED_ORIGINS
         sync: false   # opcional: orígenes web separados por coma (la app móvil no necesita CORS)
