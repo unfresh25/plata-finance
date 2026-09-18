@@ -38,25 +38,30 @@ struct VoiceCaptureView: View {
                         .allowsHitTesting(false)
                 }
 
-                VStack(spacing: Space.xl) {
-                    Spacer(minLength: 0)
+                // Durante processing solo se muestra el beam (abajo); el mic y los
+                // textos desaparecen — la animación ya comunica que está trabajando.
+                if phase != .processing {
+                    VStack(spacing: Space.xl) {
+                        Spacer(minLength: 0)
 
-                    prompt
+                        prompt
 
-                    Spacer(minLength: 0)
+                        Spacer(minLength: 0)
 
-                    micButton
+                        micButton
 
-                    Text(hint)
-                        .font(Typo.subhead)
-                        .foregroundStyle(Palette.inkTertiary)
-                        .frame(height: 22)
-                        .animation(Motion.ui, value: phase)
+                        Text(hint)
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkTertiary)
+                            .frame(height: 22)
 
-                    Spacer(minLength: Space.l)
+                        Spacer(minLength: Space.l)
+                    }
+                    .padding(.horizontal, Space.xl)
+                    .transition(.opacity)
                 }
-                .padding(.horizontal, Space.xl)
             }
+            .animation(.smooth(duration: 0.3), value: phase)
             .navigationTitle("Dictar movimiento")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -123,30 +128,17 @@ struct VoiceCaptureView: View {
     // MARK: - Botón de micrófono (hold-to-talk)
 
     private var micButton: some View {
-        ZStack {
-            switch phase {
-            case .processing:
-                // Interpretando: el show visual es el beam que se balancea abajo;
-                // el mic central se atenúa para no competir.
-                MicPulse(active: false, level: 0)
-                    .opacity(0.35)
-                    .transition(.opacity)
-            case .idle, .recording:
-                // Micrófono. En reposo estático; grabando, pulsa suave (el glow
-                // reactivo al audio vive en el borde inferior).
-                MicPulse(active: phase == .recording, level: speech.level)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            }
-        }
-        .frame(height: 180)
-        .animation(.smooth(duration: 0.28), value: phase)
-        // Hold-to-talk: presionar inicia, soltar procesa. Umbral 0 para arrancar ya.
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in if phase == .idle { beginRecording() } }
-                .onEnded { _ in if phase == .recording { endRecording() } }
-        )
-        .disabled(phase == .processing)
+        // Micrófono. En reposo estático; grabando, pulsa suave con el nivel (el
+        // glow reactivo vive en el borde inferior). En processing esta vista ni se
+        // muestra (la maneja el body).
+        MicPulse(active: phase == .recording, level: speech.level)
+            .frame(height: 180)
+            // Hold-to-talk: presionar inicia, soltar procesa.
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in if phase == .idle { beginRecording() } }
+                    .onEnded { _ in if phase == .recording { endRecording() } }
+            )
     }
 
     private var hint: String {
