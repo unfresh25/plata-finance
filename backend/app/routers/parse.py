@@ -20,7 +20,9 @@ from app.deps import get_current_user
 
 router = APIRouter()
 
-GEMINI_MODEL = "gemini-2.5-flash"
+# gemini-2.5-flash dejó de estar disponible para nuevas keys (404). Se usa 3.6;
+# configurable por GEMINI_MODEL para cambiarlo sin tocar código.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 GEMINI_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 )
@@ -115,9 +117,12 @@ async def parse_transaction(
         raise HTTPException(status_code=502, detail="El servicio de interpretación devolvió un error.")
 
     data = resp.json()
+    # Gemini 3.x puede anteponer un part de "thoughtSignature" sin texto; hay que
+    # buscar el primer part que realmente tenga "text", no asumir el índice 0.
     try:
-        raw = data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
+        parts = data["candidates"][0]["content"]["parts"]
+        raw = next(p["text"] for p in parts if "text" in p)
+    except (KeyError, IndexError, StopIteration):
         raise HTTPException(status_code=422, detail="No se pudo interpretar el dictado.")
 
     if "```" in raw:
