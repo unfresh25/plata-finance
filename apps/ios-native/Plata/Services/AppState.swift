@@ -61,9 +61,13 @@ final class AppState {
                 return
             }
             self.household = try await repo.fetchHousehold(id: hh)
-            await refreshAll()
-            await uploadPendingOnboarding(userId: uid)
+            // Mostrar la app ya (las vistas manejan listas vacías); los datos del
+            // hogar se cargan en segundo plano para que el arranque no se congele.
             phase = .ready
+            Task {
+                await refreshAll()
+                await uploadPendingOnboarding(userId: uid)
+            }
         } catch is SessionExpiredError {
             // El token caducó y no se pudo refrescar: limpiar sesión y volver a
             // login con un mensaje claro (no el JSON crudo de PostgREST).

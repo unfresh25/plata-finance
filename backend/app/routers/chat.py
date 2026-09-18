@@ -82,10 +82,15 @@ async def chat_ask(
     if not history:
         raise HTTPException(status_code=400, detail="Conversación vacía.")
 
+    # Prompt caching: el system (prompt + resumen del hogar) se repite en cada
+    # turno del hilo. Marcándolo con cache_control se cachea (~5 min) y los turnos
+    # siguientes de la conversación pagan ~10% por esos tokens de entrada.
     payload = {
         "model": ANTHROPIC_MODEL,
         "max_tokens": 700,
-        "system": system,
+        "system": [
+            {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
+        ],
         "messages": history,
     }
     headers = {
