@@ -11,66 +11,92 @@ import SwiftUI
 // MARK: - Glow de escucha (puerto del efecto "voice-glow" de libraries.dev)
 
 /// Beam de sonido centrado que sube y florece con la voz (voice-glow, tipo
-/// "mobile"): varios lóbulos de color en forma de campana `exp(-(|x|/spread)^curve)`
-/// a lo largo del borde inferior, cuya altura sigue el nivel de audio, con un
-/// bloom difuso detrás. Monocromático-violeta para armonizar con la marca.
+/// "mobile"). Cada lóbulo de color es una CURVA DE CAMPANA continua
+/// `(exp(-(|x|/s)^curve) - borde) / (1 - borde)` (la fórmula real de la librería),
+/// rellena con un gradiente vertical hacia transparente y con blur real para el
+/// bloom (las 3 capas del original: bloom difuso + luz interior + núcleo). Los
+/// colores se suman como luz y derivan lateralmente (flow) mientras se habla.
 struct ListeningWaveform: View {
     /// Nivel de audio 0…1 (RMS suavizado desde SpeechCapture).
     var level: Float
 
-    // Lóbulos: cada uno con su color, posición horizontal relativa (-1…1) y peso.
-    private let lobes: [(color: Color, x: Double, weight: Double)] = [
-        (Color(red: 0.69, green: 0.55, blue: 1.0),  0.0, 1.0),   // centro (lavanda)
-        (Color(red: 1.0,  green: 0.44, blue: 0.63), -0.42, 0.7), // rosa
-        (Color(red: 0.35, green: 0.75, blue: 1.0),  0.42, 0.7),  // azul
-        (Color(red: 0.66, green: 0.40, blue: 1.0), -0.8, 0.45),  // violeta
-        (Color(red: 0.40, green: 0.85, blue: 0.95), 0.8, 0.45),  // aqua
+    private let curve: Double = 1.8   // exponente de la campana (más = domo, menos = pico)
+
+    // Arcoíris continuo: un solo gradiente horizontal (rosa→violeta→azul→verde→aqua).
+    private let rainbow: [Color] = [
+        Color(red: 1.0,  green: 0.44, blue: 0.63),  // rosa
+        Color(red: 0.72, green: 0.42, blue: 1.0),   // violeta
+        Color(red: 0.40, green: 0.55, blue: 1.0),   // azul
+        Color(red: 0.35, green: 0.85, blue: 0.85),  // aqua/verde
+        Color(red: 0.55, green: 0.60, blue: 1.0),   // periwinkle
     ]
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            // Nivel efectivo con piso de "respiración" para que nunca se vea muerto.
-            let lvl = Double(max(0.08, level))
+            let lvl = CGFloat(max(0.12, level))
 
-            Canvas { ctx, size in
-                let w = size.width
-                let h = size.height
-                let baseY = h                       // el glow nace del borde inferior
-                let ceiling = h * 0.9 * lvl         // altura máxima según el nivel
-                let halfRange = w * 0.42
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+                let peak = h * 0.9 * lvl
+                let spread = w * 0.26                 // ancho del domo
+                // Deriva lenta del gradiente: los colores "viajan" (flow).
+                let shift = CGFloat(sin(t * 0.35)) * w * 0.12
 
-                ctx.blendMode = .plusLighter        // los lóbulos se suman como luz
-                for lobe in lobes {
-                    // Deriva horizontal lenta (flow) para que los colores "viajen".
-                    let drift = sin(t * 0.6 + lobe.x * 2) * 10
-                    let cx = w / 2 + CGFloat(lobe.x) * halfRange + drift
-                    let peak = ceiling * lobe.weight * (0.85 + 0.15 * sin(t * 3 + lobe.x * 4))
-
-                    drawLobe(ctx, centerX: cx, baseY: baseY, peak: peak,
-                             spread: w * 0.16, color: lobe.color)
-                }
+                // UNA franja arcoíris continua, enmascarada por UNA campana suave,
+                // muy difuminada → halo blando de color (no lóbulos separados).
+                LinearGradient(
+                    colors: rainbow,
+                    startPoint: .leading, endPoint: .trailing
+                )
+                .frame(width: w * 1.25)
+                .offset(x: shift)
+                .frame(width: w)
+                .mask(
+                    BellShape(peak: peak, spread: spread,
+                              breathe: CGFloat(0.9 + 0.1 * sin(t * 2.2)), curve: curve)
+                )
+                .blur(radius: 24)                     // el blur fuerte funde todo en un halo
+                .frame(width: w, height: h, alignment: .bottom)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: lvl)
             }
         }
     }
+}
 
-    /// Dibuja un lóbulo como una serie de elipses apiladas con opacidad
-    /// decreciente (aproxima el bloom gaussiano del original sin filtros SVG).
-    private func drawLobe(_ ctx: GraphicsContext, centerX: CGFloat, baseY: CGFloat,
-                          peak: CGFloat, spread: CGFloat, color: Color) {
-        guard peak > 1 else { return }
-        let layers = 5
-        for i in 0..<layers {
-            let f = CGFloat(i) / CGFloat(layers - 1)      // 0…1 (adentro→afuera)
-            let ellipseW = spread * (0.8 + 1.6 * f)
-            let ellipseH = peak * (0.6 + 0.9 * f)
-            // Opacidad contenida para que la suma (plusLighter) no queme el centro
-            // a blanco y los colores sigan legibles.
-            let alpha = (0.28 - 0.22 * f) * Double(min(1, peak / 40))
-            let rect = CGRect(x: centerX - ellipseW, y: baseY - ellipseH,
-                              width: ellipseW * 2, height: ellipseH * 2)
-            ctx.fill(Ellipse().path(in: rect), with: .color(color.opacity(alpha)))
+// MARK: - Forma de campana (la silueta del glow)
+
+/// Domo de campana `(exp(-(|x|/s)^curve) - borde)/(1-borde)` pegado al borde
+/// inferior — la máscara que le da forma al halo de color.
+private struct BellShape: Shape {
+    var peak: CGFloat
+    var spread: CGFloat
+    var breathe: CGFloat
+    var curve: Double
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let cx = rect.midX
+        let baseY = rect.maxY
+        let h = peak * breathe
+        let s = max(1, spread)
+        let span = s * 3.2
+        let edge = exp(-pow(Double(span / s), curve))
+        p.move(to: CGPoint(x: rect.minX, y: baseY))
+        p.addLine(to: CGPoint(x: cx - span, y: baseY))
+        let steps = 80
+        for i in 0...steps {
+            let f = Double(i) / Double(steps)
+            let x = -span + CGFloat(f) * span * 2
+            let n = Double(x / s)
+            let o = exp(-pow(abs(n), curve))
+            let bell = max(0, (o - edge) / (1 - edge))
+            p.addLine(to: CGPoint(x: cx + x, y: baseY - h * CGFloat(bell)))
         }
+        p.addLine(to: CGPoint(x: rect.maxX, y: baseY))
+        p.closeSubpath()
+        return p
     }
 }
 
