@@ -26,6 +26,17 @@ struct VoiceCaptureView: View {
             ZStack {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
 
+                // Voice-glow: nace del borde inferior de la pantalla y florece con
+                // la voz (solo mientras se escucha).
+                if phase == .recording {
+                    ListeningWaveform(level: speech.level)
+                        .frame(height: 260)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
+
                 VStack(spacing: Space.xl) {
                     Spacer(minLength: 0)
 
@@ -113,25 +124,14 @@ struct VoiceCaptureView: View {
     private var micButton: some View {
         ZStack {
             switch phase {
-            case .recording:
-                // Escuchando: waveform reactiva al nivel de audio.
-                ListeningWaveform(level: speech.level)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
             case .processing:
                 // Interpretando: orbe girando/respirando.
                 WorkingOrb()
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            case .idle:
-                // Reposo: micrófono estático.
-                Circle()
-                    .fill(Palette.accent.opacity(0.9))
-                    .frame(width: 96, height: 96)
-                    .overlay(
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(Palette.onAccent)
-                    )
-                    .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+            case .idle, .recording:
+                // Micrófono. En reposo estático; grabando, pulsa suave (el glow
+                // reactivo al audio vive en el borde inferior).
+                MicPulse(active: phase == .recording, level: speech.level)
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
         }

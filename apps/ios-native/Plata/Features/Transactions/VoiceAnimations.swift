@@ -8,40 +8,94 @@ import SwiftUI
 // Ambas usan TimelineView para un reloj continuo sincronizado con la pantalla,
 // y solo animan transform/opacity (baratas para el compositor).
 
-// MARK: - Waveform de escucha
+// MARK: - Glow de escucha (puerto del efecto "voice-glow" de libraries.dev)
 
+/// Beam de sonido centrado que sube y florece con la voz (voice-glow, tipo
+/// "mobile"): varios lóbulos de color en forma de campana `exp(-(|x|/spread)^curve)`
+/// a lo largo del borde inferior, cuya altura sigue el nivel de audio, con un
+/// bloom difuso detrás. Monocromático-violeta para armonizar con la marca.
 struct ListeningWaveform: View {
     /// Nivel de audio 0…1 (RMS suavizado desde SpeechCapture).
     var level: Float
-    var barCount: Int = 5
-    var tint: Color = Palette.accent
+
+    // Lóbulos: cada uno con su color, posición horizontal relativa (-1…1) y peso.
+    private let lobes: [(color: Color, x: Double, weight: Double)] = [
+        (Color(red: 0.69, green: 0.55, blue: 1.0),  0.0, 1.0),   // centro (lavanda)
+        (Color(red: 1.0,  green: 0.44, blue: 0.63), -0.42, 0.7), // rosa
+        (Color(red: 0.35, green: 0.75, blue: 1.0),  0.42, 0.7),  // azul
+        (Color(red: 0.66, green: 0.40, blue: 1.0), -0.8, 0.45),  // violeta
+        (Color(red: 0.40, green: 0.85, blue: 0.95), 0.8, 0.45),  // aqua
+    ]
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 6) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: 8, height: barHeight(index: i, time: t))
+            // Nivel efectivo con piso de "respiración" para que nunca se vea muerto.
+            let lvl = Double(max(0.08, level))
+
+            Canvas { ctx, size in
+                let w = size.width
+                let h = size.height
+                let baseY = h                       // el glow nace del borde inferior
+                let ceiling = h * 0.9 * lvl         // altura máxima según el nivel
+                let halfRange = w * 0.42
+
+                ctx.blendMode = .plusLighter        // los lóbulos se suman como luz
+                for lobe in lobes {
+                    // Deriva horizontal lenta (flow) para que los colores "viajen".
+                    let drift = sin(t * 0.6 + lobe.x * 2) * 10
+                    let cx = w / 2 + CGFloat(lobe.x) * halfRange + drift
+                    let peak = ceiling * lobe.weight * (0.85 + 0.15 * sin(t * 3 + lobe.x * 4))
+
+                    drawLobe(ctx, centerX: cx, baseY: baseY, peak: peak,
+                             spread: w * 0.16, color: lobe.color)
                 }
             }
-            .frame(height: 96)
-            .animation(.spring(response: 0.18, dampingFraction: 0.6), value: level)
         }
     }
 
-    /// Cada barra oscila con una fase propia; la amplitud la marca el nivel de
-    /// audio. Con nivel 0 quedan en una altura mínima (barras vivas, no muertas).
-    private func barHeight(index: Int, time: Double) -> CGFloat {
-        let base: CGFloat = 12
-        let maxExtra: CGFloat = 72
-        // Onda sinusoidal por barra, desfasada, modulada por el nivel.
-        let phase = time * 5.5 + Double(index) * 0.9
-        let wave = (sin(phase) + 1) / 2                     // 0…1
-        let lvl = CGFloat(max(0.06, level))                 // piso para que respire
-        let amp = lvl * (0.4 + 0.6 * CGFloat(wave))
-        return base + maxExtra * amp
+    /// Dibuja un lóbulo como una serie de elipses apiladas con opacidad
+    /// decreciente (aproxima el bloom gaussiano del original sin filtros SVG).
+    private func drawLobe(_ ctx: GraphicsContext, centerX: CGFloat, baseY: CGFloat,
+                          peak: CGFloat, spread: CGFloat, color: Color) {
+        guard peak > 1 else { return }
+        let layers = 5
+        for i in 0..<layers {
+            let f = CGFloat(i) / CGFloat(layers - 1)      // 0…1 (adentro→afuera)
+            let ellipseW = spread * (0.8 + 1.6 * f)
+            let ellipseH = peak * (0.6 + 0.9 * f)
+            // Opacidad contenida para que la suma (plusLighter) no queme el centro
+            // a blanco y los colores sigan legibles.
+            let alpha = (0.28 - 0.22 * f) * Double(min(1, peak / 40))
+            let rect = CGRect(x: centerX - ellipseW, y: baseY - ellipseH,
+                              width: ellipseW * 2, height: ellipseH * 2)
+            ctx.fill(Ellipse().path(in: rect), with: .color(color.opacity(alpha)))
+        }
+    }
+}
+
+// MARK: - Micrófono central (reposo / grabando)
+
+/// Botón de micrófono. En reposo, estático. Grabando, pulsa suave con el nivel
+/// de audio (el glow reactivo principal vive en el borde inferior, VoiceBeam).
+struct MicPulse: View {
+    var active: Bool
+    var level: Float
+    var tint: Color = Palette.accent
+
+    var body: some View {
+        let scale = active ? 1 + CGFloat(level) * 0.12 : 1
+        Circle()
+            .fill(tint.opacity(active ? 1 : 0.9))
+            .frame(width: 96, height: 96)
+            .overlay(
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(Palette.onAccent)
+            )
+            .scaleEffect(scale)
+            .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: level)
     }
 }
 
