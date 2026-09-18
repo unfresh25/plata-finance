@@ -112,7 +112,10 @@ async def parse_transaction(
         raise HTTPException(status_code=502, detail=f"Error contactando el servicio: {e}")
 
     if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail="El servicio de interpretación devolvió un error.")
+        # Exponer el motivo real de Gemini (recortado) para poder diagnosticar
+        # (clave inválida, modelo no disponible, cuota, etc.).
+        detail = resp.text[:300] if resp.text else f"HTTP {resp.status_code}"
+        raise HTTPException(status_code=502, detail=f"Gemini: {detail}")
 
     data = resp.json()
     try:
