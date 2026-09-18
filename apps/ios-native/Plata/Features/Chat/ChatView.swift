@@ -77,6 +77,7 @@ private enum ChatWire {
 
 struct ChatView: View {
     @Environment(AppState.self) private var app
+    var onClose: () -> Void = {}
     @State private var model = ChatModel()
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
@@ -106,8 +107,19 @@ struct ChatView: View {
                 inputBar
             }
         }
-        .navigationTitle("Asistente")
+        .navigationTitle("Plata IA")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        }
         .alert("No se pudo responder", isPresented: errorBinding) {
             Button("Entendido", role: .cancel) {}
         } message: {
@@ -239,9 +251,7 @@ struct ChatView: View {
             .pressable()
         }
         .padding(.horizontal, Space.l)
-        .padding(.top, Space.s)
-        // Hueco para el tab bar flotante debajo (queda por encima de él).
-        .padding(.bottom, 84)
+        .padding(.vertical, Space.s)
         .background(.ultraThinMaterial)
     }
 

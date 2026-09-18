@@ -34,6 +34,8 @@ struct MainTabView: View {
     @State private var voiceResult: VoiceResult?
     // Guarda el parseo mientras el sheet de voz termina de cerrarse.
     @State private var pendingVoiceParsed: ParsedTransaction?
+    // Tab a la que volver al cerrar el chat (que se muestra a pantalla completa).
+    @State private var previousTab: MainTab = .home
 
     var body: some View {
         // Contenido del tab activo. Cada destino en su propio NavigationStack
@@ -53,7 +55,8 @@ struct MainTabView: View {
             case .finances:
                 NavigationStack { FinancesView() }
             case .assistant:
-                NavigationStack { ChatView() }
+                // El chat es inmersivo: sin tab bar, con botón de cerrar propio.
+                NavigationStack { ChatView(onClose: { selection = previousTab }) }
             case .settings:
                 NavigationStack { SettingsView() }
             }
@@ -61,9 +64,14 @@ struct MainTabView: View {
         .transition(.opacity)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg.ignoresSafeArea())
-        // Tab bar (4 destinos, sin botón central) + FAB speed-dial encima.
+        // Tab bar + FAB: ocultos en el chat (pantalla inmersiva).
         .overlay(alignment: .bottom) {
-            MainTabBar(selection: $selection)
+            if selection != .assistant {
+                MainTabBar(selection: $selection)
+            }
+        }
+        .onChange(of: selection) { old, new in
+            if new == .assistant { previousTab = old == .assistant ? .home : old }
         }
         .overlay {
             // El FAB (crear + dictar) no aparece en el chat: ahí estorba el input.
