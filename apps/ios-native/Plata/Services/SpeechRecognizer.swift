@@ -244,18 +244,22 @@ final class SpeechCapture {
     /// Pide permisos por adelantado al abrir el sheet (evita la carrera con el
     /// diálogo de permisos durante el primer hold, que dejaba el motor colgado).
     func prewarm() {
-        Task { await recognizer.prewarmPermissions() }
+        let r = recognizer
+        Task.detached { await r.prewarmPermissions() }
     }
 
     func start() {
         errorMessage = nil
         transcript = ""
         isRecording = true
-        Task { await recognizer.start() }
-        // Si arrancar falló, onError/onFinish revertirán isRecording.
+        // detached: activar la AVAudioSession y arrancar el engine bloquea; hacerlo
+        // fuera del main evita el warning de "UI unresponsiveness" y posibles hitches.
+        let r = recognizer
+        Task.detached { await r.start() }
     }
 
     func stop() {
-        recognizer.stop()
+        let r = recognizer
+        Task.detached { r.stop() }
     }
 }
