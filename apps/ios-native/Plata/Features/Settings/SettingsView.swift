@@ -563,7 +563,10 @@ private struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: Space.m) {
-            CategoryIcon(systemName: icon, color: tint, size: 40)
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 28, alignment: .center)
 
             Text(title)
                 .font(Typo.callout)

@@ -15,7 +15,7 @@ struct OnboardingQuestionsView: View {
 
     var body: some View {
         ZStack {
-            FuseGradient()
+            Palette.bg.ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: Space.xl) {
                 // Barra de progreso + volver.
@@ -26,12 +26,12 @@ struct OnboardingQuestionsView: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text(s.title)
                         .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if let sub = s.subtitle {
                         Text(sub)
                             .font(Typo.subhead)
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(Palette.inkSecondary)
                     }
                 }
                 .id("q\(step)")
@@ -60,17 +60,11 @@ struct OnboardingQuestionsView: View {
                 Spacer(minLength: 0)
 
                 // Continuar.
-                Button(action: next) {
-                    Text(step == steps.count - 1 ? "Listo" : "Continuar")
-                        .font(Typo.headline)
-                        .foregroundStyle(canContinue ? Palette.accent : Palette.accent.opacity(0.4))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, Space.l)
-                        .background(.white.opacity(canContinue ? 1 : 0.5), in: Capsule())
+                PrimaryButton(title: step == steps.count - 1 ? "Listo" : "Continuar") {
+                    next()
                 }
-                .buttonStyle(.plain)
-                .pressable()
                 .disabled(!canContinue)
+                .opacity(canContinue ? 1 : 0.5)
             }
             .padding(.horizontal, Space.xl)
             .padding(.top, Space.xl)
@@ -88,10 +82,9 @@ struct OnboardingQuestionsView: View {
                     withAnimation(Motion.ui) { step -= 1 }
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.inkSecondary)
                         .frame(width: 36, height: 36)
-                        .background(.white.opacity(0.15), in: Circle())
                 }
                 .buttonStyle(.plain)
             }
@@ -99,13 +92,13 @@ struct OnboardingQuestionsView: View {
             HStack(spacing: 6) {
                 ForEach(0..<steps.count, id: \.self) { i in
                     Capsule()
-                        .fill(.white.opacity(i <= step ? 1 : 0.25))
+                        .fill(i <= step ? Palette.accent : Palette.stroke)
                         .frame(height: 4)
                 }
             }
             Button("Saltar", action: onFinish)
                 .font(Typo.caption)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Palette.inkTertiary)
         }
     }
 
@@ -199,20 +192,20 @@ private struct OnboardingOptionRow: View {
             HStack(spacing: Space.m) {
                 Text(text)
                     .font(Typo.callout)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.ink)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: Space.s)
                 Image(systemName: selected ? (multi ? "checkmark.square.fill" : "checkmark.circle.fill")
                                            : (multi ? "square" : "circle"))
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(selected ? .white : .white.opacity(0.4))
+                    .foregroundStyle(selected ? Palette.accent : Palette.inkTertiary)
             }
             .padding(Space.l)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(selected ? 0.22 : 0.10), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                    .strokeBorder(.white.opacity(selected ? 0.6 : 0.12), lineWidth: 1)
+                    .strokeBorder(selected ? Palette.accent : Palette.stroke, lineWidth: selected ? 1.5 : 1)
             )
         }
         .buttonStyle(.plain)
