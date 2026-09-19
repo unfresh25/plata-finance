@@ -22,6 +22,12 @@ targets:
     platform: iOS
     sources:
       - path: Plata
+        # Integración de banca (Syncfy) deshabilitada por ahora; código conservado
+        # en disco para reactivarla en el futuro (quitar estos excludes).
+        excludes:
+          - "Features/Bank"
+          - "Services/BankService.swift"
+          - "Features/Onboarding/IntroSequence.swift"   # intro cinemática retirada
     # Info.plist explícito (gestionado por XcodeGen): la generación automática no
     # soporta el dict anidado UILaunchScreen → UIColorName, y sin él el launch
     # screen sale blanco (flash al abrir). Aquí se fija el fondo del launch al
