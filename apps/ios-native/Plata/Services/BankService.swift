@@ -64,7 +64,12 @@ struct BankJobStatus: Decodable { let code: Int?; let twofa: [BankField]? }
 
 enum BankService {
     private static func request(_ path: String, method: String = "GET", body: Encodable? = nil) async throws -> Data {
-        let url = SupabaseConfig.apiURL.appendingPathComponent(path)
+        // path puede llevar query ("bank/countries?token=..."). appendingPathComponent
+        // escapa el '?'/'=' y rompe la ruta, así que se construye la URL a mano.
+        let base = SupabaseConfig.apiURL.absoluteString
+        guard let url = URL(string: base + (base.hasSuffix("/") ? "" : "/") + path) else {
+            throw SupabaseError(message: "URL inválida.")
+        }
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
