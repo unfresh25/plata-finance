@@ -26,8 +26,8 @@ struct OnboardingView: View {
               title: "Tu asistente de plata",
               subtitle: "Pregúntale en qué gastan más, cómo van con las metas o pídele un consejo."),
         .init(image: "Onb_pareja",
-              title: "En pareja, sin peleas",
-              subtitle: "Ahorren, gasten y planeen juntos, con todo claro para los dos."),
+              title: "Juntos, en la misma página",
+              subtitle: "Ahorren, gasten y planeen en pareja, con todo claro para los dos."),
     ]
 
     var body: some View {
@@ -91,14 +91,18 @@ struct OnboardingView: View {
 
     private func featureSlide(_ f: Feature) -> some View {
         VStack(spacing: 0) {
-            // Ilustración grande, protagonista (ocupa la mitad superior).
-            Image(f.image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .frame(maxHeight: .infinity)
-                .padding(.horizontal, Space.xl)
-                .padding(.top, Space.xl)
+            Spacer(minLength: 0)
+            // Ilustración grande protagonista: rebasa el ancho de la pantalla
+            // (~1.12x) para que el personaje domine y los stickers respiren.
+            GeometryReader { geo in
+                Image(f.image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: geo.size.width * 1.12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(height: 420)
+            Spacer(minLength: 0)
 
             VStack(spacing: Space.m) {
                 Text(f.title)
