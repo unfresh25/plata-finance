@@ -241,14 +241,12 @@ struct ChatView: View {
                 .onSubmit(sendDraft)
 
             Button(action: sendDraft) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Palette.onAccent)
-                    .frame(width: 40, height: 40)
-                    .background(canSend ? Palette.accent : Palette.accent.opacity(0.4), in: Circle())
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32, weight: .regular))
+                    .foregroundStyle(canSend ? Palette.accent : Palette.inkTertiary)
             }
             .disabled(!canSend)
-            .pressable()
+            .pressable(scale: 0.9)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.s)

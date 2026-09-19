@@ -431,12 +431,9 @@ private struct CalendarMonthHeader: View {
                 .foregroundStyle(Palette.ink)
                 .contentTransition(.numericText())
             Spacer()
-            // Dos botones glass juntos → GlassGroup los fusiona (morphing en iOS 26).
-            GlassGroup(spacing: Space.s) {
-                HStack(spacing: Space.s) {
-                    CalendarNavButton(icon: "chevron.left", action: onPrev)
-                    CalendarNavButton(icon: "chevron.right", action: onNext)
-                }
+            HStack(spacing: Space.s) {
+                CalendarNavButton(icon: "chevron.left", action: onPrev)
+                CalendarNavButton(icon: "chevron.right", action: onNext)
             }
         }
     }
@@ -452,10 +449,7 @@ private struct CalendarNavButton: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .frame(width: 36, height: 36)
-                // Botón de chrome flotante → Liquid Glass (cápsula cuadrada = círculo)
-                // con borde luminoso superior tenue.
-                .liquidGlassCapsule(interactive: true)
-                .overlay(Circle().strokeBorder(Palette.stroke.opacity(0.5), lineWidth: 0.5))
+                .contentShape(Rectangle())
         }
         .pressable()
     }

@@ -385,8 +385,6 @@ private struct AddBudgetEmptyState: View {
                 .font(.system(size: 36))
                 .foregroundStyle(Palette.inkTertiary)
                 .frame(width: 84, height: 84)
-                .background(Palette.surface, in: Circle())
-                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
 
             VStack(spacing: Space.xs) {
                 Text("Primero crea categorías de gasto")

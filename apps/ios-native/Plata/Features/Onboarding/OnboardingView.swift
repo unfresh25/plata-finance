@@ -85,16 +85,11 @@ struct OnboardingView: View {
     private func featureSlide(_ f: Feature) -> some View {
         VStack(spacing: Space.l) {
             Spacer()
-            // Ícono grande sobre círculo tenue (acento sutil, no fondo pleno).
-            ZStack {
-                Circle()
-                    .fill(Palette.accent.opacity(0.12))
-                    .frame(width: 128, height: 128)
-                Image(systemName: f.icon)
-                    .font(.system(size: 52, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
-            }
-            .padding(.bottom, Space.l)
+            // Ícono grande plano (sin contenedor), acento de marca.
+            Image(systemName: f.icon)
+                .font(.system(size: 64, weight: .semibold))
+                .foregroundStyle(Palette.accent)
+                .padding(.bottom, Space.l)
 
             Text(f.title)
                 .font(.system(size: 30, weight: .bold))

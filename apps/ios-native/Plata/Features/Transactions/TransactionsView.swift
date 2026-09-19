@@ -252,14 +252,14 @@ private struct TransactionsHeader: View {
                 Spacer(minLength: Space.m)
                 Button(action: onAdd) {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Palette.bg)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Palette.ink)
                         .frame(width: 36, height: 36)
-                        .background(Palette.ink, in: Circle())
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .pressable(scale: 0.94)
-                // Alinea el círculo con la baseline del título grande.
+                // Alinea el ícono con la baseline del título grande.
                 .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] }
             }
 
@@ -460,8 +460,6 @@ private struct TransactionsEmptyState: View {
                 .font(.system(size: 40, weight: .regular))
                 .foregroundStyle(Palette.inkTertiary)
                 .frame(width: 84, height: 84)
-                .background(Palette.surface, in: Circle())
-                .overlay(Circle().strokeBorder(Palette.stroke, lineWidth: 1))
 
             VStack(spacing: Space.xs) {
                 Text("Aún no hay movimientos")

@@ -29,10 +29,7 @@ struct AuthView: View {
 
     var body: some View {
         ZStack {
-            // Fondo aurora violeta (estilo Fuse): se atenúa al escribir para no
-            // competir con el teclado/campos.
-            AuroraBackground(intensity: focused == nil ? 0.32 : 0.12)
-                .animation(.smooth(duration: 0.5), value: focused)
+            Palette.bg.ignoresSafeArea()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
@@ -113,15 +110,9 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                Image("CoinLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                Text("Plata")
-                    .font(Typo.headline)
-                    .foregroundStyle(Palette.ink)
-            }
+            Text("plata.")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(Palette.ink)
             Text(isRegister ? "Crea tu cuenta" : "Hola de nuevo")
                 .font(Typo.title)
                 .tracking(-0.4)

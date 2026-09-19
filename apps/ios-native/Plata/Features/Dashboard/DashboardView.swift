@@ -143,17 +143,13 @@ private struct DashboardHeader: View {
             destination
         } label: {
             Image(systemName: systemName)
-                // Sobre glass el ícono necesita un pelo más de contraste que el gris plano.
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Palette.ink)
-                .frame(width: 40, height: 40)
-                .liquidGlass(cornerRadius: 20, interactive: true)
-                .clipShape(Circle())
-                // Borde superior luminoso: la luz cae sobre el material desde arriba.
-                .overlay(Circle().strokeBorder(DashboardStyle.topEdge, lineWidth: 0.75))
+                .frame(width: 40, height: 40)   // área de toque, sin fondo
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .pressable(scale: 0.96)
+        .pressable(scale: 0.9)
     }
 
     private var todayString: String {
