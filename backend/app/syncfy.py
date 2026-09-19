@@ -82,14 +82,15 @@ async def countries(token: str) -> list:
         return await _get(c, "/catalogues/countries", {"token": token})  # type: ignore[return-value]
 
 
-async def sites(token: str, id_country: str | None = None, is_test: bool = False) -> list:
+async def organizations(token: str, id_country: str | None = None) -> list:
+    """Instituciones agrupadas por organización y FILTRADAS por país (a diferencia
+    de /catalogues/sites, que ignora id_country). Cada org trae avatar/cover y su
+    array `sites` anidado (Personas/Empresas), cada site con sus `credentials`."""
     params: dict = {"token": token}
     if id_country:
         params["id_country"] = id_country
-    if is_test:
-        params["is_test"] = "true"
     async with httpx.AsyncClient(timeout=30.0) as c:
-        return await _get(c, "/catalogues/sites", params)  # type: ignore[return-value]
+        return await _get(c, "/catalogues/organizations/sites", params)  # type: ignore[return-value]
 
 
 # ─── Credenciales / jobs / accounts / transactions (token) ───────────────────

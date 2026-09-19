@@ -11,6 +11,16 @@ struct BankCountry: Decodable, Identifiable, Hashable {
     let name: String
     let code: String
     var id: String { id_country }
+
+    /// Bandera emoji desde el código ISO (regional indicator symbols).
+    var flag: String {
+        let base: UInt32 = 0x1F1E6
+        var s = ""
+        for scalar in code.uppercased().unicodeScalars where scalar.value >= 65 && scalar.value <= 90 {
+            if let u = Unicode.Scalar(base + scalar.value - 65) { s.unicodeScalars.append(u) }
+        }
+        return s.isEmpty ? "🏳️" : s
+    }
 }
 
 /// Campo dinámico de credencial o de TWOFA que Syncfy define por site.
@@ -31,9 +41,20 @@ struct BankSite: Decodable, Identifiable, Hashable {
     let id_site: String
     let id_site_organization: String?
     let name: String
-    let endpoint: String
+    let endpoint: String?
     let credentials: [BankField]?
     var id: String { id_site }
+    // El endpoint anidado a veces no viene; por defecto el estándar.
+    var resolvedEndpoint: String { endpoint ?? "/v1/credentials/pulls" }
+}
+
+/// Institución (banco) agrupada, con logo y sus sites (Personas/Empresas).
+struct BankOrganization: Decodable, Identifiable, Hashable {
+    let id_site_organization: String
+    let name: String
+    let avatar: String?
+    let sites: [BankSite]?
+    var id: String { id_site_organization }
 }
 
 // Conexión y cuentas ya persistidas (desde nuestra BD).
@@ -94,16 +115,15 @@ enum BankService {
         return try JSONDecoder().decode(CountriesBody.self, from: data).countries
     }
 
-    static func sites(token: String, countryId: String, isTest: Bool) async throws -> [BankSite] {
-        var path = "bank/sites?token=\(token.urlEncoded)&id_country=\(countryId.urlEncoded)"
-        if isTest { path += "&is_test=true" }
+    static func organizations(token: String, countryId: String) async throws -> [BankOrganization] {
+        let path = "bank/organizations?token=\(token.urlEncoded)&id_country=\(countryId.urlEncoded)"
         let data = try await request(path)
-        return try JSONDecoder().decode(SitesBody.self, from: data).sites
+        return try JSONDecoder().decode(OrgsBody.self, from: data).organizations
     }
 
-    static func connect(token: String, site: BankSite, credentials: [String: String]) async throws -> BankConnectResult {
-        let body = ConnectBody(token: token, endpoint: site.endpoint, id_site: site.id_site,
-                               institution: site.name, credentials: credentials)
+    static func connect(token: String, site: BankSite, institution: String, credentials: [String: String]) async throws -> BankConnectResult {
+        let body = ConnectBody(token: token, endpoint: site.resolvedEndpoint, id_site: site.id_site,
+                               institution: institution, credentials: credentials)
         let data = try await request("bank/connect", method: "POST", body: body)
         return try JSONDecoder().decode(BankConnectResult.self, from: data)
     }
@@ -144,7 +164,7 @@ enum BankService {
     }
     private struct TwofaBody: Encodable { let token: String; let id_job: String; let answers: [String: String] }
     private struct CountriesBody: Decodable { let countries: [BankCountry] }
-    private struct SitesBody: Decodable { let sites: [BankSite] }
+    private struct OrgsBody: Decodable { let organizations: [BankOrganization] }
     private struct ErrorBody: Decodable { let detail: String? }
 }
 
