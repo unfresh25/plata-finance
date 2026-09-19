@@ -56,7 +56,7 @@ struct OnboardingView: View {
             HStack(spacing: 8) {
                 ForEach(features.indices, id: \.self) { i in
                     Capsule()
-                        .fill(i == page ? Palette.accent : Palette.stroke)
+                        .fill(i == page ? Palette.accent : Color(white: 0.85))
                         .frame(width: i == page ? 22 : 7, height: 7)
                         .animation(Motion.ui, value: page)
                 }
@@ -65,46 +65,55 @@ struct OnboardingView: View {
 
             // CTA fijo abajo.
             VStack(spacing: Space.m) {
-                PrimaryButton(title: page == features.count - 1 ? "Empezar" : "Siguiente",
-                              icon: page == features.count - 1 ? "arrow.right" : nil) {
-                    advance()
+                Button(action: advance) {
+                    Text(page == features.count - 1 ? "Empezar" : "Siguiente")
+                        .font(Typo.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.l)
+                        .background(Color.black, in: Capsule())
                 }
+                .buttonStyle(.plain)
+                .pressable()
+
                 Button(action: start) {
                     Text(page == features.count - 1 ? "Gratis para ti y tu pareja" : "Saltar")
                         .font(Typo.caption)
-                        .foregroundStyle(Palette.inkTertiary)
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, Space.xl)
             .padding(.bottom, Space.xxl)
         }
-        .background(Palette.bg.ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
     }
 
     private func featureSlide(_ f: Feature) -> some View {
-        VStack(spacing: Space.l) {
-            Spacer()
-            // Ilustración de marca del feature.
+        VStack(spacing: 0) {
+            // Ilustración grande, protagonista (ocupa la mitad superior).
             Image(f.image)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 220, height: 220)
-                .padding(.bottom, Space.l)
-
-            Text(f.title)
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Palette.ink)
-                .multilineTextAlignment(.center)
-
-            Text(f.subtitle)
-                .font(Typo.body)
-                .foregroundStyle(Palette.inkSecondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
                 .padding(.horizontal, Space.xl)
-            Spacer()
-            Spacer()
+                .padding(.top, Space.xl)
+
+            VStack(spacing: Space.m) {
+                Text(f.title)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(Color(white: 0.08))
+                    .multilineTextAlignment(.center)
+
+                Text(f.subtitle)
+                    .font(Typo.body)
+                    .foregroundStyle(Color(white: 0.45))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Space.xl)
+            }
+            .padding(.bottom, Space.xl)
         }
         .padding(.horizontal, Space.l)
     }
