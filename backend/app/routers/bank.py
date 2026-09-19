@@ -196,6 +196,22 @@ async def bank_twofa(body: TwofaRequest, user=Depends(get_current_user)):
 
 # ─── Fase 3: sync (accounts + transactions) + listar desde la BD ─────────────
 
+# id_account_type de Syncfy → etiqueta legible en español.
+ACCOUNT_TYPES = {
+    "520d3aa93b8e778e0d000000": "Cuenta corriente",
+    "520d3aa93b8e778e0d000001": "Cuenta de ahorros",
+    "520d3aa93b8e778e0d000002": "Tarjeta de crédito",
+    "520d3aa93b8e778e0d000003": "Línea de crédito",
+    "520d3aa93b8e778e0d000004": "Inversión",
+    "520d3aa93b8e778e0d000005": "Hipoteca",
+    "520d3aa93b8e778e0d000006": "Préstamo",
+    "5286609bc6901663398b4567": "Billetera digital",
+    "630e299a8e42a41772401501": "Débito prepago",
+    "621a31a8056ae781e689aede": "Corretaje",
+    "5b21a816056f291e260c0730": "Blockchain",
+}
+
+
 def _iso(ts) -> str | None:
     """UNIX (segundos) → ISO8601, o None."""
     from datetime import datetime, timezone
@@ -223,7 +239,8 @@ async def _sync_credential(token: str, household_id: str, connection_id: str, id
             "household_id": household_id,
             "provider_account_id": prov_id,
             "name": a.get("name") or "Cuenta",
-            "type": (a.get("site") or {}).get("name"),
+            "type": ACCOUNT_TYPES.get(a.get("id_account_type"), "Cuenta"),
+            "number": a.get("number"),
             "balance": a.get("balance") or 0,
             "currency": a.get("currency"),
             "last_synced_at": _iso(a.get("dt_refresh")),

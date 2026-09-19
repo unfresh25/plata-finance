@@ -61,43 +61,71 @@ struct BankConnectionsView: View {
 
     private func connectionCard(_ conn: BankConnection) -> some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            // Una tarjeta por cuenta del banco.
+            ForEach(conn.accounts ?? []) { acc in
+                bankCard(conn: conn, acc: acc)
+            }
+            if (conn.accounts ?? []).isEmpty {
+                // Conexión sin cuentas aún (p. ej. syncing / error).
+                HStack {
                     Text(conn.institution).font(Typo.headline).foregroundStyle(Palette.ink)
+                    Spacer()
                     Text(statusLine(conn)).font(Typo.caption).foregroundStyle(statusColor(conn))
                 }
+                .padding(Space.l)
+                .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
+            }
+
+            // Estado + acciones de la conexión.
+            HStack(spacing: Space.s) {
+                Text(statusLine(conn)).font(Typo.caption).foregroundStyle(statusColor(conn))
                 Spacer()
                 if busyCredential == conn.provider_credential_id {
                     ProgressView().controlSize(.small).tint(Palette.accent)
-                }
-            }
-
-            ForEach(conn.accounts ?? []) { acc in
-                HStack {
-                    Text(acc.name).font(Typo.callout).foregroundStyle(Palette.ink)
-                    Spacer()
-                    Text(CurrencyFormatter.string(acc.balance, currency: acc.currency ?? app.currency))
-                        .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.ink)
-                }
-                .padding(.vertical, Space.xs)
-            }
-
-            HStack(spacing: Space.s) {
-                if conn.status == "requires_reauth" {
+                } else if conn.status == "requires_reauth" {
                     actionButton("Reconectar", icon: "arrow.clockwise.circle") { reconnectTarget = conn }
+                    actionButton("Quitar", icon: "trash", destructive: true) { Task { await disconnect(conn) } }
                 } else {
-                    actionButton("Actualizar", icon: "arrow.clockwise") {
-                        Task { await refresh(conn) }
-                    }
-                }
-                actionButton("Desconectar", icon: "trash", destructive: true) {
-                    Task { await disconnect(conn) }
+                    actionButton("Actualizar", icon: "arrow.clockwise") { Task { await refresh(conn) } }
+                    actionButton("Quitar", icon: "trash", destructive: true) { Task { await disconnect(conn) } }
                 }
             }
+            .padding(.horizontal, Space.xs)
+        }
+    }
+
+    /// Tarjeta bancaria estilo tarjeta física: gradiente, banco, tipo + número
+    /// enmascarado y saldo grande.
+    private func bankCard(conn: BankConnection, acc: BankAccountRow) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack {
+                Image(systemName: "building.columns.fill")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
+                Text(conn.institution).font(Typo.subhead.weight(.semibold)).foregroundStyle(.white)
+                Spacer()
+                Text(acc.type ?? "Cuenta")
+                    .font(Typo.caption.weight(.medium)).foregroundStyle(.white.opacity(0.85))
+                    .padding(.vertical, 4).padding(.horizontal, Space.s)
+                    .background(.white.opacity(0.18), in: Capsule())
+            }
+            Spacer(minLength: Space.l)
+            if let masked = acc.maskedNumber {
+                Text(masked).font(.system(size: 15, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.9)).tracking(1)
+            }
+            Text(CurrencyFormatter.string(acc.balance, currency: acc.currency ?? app.currency))
+                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
         }
         .padding(Space.l)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        .background(
+            LinearGradient(colors: [Color(red: 0.42, green: 0.34, blue: 0.9),
+                                    Color(red: 0.30, green: 0.24, blue: 0.7)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
     }
 
     private func actionButton(_ title: String, icon: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
