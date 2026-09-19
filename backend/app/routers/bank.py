@@ -33,6 +33,26 @@ class SessionResponse(BaseModel):
     syncfy_user_id: str
 
 
+@router.get("/diag")
+async def bank_diag():
+    """Diagnóstico temporal (sin auth): reporta config y conexión a la BD sin
+    exponer secretos. Quitar tras validar."""
+    import os
+    out = {
+        "has_syncfy_key": bool(os.environ.get("SYNCFY_API_KEY")),
+        "has_supabase_url": bool(os.environ.get("SUPABASE_URL")),
+        "has_service_role": bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY")),
+    }
+    try:
+        supa = db()
+        supa.table("profiles").select("id").limit(1).execute()
+        out["db_ok"] = True
+    except Exception as e:
+        out["db_ok"] = False
+        out["db_error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return out
+
+
 async def _ensure_syncfy_user(user_id: str, email: str | None) -> str:
     """Devuelve el id_user de Syncfy del usuario, creándolo la primera vez y
     guardándolo en profiles.syncfy_user_id."""
