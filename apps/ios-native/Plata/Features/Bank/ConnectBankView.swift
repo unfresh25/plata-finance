@@ -395,14 +395,28 @@ struct ConnectBankView: View {
                     step = .done; return
                 case 410:
                     twofaFields = status.twofa ?? []; step = .twofa; return
-                case 401:
-                    errorMessage = "Credenciales inválidas."; step = .failed; return
-                default: break
+                case .some(let c) where (100...199).contains(c):
+                    break   // en proceso (100/101/102) → seguir polleando
+                case .some(let c):
+                    // Cualquier otro (401 credenciales, 4xx, 5xx como 509) = fallo.
+                    errorMessage = Self.jobErrorMessage(c); step = .failed; return
+                case .none:
+                    break
                 }
             } catch { errorMessage = error.localizedDescription; step = .failed; return }
             try? await Task.sleep(nanoseconds: 2_000_000_000)
         }
         errorMessage = "La conexión tardó demasiado. Inténtalo de nuevo."; step = .failed
+    }
+
+    /// Mensaje según el código de estado del job de Syncfy.
+    private static func jobErrorMessage(_ code: Int) -> String {
+        switch code {
+        case 401: return "Credenciales inválidas. Revisa usuario y clave."
+        case 402, 403: return "El banco rechazó el acceso. Verifica tus datos."
+        case 509: return "El banco está procesando otra conexión. Espera unos minutos e inténtalo de nuevo."
+        default: return "El banco no permitió la conexión (código \(code)). Inténtalo más tarde."
+        }
     }
 
     private var errorBinding: Binding<Bool> {
