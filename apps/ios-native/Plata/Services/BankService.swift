@@ -85,8 +85,25 @@ struct BankJobStatus: Decodable { let code: Int?; let twofa: [BankField]? }
 
 enum BankService {
     private static func request(_ path: String, method: String = "GET", body: Encodable? = nil) async throws -> Data {
-        // path puede llevar query ("bank/countries?token=..."). appendingPathComponent
-        // escapa el '?'/'=' y rompe la ruta, así que se construye la URL a mano.
+        var bodyData: Data?
+        if let body { bodyData = try JSONEncoder().encode(AnyEncodable(body)) }
+
+        var (data, http) = try await send(path, method: method, body: bodyData)
+        // JWT de Supabase expirado: refrescar una vez y reintentar (como SupabaseClient).
+        if http.statusCode == 401, SupabaseClient.shared.accessToken != nil {
+            if await SupabaseClient.shared.refreshSessionIfPossible() {
+                (data, http) = try await send(path, method: method, body: bodyData)
+            }
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let detail = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.detail
+            throw SupabaseError(message: detail ?? "No se pudo contactar el servicio bancario.")
+        }
+        return data
+    }
+
+    private static func send(_ path: String, method: String, body: Data?) async throws -> (Data, HTTPURLResponse) {
+        // path puede llevar query; se construye la URL a mano para no escapar el '?'.
         let base = SupabaseConfig.apiURL.absoluteString
         guard let url = URL(string: base + (base.hasSuffix("/") ? "" : "/") + path) else {
             throw SupabaseError(message: "URL inválida.")
@@ -95,13 +112,12 @@ enum BankService {
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(SupabaseClient.shared.accessToken ?? "")", forHTTPHeaderField: "Authorization")
-        if let body { req.httpBody = try JSONEncoder().encode(AnyEncodable(body)) }
+        req.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let detail = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.detail
-            throw SupabaseError(message: detail ?? "No se pudo contactar el servicio bancario.")
+        guard let http = response as? HTTPURLResponse else {
+            throw SupabaseError(message: "Respuesta inválida del servidor.")
         }
-        return data
+        return (data, http)
     }
 
     /// Crea/reutiliza el usuario Syncfy y devuelve un token temporal.
