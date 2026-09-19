@@ -72,9 +72,19 @@ struct BankAccountRow: Decodable, Identifiable, Hashable {
     let id: String
     let name: String
     let type: String?
+    let number: String?
     let balance: Double
     let currency: String?
     let last_synced_at: String?
+
+    /// Número enmascarado para mostrar (últimos 4). El número ya suele venir
+    /// parcial; si trae dígitos, muestra •••• 1234.
+    var maskedNumber: String? {
+        guard let n = number, !n.isEmpty else { return nil }
+        let digits = n.filter(\.isNumber)
+        guard digits.count >= 4 else { return n }
+        return "•••• " + String(digits.suffix(4))
+    }
 }
 
 struct BankSession: Decodable { let token: String; let syncfy_user_id: String }
