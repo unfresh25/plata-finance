@@ -13,19 +13,19 @@ struct OnboardingView: View {
 
     private struct Feature: Identifiable {
         let id = UUID()
-        let icon: String
+        let image: String
         let title: String
         let subtitle: String
     }
 
     private let features: [Feature] = [
-        .init(icon: "mic.fill",
+        .init(image: "Onb_voz",
               title: "Registra por voz",
               subtitle: "Di “gasté 20 mil en el mercado” y listo. La app entiende y lo anota por ti."),
-        .init(icon: "sparkles",
+        .init(image: "Onb_asistente",
               title: "Tu asistente de plata",
               subtitle: "Pregúntale en qué gastan más, cómo van con las metas o pídele un consejo."),
-        .init(icon: "heart.fill",
+        .init(image: "Onb_pareja",
               title: "En pareja, sin peleas",
               subtitle: "Ahorren, gasten y planeen juntos, con todo claro para los dos."),
     ]
@@ -85,10 +85,11 @@ struct OnboardingView: View {
     private func featureSlide(_ f: Feature) -> some View {
         VStack(spacing: Space.l) {
             Spacer()
-            // Ícono grande plano (sin contenedor), acento de marca.
-            Image(systemName: f.icon)
-                .font(.system(size: 64, weight: .semibold))
-                .foregroundStyle(Palette.accent)
+            // Ilustración de marca del feature.
+            Image(f.image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 220, height: 220)
                 .padding(.bottom, Space.l)
 
             Text(f.title)
