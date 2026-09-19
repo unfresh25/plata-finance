@@ -95,9 +95,16 @@ async def sites(token: str, id_country: str | None = None, is_test: bool = False
 # ─── Credenciales / jobs / accounts / transactions (token) ───────────────────
 
 async def create_credential(token: str, endpoint: str, id_site: str, credentials: dict) -> dict:
-    """Crea (o actualiza/re-sync) una credencial. `endpoint` viene del site."""
+    """Crea (o actualiza/re-sync) una credencial. `endpoint` viene del site (ej.
+    '/v1/credentials/pulls'). BASE ya incluye '/v1', así que se quita ese prefijo
+    para no duplicarlo (…/v1/v1/… daría 404)."""
+    path = endpoint
+    if path.startswith("/v1/"):
+        path = path[3:]          # '/v1/credentials/pulls' -> '/credentials/pulls'
+    elif not path.startswith("/"):
+        path = "/" + path
     async with httpx.AsyncClient(timeout=45.0) as c:
-        return await _post(c, endpoint, {  # type: ignore[return-value]
+        return await _post(c, path, {  # type: ignore[return-value]
             "token": token, "id_site": id_site, "credentials": credentials,
         })
 
