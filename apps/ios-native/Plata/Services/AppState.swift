@@ -216,29 +216,10 @@ final class AppState {
         async let lists = repo.fetchShoppingLists(household: hh)
         async let recurring = repo.fetchRecurring(household: hh)
         async let members = repo.fetchMembers(household: hh)
-        var accs = (try? await accounts) ?? []
-        // Cuentas bancarias conectadas (Syncfy): se muestran junto a las manuales
-        // en Home/Cuentas. Vienen de bank_accounts vía el backend (nuestra BD).
-        if let bank = try? await BankService.connections() {
-            let synced: [Account] = bank.flatMap { conn in
-                (conn.accounts ?? []).map { a in
-                    Account(
-                        id: "bank_\(a.id)",
-                        householdId: hh,
-                        ownerId: "",
-                        name: a.name,
-                        type: .savings,
-                        balance: a.balance,
-                        currency: a.currency ?? currency,
-                        color: "#7C6BFF",
-                        icon: "building.columns.fill"
-                    )
-                }
-            }
-            accs.append(contentsOf: synced)
-        }
-        self.accounts = accs
+        self.accounts = (try? await accounts) ?? []
         self.transactions = (try? await transactions) ?? []
+        // NOTA: la integración de banca (Syncfy) quedó deshabilitada — ver
+        // BankService/ConnectBankView (código conservado para el futuro).
         self.categories = (try? await categories) ?? []
         self.budgets = (try? await budgets) ?? []
         self.debts = (try? await debts) ?? []
