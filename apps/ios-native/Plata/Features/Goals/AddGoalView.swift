@@ -517,8 +517,6 @@ private struct AddGoalLeadingIcon: View {
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            // Radio 36*0.32 = concéntrico con CategoryIcon(size:36) al intercambiarse.
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11.5, style: .continuous))
     }
 }
 
@@ -646,7 +644,6 @@ private struct AddGoalAccountSheet: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(tint)
                     .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(account.name)
                         .font(Typo.callout)
