@@ -22,8 +22,8 @@ struct ConnectBankView: View {
     @State private var idCredential = ""
     @State private var errorMessage: String?
 
-    // Sandbox mientras no haya bancos reales (Colombia real cambia solo el catálogo).
-    private let useTestSites = true
+    // Producción: bancos reales del catálogo (Bancolombia, Davivienda, etc.).
+    private let useTestSites = false
 
     private enum Step: Equatable {
         case loading, country, site, credentials, connecting, twofa, done, failed
