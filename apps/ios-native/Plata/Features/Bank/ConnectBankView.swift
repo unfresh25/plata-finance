@@ -390,15 +390,15 @@ struct ConnectBankView: View {
             do {
                 let status = try await BankService.jobStatus(token: token, idJob: idJob)
                 switch status.code {
-                case 200:
+                case .some(let c) where (200...299).contains(c):
+                    // 2xx = éxito (200 completo, 202 parcial). Traer datos.
                     try? await BankService.sync(token: token, idCredential: idCredential)
                     step = .done; return
                 case 410:
                     twofaFields = status.twofa ?? []; step = .twofa; return
                 case .some(let c) where (100...199).contains(c):
-                    break   // en proceso (100/101/102) → seguir polleando
+                    break   // en proceso → seguir polleando
                 case .some(let c):
-                    // Cualquier otro (401 credenciales, 4xx, 5xx como 509) = fallo.
                     errorMessage = Self.jobErrorMessage(c); step = .failed; return
                 case .none:
                     break
