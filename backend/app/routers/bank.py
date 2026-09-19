@@ -96,16 +96,16 @@ async def bank_countries(token: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=502, detail=f"Syncfy: {e.message}")
 
 
-@router.get("/sites")
-async def bank_sites(
+@router.get("/organizations")
+async def bank_organizations(
     token: str,
     id_country: str | None = None,
-    is_test: bool = False,
     user=Depends(get_current_user),
 ):
-    """Catálogo de instituciones/sites (con su array de credentials dinámico)."""
+    """Instituciones (bancos) del país, agrupadas por organización con su logo
+    (avatar) y sus sites anidados. Filtra por país de verdad."""
     try:
-        return {"sites": await syncfy.sites(token, id_country=id_country, is_test=is_test)}
+        return {"organizations": await syncfy.organizations(token, id_country=id_country)}
     except syncfy.SyncfyError as e:
         raise HTTPException(status_code=502, detail=f"Syncfy: {e.message}")
 

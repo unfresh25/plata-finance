@@ -1,9 +1,11 @@
 import SwiftUI
 
 // Flujo nativo (headless) para conectar una cuenta bancaria vía Syncfy:
-// país → banco → credenciales (formulario dinámico) → MFA si aplica → conectado.
-// No usa el widget de Syncfy. El formulario se construye desde credentials[] del
-// site. La api_key vive en el backend; aquí solo circula un token temporal.
+// país (buscador + banderas) → banco (organización con logo) → site si tiene
+// varios (Personas/Empresas) → credenciales (formulario dinámico) → MFA si
+// aplica → conectado. No usa el widget de Syncfy. El formulario se construye
+// desde credentials[] del site. La api_key vive en el backend; aquí solo circula
+// un token temporal.
 
 struct ConnectBankView: View {
     @Environment(\.dismiss) private var dismiss
@@ -12,21 +14,20 @@ struct ConnectBankView: View {
     @State private var step: Step = .loading
     @State private var token = ""
     @State private var countries: [BankCountry] = []
-    @State private var sites: [BankSite] = []
+    @State private var orgs: [BankOrganization] = []
     @State private var country: BankCountry?
+    @State private var org: BankOrganization?
     @State private var site: BankSite?
     @State private var credentials: [String: String] = [:]
     @State private var twofaFields: [BankField] = []
     @State private var twofaAnswers: [String: String] = [:]
     @State private var idJob = ""
     @State private var idCredential = ""
+    @State private var query = ""
     @State private var errorMessage: String?
 
-    // Producción: bancos reales del catálogo (Bancolombia, Davivienda, etc.).
-    private let useTestSites = false
-
     private enum Step: Equatable {
-        case loading, country, site, credentials, connecting, twofa, done, failed
+        case loading, country, bank, site, credentials, connecting, twofa, done, failed
     }
 
     var body: some View {
@@ -54,8 +55,8 @@ struct ConnectBankView: View {
     private var navTitle: String {
         switch step {
         case .loading, .country: return "Elige el país"
-        case .site: return "Elige tu banco"
-        case .credentials: return site?.name ?? "Credenciales"
+        case .bank, .site: return "Elige tu banco"
+        case .credentials: return org?.name ?? "Credenciales"
         case .connecting, .twofa: return "Conectando…"
         case .done: return "Conectado"
         case .failed: return "Conexión"
@@ -72,16 +73,11 @@ struct ConnectBankView: View {
                     .font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
             }
         case .country:
-            pickList(countries.map { ($0.id, "\($0.name)") }) { id in
-                country = countries.first { $0.id == id }
-                Task { await loadSites() }
-            }
+            countryList
+        case .bank:
+            bankList
         case .site:
-            pickList(sites.map { ($0.id, $0.name) }) { id in
-                site = sites.first { $0.id == id }
-                credentials = [:]
-                step = .credentials
-            }
+            siteList
         case .credentials:
             credentialsForm
         case .twofa:
@@ -96,24 +92,113 @@ struct ConnectBankView: View {
             resultState(icon: "xmark.circle.fill", tint: Palette.negative,
                         title: "No se pudo conectar",
                         subtitle: errorMessage ?? "Revisa tus datos e inténtalo de nuevo.") {
-                step = .credentials
+                step = credentials.isEmpty ? .country : .credentials
             }
         }
     }
 
-    // MARK: - Listas (país / banco)
+    // MARK: - País (buscador + banderas)
 
-    private func pickList(_ items: [(String, String)], onSelect: @escaping (String) -> Void) -> some View {
+    private var countryList: some View {
+        VStack(spacing: 0) {
+            searchBar(placeholder: "Buscar país")
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredCountries) { c in
+                        Button { pick(country: c) } label: {
+                            HStack(spacing: Space.m) {
+                                Text(c.flag).font(.system(size: 26))
+                                Text(c.name).font(Typo.callout).foregroundStyle(Palette.ink)
+                                Spacer()
+                            }
+                            .padding(.vertical, Space.m)
+                            .contentShape(Rectangle())
+                        }
+                        .pressable()
+                        RowDivider()
+                    }
+                }
+                .padding(.horizontal, Space.l)
+            }
+        }
+    }
+
+    private var filteredCountries: [BankCountry] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        // Colombia primero (mercado principal), luego alfabético.
+        let sorted = countries.sorted {
+            if $0.code == "CO" { return true }
+            if $1.code == "CO" { return false }
+            return $0.name < $1.name
+        }
+        return q.isEmpty ? sorted : sorted.filter { $0.name.lowercased().contains(q) }
+    }
+
+    // MARK: - Banco (organización con logo)
+
+    private var bankList: some View {
+        VStack(spacing: 0) {
+            searchBar(placeholder: "Buscar banco")
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredOrgs) { o in
+                        Button { pick(org: o) } label: {
+                            HStack(spacing: Space.m) {
+                                bankLogo(o)
+                                Text(o.name).font(Typo.callout).foregroundStyle(Palette.ink)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.inkTertiary)
+                            }
+                            .padding(.vertical, Space.m)
+                            .contentShape(Rectangle())
+                        }
+                        .pressable()
+                        RowDivider()
+                    }
+                }
+                .padding(.horizontal, Space.l)
+            }
+        }
+    }
+
+    private var filteredOrgs: [BankOrganization] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let sorted = orgs.sorted { $0.name < $1.name }
+        return q.isEmpty ? sorted : sorted.filter { $0.name.lowercased().contains(q) }
+    }
+
+    @ViewBuilder
+    private func bankLogo(_ o: BankOrganization) -> some View {
+        let url = o.avatar.flatMap { a -> URL? in
+            a.hasPrefix("http") ? URL(string: a) : URL(string: "https://sync.paybook.com\(a)")
+        }
+        if let url {
+            AsyncImage(url: url) { img in
+                img.resizable().scaledToFit()
+            } placeholder: {
+                Color.clear
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            Image(systemName: "building.columns.fill")
+                .foregroundStyle(Palette.accent).frame(width: 32, height: 32)
+        }
+    }
+
+    // MARK: - Site (Personas/Empresas)
+
+    private var siteList: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                ForEach(items, id: \.0) { item in
-                    Button { onSelect(item.0) } label: {
+            LazyVStack(spacing: 0) {
+                ForEach(org?.sites ?? []) { s in
+                    Button { pick(site: s) } label: {
                         HStack {
-                            Text(item.1).font(Typo.callout).foregroundStyle(Palette.ink)
+                            Text(s.name).font(Typo.callout).foregroundStyle(Palette.ink)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Palette.inkTertiary)
+                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.inkTertiary)
                         }
                         .padding(.vertical, Space.m)
                         .contentShape(Rectangle())
@@ -126,6 +211,19 @@ struct ConnectBankView: View {
         }
     }
 
+    private func searchBar(placeholder: String) -> some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Palette.inkTertiary)
+            TextField(placeholder, text: $query)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .foregroundStyle(Palette.ink)
+        }
+        .padding(Space.m)
+        .background(Palette.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Palette.stroke, lineWidth: 1))
+        .padding(.horizontal, Space.l).padding(.top, Space.s).padding(.bottom, Space.m)
+    }
+
     // MARK: - Formulario dinámico de credenciales
 
     private var credentialsForm: some View {
@@ -134,19 +232,13 @@ struct ConnectBankView: View {
                 Text("Introduce tus datos de acceso. Nunca guardamos tus credenciales; se envían cifradas al banco.")
                     .font(Typo.caption).foregroundStyle(Palette.inkTertiary)
                     .fixedSize(horizontal: false, vertical: true)
-
                 ForEach(site?.credentials ?? [], id: \.name) { field in
                     dynamicField(field, binding: Binding(
                         get: { credentials[field.name] ?? "" },
-                        set: { credentials[field.name] = $0 }
-                    ))
+                        set: { credentials[field.name] = $0 }))
                 }
-
-                PrimaryButton(title: "Conectar", icon: "link") {
-                    Task { await connect() }
-                }
-                .disabled(!credentialsComplete)
-                .opacity(credentialsComplete ? 1 : 0.5)
+                PrimaryButton(title: "Conectar", icon: "link") { Task { await connect() } }
+                    .disabled(!credentialsComplete).opacity(credentialsComplete ? 1 : 0.5)
             }
             .padding(Space.l)
         }
@@ -160,19 +252,15 @@ struct ConnectBankView: View {
                 ForEach(twofaFields, id: \.name) { field in
                     dynamicField(field, binding: Binding(
                         get: { twofaAnswers[field.name] ?? "" },
-                        set: { twofaAnswers[field.name] = $0 }
-                    ))
+                        set: { twofaAnswers[field.name] = $0 }))
                 }
-                PrimaryButton(title: "Enviar", icon: "checkmark") {
-                    Task { await submitTwofa() }
-                }
-                .disabled(twofaAnswers.values.allSatisfy { $0.isEmpty })
+                PrimaryButton(title: "Enviar", icon: "checkmark") { Task { await submitTwofa() } }
+                    .disabled(twofaAnswers.values.allSatisfy { $0.isEmpty })
             }
             .padding(Space.l)
         }
     }
 
-    /// Renderiza un campo según su tipo (text / password / select).
     @ViewBuilder
     private func dynamicField(_ field: BankField, binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
@@ -198,11 +286,9 @@ struct ConnectBankView: View {
                     .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
                 }
-            default: // text y otros
+            default:
                 fieldBox {
-                    TextField("", text: binding)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    TextField("", text: binding).textInputAutocapitalization(.never).autocorrectionDisabled()
                 }
             }
         }
@@ -227,7 +313,7 @@ struct ConnectBankView: View {
         return true
     }
 
-    // MARK: - Estado de resultado
+    // MARK: - Resultado
 
     private func resultState(icon: String, tint: Color, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
         VStack(spacing: Space.l) {
@@ -241,6 +327,24 @@ struct ConnectBankView: View {
         .padding(Space.xl)
     }
 
+    // MARK: - Navegación de pasos
+
+    private func pick(country c: BankCountry) {
+        country = c; query = ""
+        Task { await loadOrgs() }
+    }
+
+    private func pick(org o: BankOrganization) {
+        org = o; query = ""
+        let s = o.sites ?? []
+        if s.count == 1 { site = s[0]; credentials = [:]; step = .credentials }
+        else { step = .site }
+    }
+
+    private func pick(site s: BankSite) {
+        site = s; credentials = [:]; step = .credentials
+    }
+
     // MARK: - Lógica
 
     private func startSession() async {
@@ -249,33 +353,27 @@ struct ConnectBankView: View {
             token = s.token
             countries = try await BankService.countries(token: token)
             step = .country
-        } catch {
-            errorMessage = error.localizedDescription; step = .failed
-        }
+        } catch { errorMessage = error.localizedDescription; step = .failed }
     }
 
-    private func loadSites() async {
+    private func loadOrgs() async {
         guard let c = country else { return }
         step = .loading
         do {
-            sites = try await BankService.sites(token: token, countryId: c.id, isTest: useTestSites)
-            step = .site
-        } catch {
-            errorMessage = error.localizedDescription; step = .failed
-        }
+            orgs = try await BankService.organizations(token: token, countryId: c.id)
+            step = .bank
+        } catch { errorMessage = error.localizedDescription; step = .failed }
     }
 
     private func connect() async {
         guard let s = site else { return }
         step = .connecting
         do {
-            let r = try await BankService.connect(token: token, site: s, credentials: credentials)
-            idJob = r.id_job
-            idCredential = r.id_credential
+            let r = try await BankService.connect(token: token, site: s,
+                                                  institution: org?.name ?? s.name, credentials: credentials)
+            idJob = r.id_job; idCredential = r.id_credential
             await pollJob()
-        } catch {
-            errorMessage = error.localizedDescription; step = .failed
-        }
+        } catch { errorMessage = error.localizedDescription; step = .failed }
     }
 
     private func submitTwofa() async {
@@ -284,32 +382,24 @@ struct ConnectBankView: View {
             try await BankService.answerTwofa(token: token, idJob: idJob, answers: twofaAnswers)
             twofaAnswers = [:]
             await pollJob()
-        } catch {
-            errorMessage = error.localizedDescription; step = .failed
-        }
+        } catch { errorMessage = error.localizedDescription; step = .failed }
     }
 
-    /// Poll suave del job hasta éxito (200), MFA (410) o error (401/otro).
     private func pollJob() async {
-        for _ in 0..<40 {   // ~40 intentos * 2s = 80s máx
+        for _ in 0..<40 {
             do {
                 let status = try await BankService.jobStatus(token: token, idJob: idJob)
                 switch status.code {
                 case 200:
-                    // Conectado: traer y persistir cuentas + movimientos.
                     try? await BankService.sync(token: token, idCredential: idCredential)
                     step = .done; return
                 case 410:
-                    twofaFields = status.twofa ?? []
-                    step = .twofa; return
+                    twofaFields = status.twofa ?? []; step = .twofa; return
                 case 401:
                     errorMessage = "Credenciales inválidas."; step = .failed; return
-                default:
-                    break   // 100/101/102 en proceso → seguir
+                default: break
                 }
-            } catch {
-                errorMessage = error.localizedDescription; step = .failed; return
-            }
+            } catch { errorMessage = error.localizedDescription; step = .failed; return }
             try? await Task.sleep(nanoseconds: 2_000_000_000)
         }
         errorMessage = "La conexión tardó demasiado. Inténtalo de nuevo."; step = .failed
