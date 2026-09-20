@@ -29,23 +29,38 @@ KAPSO_API = "https://api.kapso.ai/meta/whatsapp/v24.0"
 
 def _verify_signature(raw: bytes, signature: str | None) -> bool:
     secret = os.environ.get("KAPSO_WEBHOOK_SECRET", "")
-    if not secret or not signature:
+    # Si no hay secret configurado, no bloquear (permite arrancar sin firma).
+    if not secret:
+        print("[whatsapp] WARNING: KAPSO_WEBHOOK_SECRET no configurado; se omite verificación")
+        return True
+    if not signature:
+        print("[whatsapp] sin header de firma")
         return False
+    sig = signature.split("=", 1)[-1].strip()   # tolera prefijo 'sha256='
     expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    ok = hmac.compare_digest(expected, sig)
+    if not ok:
+        print(f"[whatsapp] firma no coincide (recibida {sig[:12]}…, esperada {expected[:12]}…)")
+    return ok
 
 
 async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
     api_key = os.environ.get("KAPSO_API_KEY", "")
     if not api_key:
+        print("[whatsapp] KAPSO_API_KEY no configurado; no se puede responder")
+        return
+    if not phone_number_id:
+        print("[whatsapp] phone_number_id vacío; no se puede responder")
         return
     url = f"{KAPSO_API}/{phone_number_id}/messages"
     body = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text}}
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            await client.post(url, headers={"X-API-Key": api_key, "Content-Type": "application/json"}, json=body)
-    except httpx.RequestError:
-        pass
+            r = await client.post(url, headers={"X-API-Key": api_key, "Content-Type": "application/json"}, json=body)
+            if r.status_code >= 300:
+                print(f"[whatsapp] envío falló {r.status_code}: {r.text[:200]}")
+    except httpx.RequestError as e:
+        print(f"[whatsapp] error de red al responder: {e}")
 
 
 def _digits(phone: str) -> str:
