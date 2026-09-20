@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 from app.db import db
 from app.routers.parse import ParseRequest, CategoryRef, AccountRef, parse_text_to_fields
 from app.routers.chat import ChatMessage, chat_reply
+from app.routers.ocr import scan_receipt_b64
 
 router = APIRouter()
 
@@ -144,11 +145,25 @@ async def whatsapp_webhook(request: Request):
             "Hola 👋 Para conectar tu WhatsApp con Plata, abre la app → Ajustes → Conectar WhatsApp y envíame el código que aparece.")
         return {"ok": True}
 
+    hh = linked["household_id"]
+
+    # Foto de recibo: descarga la imagen de Kapso y la pasa por OCR.
+    if mtype == "image":
+        media_url = kapso.get("media_url") or (kapso.get("media_data") or {}).get("url")
+        if media_url:
+            ocr = await _ocr_from_url(media_url)
+            if ocr and ocr.amount:
+                await _register_expense(supa, hh, linked["user_id"], phone_number_id, sender,
+                                        amount=ocr.amount, description=ocr.description or "Recibo",
+                                        date=ocr.date, category_id=None)
+                return {"ok": True}
+        await _send_whatsapp(phone_number_id, sender,
+            "No pude leer el recibo 🧾 Prueba con más luz, o escríbeme el gasto (ej: “mercado 80 mil”).")
+        return {"ok": True}
+
     if not text:
         await _send_whatsapp(phone_number_id, sender, "Mándame el gasto por texto o nota de voz, ej: “taxi 12 mil”.")
         return {"ok": True}
-
-    hh = linked["household_id"]
 
     # ¿Es una consulta/pregunta o un registro de gasto? Si es pregunta, responde
     # con el asistente (mismo cerebro que el chat de la app).
@@ -177,25 +192,53 @@ async def whatsapp_webhook(request: Request):
         await _send_whatsapp(phone_number_id, sender, "No entendí el monto 🤔 Prueba con algo como “mercado 80 mil”.")
         return {"ok": True}
 
-    account_id = parsed.account_id or accs[0]["id"]
-    supa.table("transactions").insert({
-        "account_id": account_id, "household_id": hh, "created_by": linked["user_id"],
-        "amount": parsed.amount, "type": parsed.type or "expense",
-        "category_id": parsed.category_id, "description": parsed.description,
-        "date": parsed.date, "split_mode": "shared",
-    }).execute()
-    # Ajuste de saldo con UPDATE directo (service_role): el RPC apply_account_delta
-    # depende de auth.uid() y no aplica desde el backend.
-    if (parsed.type or "expense") != "transfer":
-        delta = parsed.amount if parsed.type == "income" else -parsed.amount
-        acc = supa.table("accounts").select("balance").eq("id", account_id).limit(1).execute()
-        current = float((acc.data or [{}])[0].get("balance") or 0)
-        supa.table("accounts").update({"balance": current + delta}).eq("id", account_id).execute()
-
-    signo = "+" if parsed.type == "income" else "-"
-    await _send_whatsapp(phone_number_id, sender,
-        f"✅ Registrado: {parsed.description or 'movimiento'} {signo}${int(parsed.amount):,}".replace(",", "."))
+    await _register_expense(supa, hh, linked["user_id"], phone_number_id, sender,
+                            amount=parsed.amount, description=parsed.description,
+                            date=parsed.date, category_id=parsed.category_id,
+                            account_id=parsed.account_id, tx_type=parsed.type or "expense")
     return {"ok": True}
+
+
+async def _register_expense(supa, hh, user_id, phone_number_id, sender, *,
+                            amount, description, date, category_id,
+                            account_id=None, tx_type="expense") -> None:
+    """Inserta la transacción, ajusta el saldo y confirma por WhatsApp."""
+    accs = supa.table("accounts").select("id,balance").eq("household_id", hh).execute().data or []
+    if not accs:
+        await _send_whatsapp(phone_number_id, sender, "No tienes cuentas en Plata todavía. Crea una en la app primero.")
+        return
+    acct = account_id or accs[0]["id"]
+    supa.table("transactions").insert({
+        "account_id": acct, "household_id": hh, "created_by": user_id,
+        "amount": amount, "type": tx_type, "category_id": category_id,
+        "description": description, "date": date, "split_mode": "shared",
+    }).execute()
+    if tx_type != "transfer":
+        delta = amount if tx_type == "income" else -amount
+        current = float(next((float(a.get("balance") or 0) for a in accs if a["id"] == acct), 0))
+        supa.table("accounts").update({"balance": current + delta}).eq("id", acct).execute()
+    signo = "+" if tx_type == "income" else "-"
+    await _send_whatsapp(phone_number_id, sender,
+        f"✅ Registrado: {description or 'movimiento'} {signo}${int(amount):,}".replace(",", "."))
+
+
+async def _ocr_from_url(media_url: str):
+    """Descarga la imagen de Kapso y la pasa por OCR. Devuelve ReceiptResponse o None."""
+    import base64 as _b64
+    api_key = os.environ.get("KAPSO_API_KEY", "")
+    headers = {"X-API-Key": api_key} if api_key else {}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(media_url, headers=headers)
+        if r.status_code != 200:
+            print(f"[whatsapp] descarga de media falló {r.status_code}")
+            return None
+        b64 = _b64.b64encode(r.content).decode()
+        ctype = r.headers.get("content-type", "image/jpeg").split(";")[0]
+        return await scan_receipt_b64(b64, ctype)
+    except Exception as e:
+        print(f"[whatsapp] OCR falló: {e}")
+        return None
 
 
 async def _is_question(text: str) -> bool:
