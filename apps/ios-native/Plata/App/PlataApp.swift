@@ -6,6 +6,8 @@ struct PlataApp: App {
         ? .previewMocked
         : AppState()
     @State private var theme = ThemeManager()
+    @State private var lock = AppLock.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.arguments.contains("-uiPreview")
@@ -13,18 +15,53 @@ struct PlataApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(app)
-                .environment(theme)
-                .preferredColorScheme(theme.colorScheme)
-                .tint(Palette.accent)
-                .task {
-                    if !isPreview {
-                        await app.bootstrap()
-                        await NotificationService.requestAuthorization()
+            ZStack {
+                RootView()
+                    .environment(app)
+                    .environment(theme)
+                    .preferredColorScheme(theme.colorScheme)
+                    .tint(Palette.accent)
+                    .task {
+                        if !isPreview {
+                            await app.bootstrap()
+                            await NotificationService.requestAuthorization()
+                        }
                     }
+
+                // Bloqueo biométrico: tapa todo el contenido hasta autenticar.
+                if lock.locked && !isPreview {
+                    AppLockOverlay(lock: lock)
                 }
+            }
+            .task(id: lock.locked) {
+                if lock.locked && !isPreview { await lock.authenticate() }
+            }
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { lock.lockIfEnabled() }
+        }
+    }
+}
+
+/// Pantalla de bloqueo (biométrico). Cubre todo; botón para reintentar.
+struct AppLockOverlay: View {
+    let lock: AppLock
+
+    var body: some View {
+        ZStack {
+            Palette.bg.ignoresSafeArea()
+            VStack(spacing: Space.l) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(Palette.accent)
+                Text("Plata está bloqueada")
+                    .font(Typo.headline).foregroundStyle(Palette.ink)
+                Button("Desbloquear") { Task { await lock.authenticate() } }
+                    .font(Typo.callout.weight(.semibold))
+                    .foregroundStyle(Palette.accent)
+            }
+        }
+        .transition(.opacity)
     }
 }
 

@@ -46,6 +46,7 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UILaunchScreen:
           UIColorName: LaunchBackground
+        NSFaceIDUsageDescription: "Plata usa Face ID para proteger el acceso a tus finanzas."
         NSCameraUsageDescription: "Plata usa la cámara para escanear recibos y códigos QR de invitación."
         NSPhotoLibraryUsageDescription: "Plata accede a tus fotos para adjuntar recibos."
         NSMicrophoneUsageDescription: "Plata usa el micrófono para registrar movimientos dictándolos por voz."

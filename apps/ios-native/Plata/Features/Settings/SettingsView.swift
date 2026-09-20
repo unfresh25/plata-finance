@@ -511,6 +511,21 @@ private struct SettingsPreferencesSection: View {
                     }
                 }
             }
+
+            faceIDRow
+        }
+    }
+
+    @ViewBuilder private var faceIDRow: some View {
+        let lock = AppLock.shared
+        if lock.biometricsAvailable {
+            RowDivider(leadingInset: 40 + Space.m)
+            SettingsRow(icon: "faceid", tint: Palette.accent, title: "Bloqueo con Face ID") {
+                Toggle("", isOn: Binding(
+                    get: { lock.isEnabled },
+                    set: { lock.isEnabled = $0; lock.locked = false }
+                )).labelsHidden().tint(Palette.accent)
+            }
         }
     }
 }
