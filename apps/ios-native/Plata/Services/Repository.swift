@@ -153,6 +153,16 @@ struct Repository {
     /// la contribución y mover el saldo de la cuenta, actualiza el
     /// `current_amount` de la meta y la marca `completed` si alcanza el objetivo
     /// (esto NO lo hacía antes → el anillo de progreso quedaba congelado).
+    /// Crea (o regenera) un código de vinculación de WhatsApp y lo devuelve.
+    func createWhatsAppCode(userId: String, householdId: String) async throws -> String {
+        let suffix = String((0..<4).map { _ in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".randomElement()! })
+        let code = "PLATA-\(suffix)"
+        struct Insert: Encodable { let code: String; let user_id: String; let household_id: String }
+        let _: [EmptyDecodable] = try await client.insert("whatsapp_link_codes",
+            values: Insert(code: code, user_id: userId, household_id: householdId))
+        return code
+    }
+
     func fetchContributions(goalId: String) async throws -> [GoalContribution] {
         try await client.from("savings_contributions", query: [
             "goal_id": "eq.\(goalId)", "select": "*", "order": "date.desc",
