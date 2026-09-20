@@ -76,9 +76,11 @@ async def whatsapp_webhook(request: Request):
 
     payload = await request.json()
     msg = payload.get("message") or {}
-    phone = _digits(msg.get("from", ""))
-    print(f"[whatsapp] evento: type={msg.get('type')} from={phone} pnid={payload.get('phone_number_id')}")
-    phone_number_id = payload.get("phone_number_id") or (payload.get("conversation") or {}).get("phone_number_id", "")
+    conv = payload.get("conversation") or {}
+    # El número del remitente puede venir en message.from o en conversation.phone_number.
+    phone = _digits(msg.get("from") or conv.get("phone_number") or "")
+    phone_number_id = payload.get("phone_number_id") or conv.get("phone_number_id", "")
+    print(f"[whatsapp] evento type={msg.get('type')} from={phone} pnid={phone_number_id} keys={list(payload.keys())} msgkeys={list(msg.keys())}")
     if not phone:
         return {"ok": True}
 
