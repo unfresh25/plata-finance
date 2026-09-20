@@ -46,22 +46,14 @@ class ReceiptResponse(BaseModel):
     date: str | None = None
 
 
-@router.post("/receipt", response_model=ReceiptResponse)
-async def scan_receipt(
-    body: ReceiptRequest,
-    user=Depends(get_current_user),
-):
-    """
-    Recibe una imagen de recibo (base64) y devuelve los campos extraídos.
-    Requiere un JWT válido de Supabase (cabecera Authorization: Bearer <token>).
-    """
+async def scan_receipt_b64(image_base64: str, mime_type: str = "image/jpeg") -> ReceiptResponse:
+    """Núcleo reutilizable del OCR (usado por /ocr/receipt y el webhook de WhatsApp).
+    image_base64: imagen en base64. Devuelve ReceiptResponse; lanza HTTPException."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="OCR no configurado en el servidor.")
-
-    # Validar que el payload sea base64 decodificable y de tamaño razonable (<8 MB).
     try:
-        raw = base64.b64decode(body.image_base64, validate=True)
+        raw = base64.b64decode(image_base64, validate=True)
     except Exception:
         raise HTTPException(status_code=400, detail="Imagen base64 inválida.")
     if len(raw) > 8 * 1024 * 1024:
@@ -69,12 +61,10 @@ async def scan_receipt(
 
     payload = {
         "contents": [
-            {
-                "parts": [
-                    {"text": PROMPT},
-                    {"inlineData": {"mimeType": body.mime_type, "data": body.image_base64}},
-                ]
-            }
+            {"parts": [
+                {"text": PROMPT},
+                {"inlineData": {"mimeType": mime_type, "data": image_base64}},
+            ]}
         ],
         "generationConfig": {"responseMimeType": "application/json"},
     }
@@ -127,3 +117,10 @@ async def scan_receipt(
         description=parsed.get("description"),
         date=parsed.get("date"),
     )
+
+
+@router.post("/receipt", response_model=ReceiptResponse)
+async def scan_receipt(body: ReceiptRequest, user=Depends(get_current_user)):
+    """Recibe una imagen de recibo (base64) y devuelve los campos extraídos.
+    Requiere JWT válido de Supabase."""
+    return await scan_receipt_b64(body.image_base64, body.mime_type)
