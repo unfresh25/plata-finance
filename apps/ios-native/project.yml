@@ -16,12 +16,19 @@ settings:
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
 
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
 targets:
   Plata:
     type: application
     platform: iOS
     dependencies:
       - target: PlataWidget
+      - package: Supabase
+        product: Realtime
     sources:
       - path: Plata
         # Integración de banca (Syncfy) deshabilitada por ahora; código conservado

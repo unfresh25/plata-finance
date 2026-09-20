@@ -36,6 +36,18 @@ final class AppState {
     var errorMessage: String?
 
     private let repo = Repository()
+    private let realtime = RealtimeService()
+    private var realtimeStarted = false
+
+    /// Suscribe a cambios en tiempo real del hogar → refresca solo. Idempotente.
+    func startRealtime() {
+        guard !realtimeStarted, let hh = household?.id,
+              let token = SupabaseClient.shared.accessToken else { return }
+        realtimeStarted = true
+        realtime.start(householdId: hh, accessToken: token) { [weak self] in
+            Task { await self?.refreshAll() }
+        }
+    }
 
     // MARK: Arranque
 
@@ -265,6 +277,8 @@ final class AppState {
         // Reprograma recordatorios de pagos y revisa alertas de presupuesto.
         await NotificationService.syncReminders(app: self)
         await NotificationService.checkBudgets(app: self)
+        // Suscripción en tiempo real (una vez): cambios del hogar → refresca solo.
+        startRealtime()
     }
 
     // MARK: Derivados para la UI
