@@ -78,6 +78,15 @@ struct MainTabView: View {
                 await app.refreshAll()
             }
         }
+        // Siri Shortcuts / App Intents: ejecuta la acción pendiente al abrir.
+        .onReceive(ShortcutRouter.shared.$pending) { action in
+            switch action {
+            case .dictar: showingVoiceCapture = true
+            case .chat: showingChat = true
+            case .none: break
+            }
+            if action != nil { ShortcutRouter.shared.pending = nil }
+        }
         // Chat IA a pantalla completa, con botón de volver propio.
         .fullScreenCover(isPresented: $showingChat) {
             NavigationStack { ChatView(onClose: { showingChat = false }) }
