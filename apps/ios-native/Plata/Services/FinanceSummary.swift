@@ -112,4 +112,48 @@ extension AppState {
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
     }
+
+    // MARK: - Resumen SEMANAL (para /weekly)
+
+    /// Resumen del gasto de la semana [weekStart, weekEnd] en texto plano.
+    func financeSummaryForWeek(weekStart: String, weekEnd: String) -> String {
+        let cur = currency
+        func money(_ v: Double) -> String { CurrencyFormatter.string(v, currency: cur) }
+        let inRange: (String) -> Bool = { d in
+            let day = String(d.prefix(10))
+            return day >= weekStart && day <= weekEnd
+        }
+        let weekTx = transactions.filter { inRange($0.date) }
+        let ingresos = weekTx.filter { $0.type == .income }.reduce(0) { $0 + $1.amount }
+        let gastos = weekTx.filter { $0.type == .expense }.reduce(0) { $0 + $1.amount }
+
+        var lines: [String] = []
+        lines.append("Semana: \(weekStart) a \(weekEnd)")
+        lines.append("Moneda: \(cur)")
+        lines.append("Ingresos de la semana: \(money(ingresos))")
+        lines.append("Gastos de la semana: \(money(gastos))")
+        lines.append("Movimientos: \(weekTx.count)")
+        lines.append("")
+
+        var byCat: [String: Double] = [:]
+        for t in weekTx where t.type == .expense {
+            byCat[category(for: t.categoryId)?.name ?? "Sin categoría", default: 0] += t.amount
+        }
+        if !byCat.isEmpty {
+            lines.append("GASTO POR CATEGORÍA:")
+            for (name, total) in byCat.sorted(by: { $0.value > $1.value }).prefix(8) {
+                lines.append("- \(name): \(money(total))")
+            }
+            lines.append("")
+        }
+
+        if !budgets.isEmpty {
+            lines.append("PRESUPUESTOS (mensuales, referencia):")
+            for b in budgets {
+                let cat = category(for: b.categoryId)?.name ?? "General"
+                lines.append("- \(cat): límite \(money(b.amount))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
 }
