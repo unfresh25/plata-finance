@@ -157,10 +157,13 @@ async def whatsapp_webhook(request: Request):
         "category_id": parsed.category_id, "description": parsed.description,
         "date": parsed.date, "split_mode": "shared",
     }).execute()
-    # Ajuste de saldo (mismo RPC que la app).
+    # Ajuste de saldo con UPDATE directo (service_role): el RPC apply_account_delta
+    # depende de auth.uid() y no aplica desde el backend.
     if (parsed.type or "expense") != "transfer":
         delta = parsed.amount if parsed.type == "income" else -parsed.amount
-        supa.rpc("apply_account_delta", {"p_account_id": account_id, "p_delta": delta}).execute()
+        acc = supa.table("accounts").select("balance").eq("id", account_id).limit(1).execute()
+        current = float((acc.data or [{}])[0].get("balance") or 0)
+        supa.table("accounts").update({"balance": current + delta}).eq("id", account_id).execute()
 
     signo = "+" if parsed.type == "income" else "-"
     await _send_whatsapp(phone_number_id, sender,
