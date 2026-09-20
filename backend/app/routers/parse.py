@@ -83,6 +83,70 @@ def _build_prompt(body: ParseRequest) -> str:
     )
 
 
+async def parse_text_to_fields(body: ParseRequest) -> ParseResponse:
+    """Núcleo reutilizable: texto → campos del movimiento (usado por /parse y el
+    webhook de WhatsApp). Devuelve ParseResponse; lanza HTTPException en error."""
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No se recibió texto para interpretar.")
+    if len(text) > 2000:
+        raise HTTPException(status_code=413, detail="El texto es demasiado largo.")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="El parseo no está configurado en el servidor.")
+    payload = {
+        "model": ANTHROPIC_MODEL, "max_tokens": 400,
+        "messages": [{"role": "user", "content": _build_prompt(body)}],
+    }
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    resp = None
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for attempt in range(3):
+                resp = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+                if resp.status_code not in (429, 500, 502, 503, 504):
+                    break
+                if attempt < 2:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Error contactando el servicio: {e}")
+    if resp is None or resp.status_code != 200:
+        raise HTTPException(status_code=503, detail="El asistente está ocupado ahora mismo. Inténtalo de nuevo.")
+    data = resp.json()
+    try:
+        raw = data["content"][0]["text"]
+    except (KeyError, IndexError):
+        raise HTTPException(status_code=422, detail="No se pudo interpretar el dictado.")
+    if "```" in raw:
+        raw = raw.replace("```json", "").replace("```", "").strip()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Respuesta no interpretable.")
+    amount = parsed.get("amount")
+    try:
+        amount = float(amount) if amount is not None else None
+    except (TypeError, ValueError):
+        amount = None
+    if amount is not None and amount <= 0:
+        amount = None
+    tx_type = parsed.get("type")
+    if tx_type not in ("income", "expense", "transfer"):
+        tx_type = "expense"
+    valid_cat_ids = {c.id for c in body.categories}
+    valid_acc_ids = {a.id for a in body.accounts}
+    category_id = parsed.get("category_id")
+    account_id = parsed.get("account_id")
+    if category_id not in valid_cat_ids:
+        category_id = None
+    if account_id not in valid_acc_ids:
+        account_id = None
+    return ParseResponse(
+        amount=amount, type=tx_type, description=parsed.get("description"),
+        date=parsed.get("date"), category_id=category_id, account_id=account_id,
+    )
+
+
 @router.post("/transaction", response_model=ParseResponse)
 async def parse_transaction(
     body: ParseRequest,
@@ -92,6 +156,10 @@ async def parse_transaction(
     Recibe el texto dictado + categorías/cuentas del hogar y devuelve los campos
     del movimiento. Requiere JWT válido de Supabase.
     """
+    return await parse_text_to_fields(body)
+
+
+async def _parse_transaction_legacy(body: ParseRequest):
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="No se recibió texto para interpretar.")

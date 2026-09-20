@@ -396,6 +396,21 @@ private struct SettingsManagementSection: View {
             RowDivider(leadingInset: 40 + Space.m)
 
             NavigationLink {
+                WhatsAppConnectView()
+            } label: {
+                SettingsRow(icon: "message.fill", tint: Palette.green,
+                            title: "Conectar WhatsApp") {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable()
+
+            RowDivider(leadingInset: 40 + Space.m)
+
+            NavigationLink {
                 ApplePayGuideView()
             } label: {
                 SettingsRow(icon: "creditcard.fill", tint: Palette.accent,
