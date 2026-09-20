@@ -34,13 +34,8 @@ struct SettingsView: View {
     // QR del código de invitación.
     @State private var showQR = false
 
-    // Monedas soportadas (código ISO + etiqueta amable).
-    private let currencies: [(code: String, label: String)] = [
-        ("COP", "Peso colombiano"),
-        ("USD", "Dólar estadounidense"),
-        ("EUR", "Euro"),
-        ("MXN", "Peso mexicano"),
-    ]
+    // Todas las monedas ISO 4217 con nombre localizado (es), ordenadas.
+    private let currencies: [(code: String, label: String)] = CurrencyCatalog.all
 
     var body: some View {
         @Bindable var app = app
@@ -76,7 +71,7 @@ struct SettingsView: View {
 
                 SettingsPreferencesSection(
                     currencies: currencies,
-                    selectedCurrency: currentCurrencyLabel,
+                    selectedCurrencyCode: app.currency,
                     onSelectCurrency: { code in
                         withAnimation(Motion.value) { app.profile?.currency = code }
                         // Persistir en la BD (antes solo cambiaba en memoria).
@@ -452,37 +447,30 @@ private struct SettingsInviteCodeRow: View {
 
 private struct SettingsPreferencesSection: View {
     let currencies: [(code: String, label: String)]
-    let selectedCurrency: String
+    let selectedCurrencyCode: String
     let onSelectCurrency: (String) -> Void
     @Environment(ThemeManager.self) private var theme
 
     var body: some View {
         PlainSection(title: "Preferencias") {
-            SettingsRow(
-                icon: "dollarsign.circle.fill",
-                tint: Palette.green,
-                title: "Moneda"
-            ) {
-                Menu {
-                    ForEach(currencies, id: \.code) { option in
-                        Button {
-                            onSelectCurrency(option.code)
-                        } label: {
-                            Text("\(option.label) · \(option.code)")
-                        }
-                    }
-                } label: {
+            NavigationLink {
+                CurrencyPickerView(selected: selectedCurrencyCode, onSelect: onSelectCurrency)
+            } label: {
+                SettingsRow(
+                    icon: "dollarsign.circle.fill",
+                    tint: Palette.green,
+                    title: "Moneda"
+                ) {
                     HStack(spacing: Space.xs) {
-                        Text(selectedCurrency)
-                            .font(Typo.callout)
-                            .foregroundStyle(Palette.ink)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Palette.inkTertiary)
+                        Text(selectedCurrencyCode)
+                            .font(Typo.callout).foregroundStyle(Palette.inkSecondary).lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.inkTertiary)
                     }
                 }
             }
+            .buttonStyle(.plain)
+            .pressable()
 
             RowDivider(leadingInset: 40 + Space.m)
 
