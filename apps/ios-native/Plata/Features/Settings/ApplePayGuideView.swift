@@ -7,10 +7,6 @@ import UIKit
 // instalar el atajo pre-armado desde iCloud.
 
 struct ApplePayGuideView: View {
-    // Pega aquí el enlace iCloud del atajo pre-armado cuando lo publiques.
-    // Mientras esté vacío, solo se muestra el botón "Abrir Atajos".
-    private let shortcutURL: URL? = URL(string: "https://www.icloud.com/shortcuts/aa3ded1de96348208744ead55483ea0c")
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
@@ -24,23 +20,12 @@ struct ApplePayGuideView: View {
                     step(5, "Listo", "Cada vez que pagues con esa tarjeta, Plata abrirá el gasto ya prellenado para confirmar.")
                 }
 
-                VStack(spacing: Space.m) {
-                    if let url = shortcutURL {
-                        Button { UIApplication.shared.open(url) } label: {
-                            Label("Instalar atajo pre-armado", systemImage: "square.and.arrow.down")
-                                .font(Typo.headline).foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, Space.l)
-                                .background(Palette.accent, in: Capsule())
-                        }.buttonStyle(.plain).pressable()
-                    }
-                    Button { openShortcutsApp() } label: {
-                        Label("Abrir Atajos", systemImage: "arrow.up.forward.app")
-                            .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.accent)
-                            .frame(maxWidth: .infinity).padding(.vertical, Space.l)
-                            .background(Palette.surface, in: Capsule())
-                            .overlay(Capsule().strokeBorder(Palette.stroke, lineWidth: 1))
-                    }.buttonStyle(.plain).pressable()
-                }
+                Button { openShortcutsApp() } label: {
+                    Label("Abrir Atajos", systemImage: "arrow.up.forward.app")
+                        .font(Typo.headline).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).padding(.vertical, Space.l)
+                        .background(Palette.accent, in: Capsule())
+                }.buttonStyle(.plain).pressable()
 
                 Text("Nota: iOS no permite que una app cree esta automatización por ti ni lea tus pagos directamente; por eso se configura una vez en Atajos.")
                     .font(Typo.caption).foregroundStyle(Palette.inkTertiary)
