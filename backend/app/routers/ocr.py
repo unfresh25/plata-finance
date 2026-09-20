@@ -19,12 +19,10 @@ from app.deps import get_current_user
 
 router = APIRouter()
 
-# gemini-2.5-flash dejó de estar disponible para nuevas keys (404). Se usa 3.6;
-# configurable por GEMINI_MODEL para cambiarlo sin tocar código.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
-GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-)
+# OCR con Claude (visión), igual que el resto del backend — evita el límite bajo
+# del nivel gratuito de Gemini y unifica en un solo proveedor.
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 
 PROMPT = (
     "Eres un asistente de finanzas. Extrae la información clave del siguiente "
@@ -49,7 +47,7 @@ class ReceiptResponse(BaseModel):
 async def scan_receipt_b64(image_base64: str, mime_type: str = "image/jpeg") -> ReceiptResponse:
     """Núcleo reutilizable del OCR (usado por /ocr/receipt y el webhook de WhatsApp).
     image_base64: imagen en base64. Devuelve ReceiptResponse; lanza HTTPException."""
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="OCR no configurado en el servidor.")
     try:
@@ -59,22 +57,27 @@ async def scan_receipt_b64(image_base64: str, mime_type: str = "image/jpeg") -> 
     if len(raw) > 8 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Imagen demasiado grande (máx 8 MB).")
 
+    media_type = mime_type if mime_type in (
+        "image/jpeg", "image/png", "image/gif", "image/webp") else "image/jpeg"
     payload = {
-        "contents": [
-            {"parts": [
-                {"text": PROMPT},
-                {"inlineData": {"mimeType": mime_type, "data": image_base64}},
-            ]}
-        ],
-        "generationConfig": {"responseMimeType": "application/json"},
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 300,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {
+                    "type": "base64", "media_type": media_type, "data": image_base64}},
+                {"type": "text", "text": PROMPT},
+            ],
+        }],
     }
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
 
-    # Gemini flash da 503/429 transitorios bajo demanda: reintentar con backoff.
     resp = None
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=40.0) as client:
             for attempt in range(3):
-                resp = await client.post(GEMINI_URL, params={"key": api_key}, json=payload)
+                resp = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
                 if resp.status_code not in (429, 500, 502, 503, 504):
                     break
                 if attempt < 2:
@@ -89,15 +92,11 @@ async def scan_receipt_b64(image_base64: str, mime_type: str = "image/jpeg") -> 
         )
 
     data = resp.json()
-    # Gemini 3.x puede anteponer un part de "thoughtSignature" sin texto; buscar
-    # el primer part con "text" en lugar de asumir el índice 0.
     try:
-        parts = data["candidates"][0]["content"]["parts"]
-        text = next(p["text"] for p in parts if "text" in p)
-    except (KeyError, IndexError, StopIteration):
+        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text").strip()
+    except (KeyError, AttributeError):
         raise HTTPException(status_code=422, detail="No se pudo extraer la información visual.")
 
-    # Gemini a veces envuelve el JSON en ```json ... ```.
     if "```" in text:
         text = text.replace("```json", "").replace("```", "").strip()
 
