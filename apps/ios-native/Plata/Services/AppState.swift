@@ -106,6 +106,7 @@ final class AppState {
 
     func signOut() {
         SupabaseClient.shared.signOut()
+        OfflineCache.clear()   // no dejar datos del usuario anterior en disco
         profile = nil; household = nil
         accounts = []; transactions = []; categories = []
         phase = .unauthenticated
@@ -206,6 +207,34 @@ final class AppState {
 
     // MARK: Datos
 
+    /// Guarda la última foto buena en disco (para arranque offline).
+    private func persistCache() {
+        OfflineCache.save(accounts, as: "accounts")
+        OfflineCache.save(transactions, as: "transactions")
+        OfflineCache.save(categories, as: "categories")
+        OfflineCache.save(budgets, as: "budgets")
+        OfflineCache.save(debts, as: "debts")
+        OfflineCache.save(goals, as: "goals")
+        OfflineCache.save(shoppingLists, as: "shoppingLists")
+        OfflineCache.save(recurringEvents, as: "recurring")
+        OfflineCache.save(members, as: "members")
+        OfflineCache.save(settlements, as: "settlements")
+    }
+
+    /// Carga el cache en memoria (arranque offline / mientras llega la red).
+    func loadCache() {
+        accounts = OfflineCache.load([Account].self, from: "accounts") ?? accounts
+        transactions = OfflineCache.load([Transaction].self, from: "transactions") ?? transactions
+        categories = OfflineCache.load([Category].self, from: "categories") ?? categories
+        budgets = OfflineCache.load([Budget].self, from: "budgets") ?? budgets
+        debts = OfflineCache.load([Debt].self, from: "debts") ?? debts
+        goals = OfflineCache.load([SavingsGoal].self, from: "goals") ?? goals
+        shoppingLists = OfflineCache.load([ShoppingList].self, from: "shoppingLists") ?? shoppingLists
+        recurringEvents = OfflineCache.load([RecurringEvent].self, from: "recurring") ?? recurringEvents
+        members = OfflineCache.load([Profile].self, from: "members") ?? members
+        settlements = OfflineCache.load([Settlement].self, from: "settlements") ?? settlements
+    }
+
     func refreshAll() async {
         guard let hh = household?.id else { return }
         async let accounts = repo.fetchAccounts(household: hh)
@@ -230,6 +259,7 @@ final class AppState {
         self.recurringEvents = (try? await recurring) ?? []
         self.members = (try? await members) ?? []
         self.settlements = (try? await settlements) ?? []
+        persistCache()
         // Reprograma recordatorios de pagos y revisa alertas de presupuesto.
         await NotificationService.syncReminders(app: self)
         await NotificationService.checkBudgets(app: self)
