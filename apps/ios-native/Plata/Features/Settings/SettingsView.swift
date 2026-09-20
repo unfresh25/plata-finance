@@ -373,6 +373,8 @@ private struct SettingsHouseholdSection: View {
 // MARK: - Gestión (categorías, etc.)
 
 private struct SettingsManagementSection: View {
+    @Environment(AppState.self) private var app
+
     var body: some View {
         PlainSection(title: "Gestión") {
             NavigationLink {
@@ -390,6 +392,21 @@ private struct SettingsManagementSection: View {
             }
             .buttonStyle(.plain)
             .pressable()
+
+            RowDivider(leadingInset: 40 + Space.m)
+
+            if let csv = CSVExporter.transactionsCSV(app.transactions, app: app) {
+                ShareLink(item: csv) {
+                    SettingsRow(icon: "square.and.arrow.up", tint: Palette.sky,
+                                title: "Exportar movimientos (CSV)") {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .pressable()
+            }
             // "Cuentas conectadas" (Syncfy) deshabilitado por ahora.
         }
     }
