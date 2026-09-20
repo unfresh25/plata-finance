@@ -16,6 +16,7 @@ struct GoalDetailView: View {
     @State private var feedback: String?
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
+    @State private var confettiTrigger = 0
 
     // La meta puede haber cambiado (progreso) tras un aporte: relee de AppState.
     private var liveGoal: SavingsGoal {
@@ -57,6 +58,12 @@ struct GoalDetailView: View {
         }
         .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
+        .overlay(ConfettiView(trigger: confettiTrigger).ignoresSafeArea())
+        // Celebra al abrir una meta ya lograda y al completarse tras un aporte.
+        .onAppear { if liveGoal.status == .completed { confettiTrigger += 1 } }
+        .onChange(of: liveGoal.status) { old, new in
+            if old != .completed && new == .completed { confettiTrigger += 1 }
+        }
         .navigationTitle(goal.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.thinMaterial, for: .navigationBar)
