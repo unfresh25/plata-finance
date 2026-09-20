@@ -262,6 +262,19 @@ final class AppState {
             .filter { $0.type == type && $0.date.hasPrefix(prefix) }
             .reduce(0) { $0 + $1.amount }
     }
+
+    /// Proyección de gasto a fin de mes según el ritmo actual (gasto/día × días
+    /// del mes). Devuelve nil los primeros días (muestra poco fiable).
+    var projectedMonthExpense: Double? {
+        let cal = Calendar.current
+        let now = Date()
+        let day = cal.component(.day, from: now)
+        guard day >= 4 else { return nil }   // con <4 días la proyección es ruido
+        guard let range = cal.range(of: .day, in: .month, for: now) else { return nil }
+        let daysInMonth = range.count
+        let perDay = monthExpense / Double(day)
+        return perDay * Double(daysInMonth)
+    }
 }
 
 // Flag de onboarding en UserDefaults (no es sensible).
