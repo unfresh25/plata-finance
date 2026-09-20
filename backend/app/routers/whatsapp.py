@@ -52,7 +52,12 @@ async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
         print("[whatsapp] phone_number_id vacío; no se puede responder")
         return
     url = f"{KAPSO_API}/{phone_number_id}/messages"
-    body = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text}}
+    body = {"messaging_product": "whatsapp", "type": "text", "text": {"body": text}}
+    # Identidad business-scoped (CO./US.) va en 'recipient'; un teléfono en 'to'.
+    if to.startswith(("CO.", "US.")) or not to.isdigit():
+        body["recipient"] = to
+    else:
+        body["to"] = to
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.post(url, headers={"X-API-Key": api_key, "Content-Type": "application/json"}, json=body)
@@ -77,11 +82,14 @@ async def whatsapp_webhook(request: Request):
     payload = await request.json()
     msg = payload.get("message") or {}
     conv = payload.get("conversation") or {}
-    # El número del remitente puede venir en message.from o en conversation.phone_number.
-    phone = _digits(msg.get("from") or conv.get("phone_number") or "")
+    # Identidad estable del remitente: Kapso usa business-scoped user id (CO./US.)
+    # cuando message.from viene vacío. Se usa como clave de vínculo y como
+    # destinatario al responder.
+    sender = (msg.get("from") or msg.get("from_user_id")
+              or conv.get("phone_number") or "").strip()
     phone_number_id = payload.get("phone_number_id") or conv.get("phone_number_id", "")
-    print(f"[whatsapp] evento type={msg.get('type')} from={phone} pnid={phone_number_id} keys={list(payload.keys())} msgkeys={list(msg.keys())}")
-    if not phone:
+    print(f"[whatsapp] evento type={msg.get('type')} sender={sender} pnid={phone_number_id}")
+    if not sender:
         return {"ok": True}
 
     supa = db()
@@ -100,7 +108,7 @@ async def whatsapp_webhook(request: Request):
 
     # ¿Es un código de vinculación? (formato PLATA-XXXX o solo el código).
     code = _extract_code(text)
-    link = supa.table("whatsapp_links").select("*").eq("phone", phone).limit(1).execute()
+    link = supa.table("whatsapp_links").select("*").eq("phone", sender).limit(1).execute()
     linked = (link.data or [None])[0]
 
     if not linked:
@@ -108,21 +116,21 @@ async def whatsapp_webhook(request: Request):
             row = supa.table("whatsapp_link_codes").select("*").eq("code", code).limit(1).execute()
             c = (row.data or [None])[0]
             if not c:
-                await _send_whatsapp(phone_number_id, phone, "Ese código no es válido o expiró. Genera uno nuevo en Plata.")
+                await _send_whatsapp(phone_number_id, sender, "Ese código no es válido o expiró. Genera uno nuevo en Plata.")
                 return {"ok": True}
             supa.table("whatsapp_links").upsert({
-                "phone": phone, "user_id": c["user_id"], "household_id": c["household_id"],
+                "phone": sender, "user_id": c["user_id"], "household_id": c["household_id"],
             }, on_conflict="phone").execute()
             supa.table("whatsapp_link_codes").delete().eq("code", code).execute()
-            await _send_whatsapp(phone_number_id, phone,
+            await _send_whatsapp(phone_number_id, sender,
                 "¡Listo! Tu WhatsApp quedó conectado a Plata. Escríbeme un gasto como “almuerzo 25 mil” y lo registro.")
             return {"ok": True}
-        await _send_whatsapp(phone_number_id, phone,
+        await _send_whatsapp(phone_number_id, sender,
             "Hola 👋 Para conectar tu WhatsApp con Plata, abre la app → Ajustes → Conectar WhatsApp y envíame el código que aparece.")
         return {"ok": True}
 
     if not text:
-        await _send_whatsapp(phone_number_id, phone, "Mándame el gasto por texto o nota de voz, ej: “taxi 12 mil”.")
+        await _send_whatsapp(phone_number_id, sender, "Mándame el gasto por texto o nota de voz, ej: “taxi 12 mil”.")
         return {"ok": True}
 
     # Cargar categorías y cuentas del hogar para el parseo.
@@ -130,7 +138,7 @@ async def whatsapp_webhook(request: Request):
     cats = supa.table("categories").select("id,name,type").eq("household_id", hh).execute().data or []
     accs = supa.table("accounts").select("id,name").eq("household_id", hh).execute().data or []
     if not accs:
-        await _send_whatsapp(phone_number_id, phone, "No tienes cuentas en Plata todavía. Crea una en la app primero.")
+        await _send_whatsapp(phone_number_id, sender, "No tienes cuentas en Plata todavía. Crea una en la app primero.")
         return {"ok": True}
 
     parsed = await parse_text_to_fields(ParseRequest(
@@ -139,7 +147,7 @@ async def whatsapp_webhook(request: Request):
         accounts=[AccountRef(id=a["id"], name=a["name"]) for a in accs],
     ))
     if not parsed.amount:
-        await _send_whatsapp(phone_number_id, phone, "No entendí el monto 🤔 Prueba con algo como “mercado 80 mil”.")
+        await _send_whatsapp(phone_number_id, sender, "No entendí el monto 🤔 Prueba con algo como “mercado 80 mil”.")
         return {"ok": True}
 
     account_id = parsed.account_id or accs[0]["id"]
@@ -155,7 +163,7 @@ async def whatsapp_webhook(request: Request):
         supa.rpc("apply_account_delta", {"p_account_id": account_id, "p_delta": delta}).execute()
 
     signo = "+" if parsed.type == "income" else "-"
-    await _send_whatsapp(phone_number_id, phone,
+    await _send_whatsapp(phone_number_id, sender,
         f"✅ Registrado: {parsed.description or 'movimiento'} {signo}${int(parsed.amount):,}".replace(",", "."))
     return {"ok": True}
 
