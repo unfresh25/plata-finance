@@ -1,52 +1,18 @@
 import AppIntents
-import SwiftUI
 
-// Siri Shortcuts / App Intents: acciones que el usuario puede invocar por voz
-// ("Oye Siri, registrar gasto en Plata") o desde Spotlight/atajos. No requieren
-// configuración de servidor; solo el framework AppIntents.
-//
-// El intent no puede tocar la UI directamente, así que publica una "acción
-// pendiente" en un singleton que MainTabView observa y ejecuta al abrir.
-
-@MainActor
-final class ShortcutRouter: ObservableObject {
-    static let shared = ShortcutRouter()
-    @Published var pending: Action?
-
-    enum Action { case dictar, chat }
-}
-
-struct RegistrarGastoIntent: AppIntent {
-    static let title: LocalizedStringResource = "Registrar un gasto"
-    static let description = IntentDescription("Abre Plata para dictar un movimiento por voz.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        ShortcutRouter.shared.pending = .dictar
-        return .result()
-    }
-}
-
-struct PreguntarPlataIntent: AppIntent {
-    static let title: LocalizedStringResource = "Preguntarle a Plata"
-    static let description = IntentDescription("Abre el asistente de finanzas de Plata.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        ShortcutRouter.shared.pending = .chat
-        return .result()
-    }
-}
+// AppShortcutsProvider: registra las frases de Siri/Spotlight para los intents
+// compartidos (Shared/QuickIntents.swift). Vive solo en el target de la app.
 
 struct PlataShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: RegistrarGastoIntent(),
             phrases: [
+                // App Shortcuts EXIGE \(.applicationName) en cada frase.
+                "\(.applicationName) registrar gasto",
+                "Registrar gasto en \(.applicationName)",
                 "Registrar un gasto en \(.applicationName)",
-                "Anota un gasto en \(.applicationName)",
+                "Anotar un gasto en \(.applicationName)",
                 "Nuevo movimiento en \(.applicationName)",
             ],
             shortTitle: "Registrar gasto",
@@ -55,10 +21,12 @@ struct PlataShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: PreguntarPlataIntent(),
             phrases: [
+                "\(.applicationName) asistente",
+                "Preguntar a \(.applicationName)",
                 "Pregúntale a \(.applicationName)",
-                "Abre el asistente de \(.applicationName)",
+                "Abrir el asistente de \(.applicationName)",
             ],
-            shortTitle: "Preguntar a Plata",
+            shortTitle: "Preguntar",
             systemImageName: "sparkles"
         )
     }

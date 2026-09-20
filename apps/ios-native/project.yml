@@ -20,6 +20,8 @@ targets:
   Plata:
     type: application
     platform: iOS
+    dependencies:
+      - target: PlataWidget
     sources:
       - path: Plata
         # Integración de banca (Syncfy) deshabilitada por ahora; código conservado
@@ -28,6 +30,7 @@ targets:
           - "Features/Bank"
           - "Services/BankService.swift"
           - "Features/Onboarding/IntroSequence.swift"   # intro cinemática retirada
+      - path: Shared   # intents + router compartidos con el widget
     # Info.plist explícito (gestionado por XcodeGen): la generación automática no
     # soporta el dict anidado UILaunchScreen → UIColorName, y sin él el launch
     # screen sale blanco (flash al abrir). Aquí se fija el fondo del launch al
@@ -54,3 +57,21 @@ targets:
         INFOPLIST_FILE: Plata/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  PlataWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PlataWidget
+      - path: Shared   # intents + router compartidos con la app
+    info:
+      path: PlataWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Plata
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.plata.finance.widget
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: PlataWidget/Info.plist
