@@ -9,7 +9,7 @@ struct WhatsAppConnectView: View {
     @Environment(AppState.self) private var app
 
     // Número de WhatsApp de Plata (el conectado en Kapso), solo dígitos.
-    private let botNumber = "12017513637"
+    private let botNumber = "573241504947"
 
     @State private var code: String?
     @State private var loading = false
