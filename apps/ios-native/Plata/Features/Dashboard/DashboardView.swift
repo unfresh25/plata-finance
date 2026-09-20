@@ -71,6 +71,9 @@ struct DashboardView: View {
                     .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
                 }
 
+                // Insight contextual del coach IA (liga gasto ↔ metas).
+                CoachInsightCard()
+
                 // Resumen semanal con IA (se oculta solo si no hay/ falla).
                 WeeklySummaryCard()
 
