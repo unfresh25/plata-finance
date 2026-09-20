@@ -12,6 +12,7 @@ struct TransactionsView: View {
 
     @State private var query = ""
     @State private var showingAdd = false
+    @State private var anomalyModel = AnomalyModel()
     // Movimiento pendiente de mostrar en detalle desde el long-press "Ver detalle".
     @State private var detailTarget: Transaction?
     // Movimiento pendiente de editar desde el long-press "Editar".
@@ -23,12 +24,20 @@ struct TransactionsView: View {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     TransactionsHeader(query: $query) { showingAdd = true }
 
+                    AnomalyBanner(
+                        anomalies: anomalyModel.anomalies,
+                        resolve: { id in app.transactions.first { $0.id == id } },
+                        onOpen: { detailTarget = $0 },
+                        onDismiss: { anomalyModel.dismiss($0) }
+                    )
+
                     content
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.top, Space.s)
             }
             .floatingTabBarInset()
+            .task { await anomalyModel.scan(app: app) }
             .background(Palette.bg.ignoresSafeArea())
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
