@@ -130,6 +130,21 @@ struct Transaction: Codable, Identifiable, Hashable {
     }
 }
 
+/// Aporte a una meta de ahorro (quién puso cuánto).
+struct GoalContribution: Codable, Identifiable, Hashable {
+    let id: String
+    var goalId: String
+    var createdBy: String
+    var amount: Double
+    var date: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, amount, date
+        case goalId = "goal_id"
+        case createdBy = "created_by"
+    }
+}
+
 /// Liquidación registrada: from_user le pagó a to_user un monto.
 struct Settlement: Codable, Identifiable, Hashable {
     let id: String

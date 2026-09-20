@@ -153,6 +153,12 @@ struct Repository {
     /// la contribución y mover el saldo de la cuenta, actualiza el
     /// `current_amount` de la meta y la marca `completed` si alcanza el objetivo
     /// (esto NO lo hacía antes → el anillo de progreso quedaba congelado).
+    func fetchContributions(goalId: String) async throws -> [GoalContribution] {
+        try await client.from("savings_contributions", query: [
+            "goal_id": "eq.\(goalId)", "select": "*", "order": "date.desc",
+        ])
+    }
+
     func addContribution(goal: SavingsGoal, accountId: String, amount: Double, userId: String) async throws {
         struct Insert: Encodable {
             let goal_id: String
