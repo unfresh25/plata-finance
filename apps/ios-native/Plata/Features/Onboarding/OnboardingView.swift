@@ -92,20 +92,13 @@ struct OnboardingView: View {
     private func featureSlide(_ f: Feature) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
-            // Ilustración grande protagonista: rebasa el ancho (~1.12x) y se
-            // centra. Los Spacers laterales garantizan el centrado del overflow.
-            GeometryReader { geo in
-                HStack {
-                    Spacer(minLength: 0)
-                    Image(f.image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: geo.size.width * 1.12)
-                    Spacer(minLength: 0)
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .frame(height: 420)
+            // Ilustración protagonista, centrada horizontalmente.
+            Image(f.image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: 360)
+                .padding(.horizontal, Space.l)
             Spacer(minLength: 0)
 
             VStack(spacing: Space.m) {
@@ -119,11 +112,11 @@ struct OnboardingView: View {
                     .foregroundStyle(Color(white: 0.45))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, Space.xl)
             }
+            .padding(.horizontal, Space.xl)
             .padding(.bottom, Space.xl)
         }
-        .padding(.horizontal, Space.l)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Flujo
