@@ -110,6 +110,7 @@ struct Repository {
             let category_id: String?
             let description: String?
             let date: String
+            let split_mode: String
         }
         let insert = Insert(
             account_id: payload.accountId,
@@ -119,7 +120,8 @@ struct Repository {
             type: payload.type.rawValue,
             category_id: payload.categoryId,
             description: payload.description,
-            date: payload.date
+            date: payload.date,
+            split_mode: payload.splitMode.rawValue
         )
         let _: [Transaction] = try await client.insert("transactions", values: insert)
 
@@ -269,6 +271,7 @@ struct Repository {
             let category_id: String?
             let description: String?
             let date: String
+            let split_mode: String
         }
         try await client.update("transactions", values: Patch(
             account_id: payload.accountId,
@@ -276,7 +279,8 @@ struct Repository {
             type: payload.type.rawValue,
             category_id: payload.type == .transfer ? nil : payload.categoryId,
             description: payload.description,
-            date: payload.date
+            date: payload.date,
+            split_mode: payload.type == .expense ? payload.splitMode.rawValue : "shared"
         ), match: ["id": id])
     }
 
@@ -444,6 +448,7 @@ struct NewTransaction {
     var categoryId: String?
     var description: String?
     var date: String
+    var splitMode: SplitMode = .shared
 }
 
 struct EmptyDecodable: Decodable {}

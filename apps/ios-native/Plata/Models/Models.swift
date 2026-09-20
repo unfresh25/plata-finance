@@ -117,6 +117,7 @@ struct Transaction: Codable, Identifiable, Hashable {
     var description: String?
     var date: String
     var isRecurring: Bool
+    var splitMode: SplitMode = .shared
 
     enum CodingKeys: String, CodingKey {
         case id, amount, type, description, date
@@ -125,7 +126,17 @@ struct Transaction: Codable, Identifiable, Hashable {
         case createdBy = "created_by"
         case categoryId = "category_id"
         case isRecurring = "is_recurring"
+        case splitMode = "split_mode"
     }
+}
+
+/// Cómo se reparte un gasto en la pareja.
+enum SplitMode: String, Codable, Hashable, CaseIterable {
+    case shared     // compartido 50/50
+    case personal   // solo de quien lo registró
+
+    var label: String { self == .shared ? "Compartido" : "Personal" }
+    var icon: String { self == .shared ? "person.2.fill" : "person.fill" }
 }
 
 // MARK: - Recurring
