@@ -237,6 +237,8 @@ final class AppState {
 
     func refreshAll() async {
         guard let hh = household?.id else { return }
+        // Antes de leer, intenta subir lo que quedó encolado sin señal.
+        await OfflineQueue.flush(repo: repo)
         async let accounts = repo.fetchAccounts(household: hh)
         async let transactions = repo.fetchTransactions(household: hh)
         async let categories = repo.fetchCategories(household: hh)

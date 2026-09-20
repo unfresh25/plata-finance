@@ -413,8 +413,23 @@ struct AddTransactionView: View {
                 isSaving = false
                 dismiss()
             } catch {
-                isSaving = false
-                saveError = error.localizedDescription
+                // Alta nueva sin señal: encolar y cerrar (se sube al reconectar).
+                if editing == nil {
+                    if type == .expense, let cat = categoryId, !note.isEmpty {
+                        CategoryRules.learn(description: note, categoryId: cat)
+                    }
+                    OfflineQueue.enqueue(QueuedTransaction(
+                        accountId: accountId, amount: amountValue, type: type.rawValue,
+                        categoryId: type == .transfer ? nil : categoryId,
+                        description: note.isEmpty ? nil : note, date: Self.isoDate(date),
+                        splitMode: (type == .expense ? splitMode : .shared).rawValue,
+                        householdId: hh, userId: uid))
+                    isSaving = false
+                    dismiss()
+                } else {
+                    isSaving = false
+                    saveError = error.localizedDescription
+                }
             }
         }
     }
