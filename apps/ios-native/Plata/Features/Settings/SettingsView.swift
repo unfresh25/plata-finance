@@ -395,6 +395,21 @@ private struct SettingsManagementSection: View {
 
             RowDivider(leadingInset: 40 + Space.m)
 
+            NavigationLink {
+                ApplePayGuideView()
+            } label: {
+                SettingsRow(icon: "creditcard.fill", tint: Palette.accent,
+                            title: "Capturar pagos (Apple Pay)") {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable()
+
+            RowDivider(leadingInset: 40 + Space.m)
+
             if let csv = CSVExporter.transactionsCSV(app.transactions, app: app) {
                 ShareLink(item: csv) {
                     SettingsRow(icon: "square.and.arrow.up", tint: Palette.sky,
