@@ -227,6 +227,9 @@ final class AppState {
         self.shoppingLists = (try? await lists) ?? []
         self.recurringEvents = (try? await recurring) ?? []
         self.members = (try? await members) ?? []
+        // Reprograma recordatorios de pagos y revisa alertas de presupuesto.
+        await NotificationService.syncReminders(app: self)
+        await NotificationService.checkBudgets(app: self)
     }
 
     // MARK: Derivados para la UI

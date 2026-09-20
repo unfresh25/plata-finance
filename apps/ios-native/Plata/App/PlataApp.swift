@@ -18,7 +18,12 @@ struct PlataApp: App {
                 .environment(theme)
                 .preferredColorScheme(theme.colorScheme)
                 .tint(Palette.accent)
-                .task { if !isPreview { await app.bootstrap() } }
+                .task {
+                    if !isPreview {
+                        await app.bootstrap()
+                        await NotificationService.requestAuthorization()
+                    }
+                }
         }
     }
 }
