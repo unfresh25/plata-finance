@@ -14,19 +14,20 @@ struct FloatingActionMenu: View {
     var onVoice: () -> Void
     var onChat: () -> Void = {}
 
-    @State private var isOpen = false
+    // En reposo solo se ve el "+". Al tocarlo → radial (voz/chat/crear).
+    // "Crear" → speed-dial de las 7 acciones de creación (como antes).
+    @State private var phase: Phase = .closed
 
-    // Orden visual: la primera del array queda pegada al FAB (más abajo). Se
-    // pintan de abajo hacia arriba, como en el legacy (Transacción primero).
+    private enum Phase { case closed, radial, create }
+
     private let actions: [AddDestination] = [
         .transaction, .budget, .shoppingList, .goal, .debt, .account, .recurring,
     ]
 
     var body: some View {
         ZStack {
-            // Backdrop: oscurece y captura el tap para cerrar. Solo con el menú
-            // abierto; ocupa toda la pantalla.
-            if isOpen {
+            // Backdrop mientras hay algo abierto.
+            if phase != .closed {
                 Color.black.opacity(0.55)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
@@ -34,55 +35,83 @@ struct FloatingActionMenu: View {
                     .transition(.opacity)
             }
 
-            // Columna de acciones (speed-dial) + FAB + micrófono, anclada
-            // explícitamente abajo-derecha ocupando toda el área disponible.
-            VStack(alignment: .trailing, spacing: Space.m) {
-                if isOpen {
+            // Nivel 2: speed-dial de creación (las 7 acciones), como antes.
+            if phase == .create {
+                VStack(alignment: .trailing, spacing: Space.m) {
                     ForEach(actions) { action in
-                        SpeedDialRow(destination: action) {
-                            select(action)
-                        }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .opacity
-                        ))
+                        SpeedDialRow(destination: action) { select(action) }
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .opacity))
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.trailing, Space.l)
+                .padding(.bottom, 72 + 68)   // encima del FAB
+            }
 
-                // Chat IA + micrófono: accesos rápidos. Se ocultan con el menú
-                // abierto para no competir con la "×".
-                if !isOpen {
-                    ChatFloatingButton { onChat() }
-                        .transition(.scale.combined(with: .opacity))
-                    MicFloatingButton { onVoice() }
-                        .transition(.scale.combined(with: .opacity))
-                }
+            // Nivel 1: radial con 3 acciones alrededor del FAB.
+            radialMenu
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.trailing, Space.l)
+                .padding(.bottom, 72)
+        }
+        .allowsHitTesting(true)
+        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: phase)
+    }
 
-                // FAB principal.
-                PlusFloatingButton(isOpen: isOpen) {
-                    isOpen ? close() : open()
+    // Radial: 3 botones distribuidos en cuarto de círculo (arriba, arriba-izq,
+    // izquierda) desde el FAB de la esquina inferior derecha.
+    private var radialMenu: some View {
+        ZStack {
+            if phase == .radial {
+                // Abanico hacia arriba-izquierda (cabe sin salirse por la derecha).
+                radialItem(icon: "mic.fill", label: "Dictar", angle: 96, action: { close(); onVoice() })
+                radialItem(image: "GenerateIcon", label: "Plata IA", angle: 140, action: { close(); onChat() })
+                radialItem(icon: "square.grid.2x2.fill", label: "Crear", angle: 184, action: { phase = .create })
+            }
+            // FAB principal (rota a × cuando hay algo abierto).
+            PlusFloatingButton(isOpen: phase != .closed) {
+                phase == .closed ? (phase = .radial) : close()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func radialItem(icon: String? = nil, image: String? = nil, label: String,
+                            angle: Double, action: @escaping () -> Void) -> some View {
+        let radius: CGFloat = 92
+        let rad = angle * .pi / 180
+        // Abanico desde la esquina inf-der: ángulo 90°=arriba, 180°=izquierda.
+        // dx = cos·r (0 a -r → izquierda), dy = -sin·r (siempre arriba).
+        let dx = CGFloat(cos(rad)) * radius
+        let dy = -CGFloat(sin(rad)) * radius
+        Button(action: action) {
+            Group {
+                if let image {
+                    Image(image).renderingMode(.template).resizable().scaledToFit()
+                        .frame(width: 22, height: 22)
+                } else {
+                    Image(systemName: icon ?? "circle").font(.system(size: 20, weight: .semibold))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, Space.l)
-            // Justo encima de la cápsula del tab bar flotante (altura real ~64pt
-            // + su padding inferior), con un aire pequeño. Antes 96+ dejaba un
-            // hueco enorme.
-            .padding(.bottom, 72)
+            .foregroundStyle(Palette.onAccent)
+            .frame(width: 52, height: 52)
+            .background(Palette.accent, in: Circle())
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
         }
-        // No interceptar toques fuera de los botones cuando el menú está cerrado.
-        .allowsHitTesting(true)
-        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: isOpen)
+        .pressable(scale: 0.9)
+        .offset(x: dx, y: dy)
+        .transition(.scale.combined(with: .opacity))
+        .accessibilityLabel(label)
     }
 
     // MARK: - Acciones
 
-    private func open() { isOpen = true }
-    private func close() { isOpen = false }
+    private func close() { phase = .closed }
 
     private func select(_ destination: AddDestination) {
         close()
-        // Deja arrancar el cierre antes de presentar el add (evita solaparse).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
             onSelect(destination)
         }
@@ -139,45 +168,3 @@ private struct PlusFloatingButton: View {
     }
 }
 
-// MARK: - Botón de chat IA flotante
-
-private struct ChatFloatingButton: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image("GenerateIcon")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 24, height: 24)
-                .foregroundStyle(Palette.onAccent)
-                .frame(width: 56, height: 56)
-                .background(Palette.accent, in: Circle())
-                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
-                .contentShape(Circle())
-        }
-        .pressable(scale: 0.9)
-        .accessibilityLabel("Preguntarle a Plata IA")
-    }
-}
-
-// MARK: - Botón de micrófono flotante
-
-private struct MicFloatingButton: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Palette.onAccent)
-                .frame(width: 56, height: 56)
-                .background(Palette.accent, in: Circle())
-                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
-                .contentShape(Circle())
-        }
-        .pressable(scale: 0.9)
-        .accessibilityLabel("Dictar movimiento")
-    }
-}
