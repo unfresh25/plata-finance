@@ -94,6 +94,16 @@ async def whatsapp_webhook(request: Request):
 
     supa = db()
 
+    # Idempotencia: si ya procesamos este message.id, no repetir (evita duplicados
+    # por reintentos del webhook).
+    msg_id = msg.get("id")
+    if msg_id:
+        dup = supa.table("whatsapp_processed").select("message_id").eq("message_id", msg_id).limit(1).execute()
+        if dup.data:
+            print(f"[whatsapp] mensaje {msg_id} ya procesado; se ignora")
+            return {"ok": True}
+        supa.table("whatsapp_processed").insert({"message_id": msg_id}).execute()
+
     # Texto efectivo del mensaje: cuerpo, transcript de voz o caption de imagen.
     kapso = msg.get("kapso") or {}
     mtype = msg.get("type")

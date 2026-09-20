@@ -78,6 +78,12 @@ struct MainTabView: View {
                 // Muestra la última foto buena de inmediato (offline), luego refresca.
                 if app.transactions.isEmpty { app.loadCache() }
                 await app.refreshAll()
+                // Polling ligero: mantiene los datos frescos (p. ej. gastos que
+                // entran por WhatsApp) sin que el usuario reabra la app.
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(20))
+                    await app.refreshAll()
+                }
             }
         }
         // Siri Shortcuts / App Intents: ejecuta la acción pendiente al abrir.

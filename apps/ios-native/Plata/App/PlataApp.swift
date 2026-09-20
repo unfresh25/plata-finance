@@ -39,6 +39,11 @@ struct PlataApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { lock.lockIfEnabled() }
+            // Al volver a primer plano, refresca (p. ej. gastos registrados por
+            // WhatsApp mientras la app estaba en segundo plano).
+            if phase == .active && !isPreview {
+                Task { await app.refreshAll() }
+            }
         }
     }
 }
