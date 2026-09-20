@@ -47,6 +47,21 @@ struct DashboardView: View {
                     .padding(.vertical, Space.xs)
                 }
 
+                // Cuentas claras entre la pareja (liquidación de gastos compartidos).
+                if let s = app.settlement {
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+                        Text("\(s.debtor) le debe a \(s.creditor) ")
+                            .foregroundStyle(Palette.inkSecondary)
+                        + Text(CurrencyFormatter.string(s.amount, currency: app.currency))
+                            .foregroundStyle(Palette.ink).bold()
+                    }
+                    .font(Typo.subhead)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, Space.xs)
+                }
+
                 // Resumen semanal con IA (se oculta solo si no hay/ falla).
                 WeeklySummaryCard()
 

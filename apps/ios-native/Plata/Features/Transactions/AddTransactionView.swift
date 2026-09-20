@@ -26,6 +26,7 @@ struct AddTransactionView: View {
 
     // Estado del formulario
     @State private var type: TransactionType = .expense
+    @State private var splitMode: SplitMode = .shared
     @State private var amountDigits = ""          // solo dígitos (centavos implícitos = 0)
     @State private var categoryId: String?
     @State private var accountId: String?
@@ -92,6 +93,11 @@ struct AddTransactionView: View {
                     scanReceiptButton
 
                     selectors
+
+                    // División del gasto en pareja (solo para gastos).
+                    if type == .expense {
+                        splitSelector
+                    }
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
@@ -182,6 +188,32 @@ struct AddTransactionView: View {
     /// Acción bajo el monto: escanear un recibo (OCR en el backend) para
     /// autocompletar el formulario. El dictado por voz vive en el FAB flotante.
     /// Botón plano (sin fondo), solo ícono + texto en el color de acento.
+    // Selector de división: Compartido (50/50) vs Personal.
+    private var splitSelector: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            SectionLabel(text: "División")
+            HStack(spacing: Space.s) {
+                ForEach(SplitMode.allCases, id: \.self) { mode in
+                    let on = splitMode == mode
+                    Button { splitMode = mode } label: {
+                        HStack(spacing: Space.xs) {
+                            Image(systemName: mode.icon).font(.system(size: 13, weight: .semibold))
+                            Text(mode.label).font(Typo.callout.weight(.medium))
+                        }
+                        .foregroundStyle(on ? Palette.onAccent : Palette.inkSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Space.m)
+                        .background(on ? Palette.accent : Palette.surface,
+                                    in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                            .strokeBorder(on ? .clear : Palette.stroke, lineWidth: 1))
+                    }
+                    .pressable()
+                }
+            }
+        }
+    }
+
     private var scanReceiptButton: some View {
         Button {
             showScanSource = true
@@ -354,7 +386,8 @@ struct AddTransactionView: View {
             type: type,
             categoryId: type == .transfer ? nil : categoryId,
             description: note.isEmpty ? nil : note,
-            date: Self.isoDate(date)
+            date: Self.isoDate(date),
+            splitMode: type == .expense ? splitMode : .shared
         )
 
         Task {
@@ -575,6 +608,7 @@ struct AddTransactionView: View {
             categoryId = tx.categoryId
             note = tx.description ?? ""
             date = Self.parseISO(tx.date) ?? date
+            splitMode = tx.splitMode
             return   // no pisar con defaults de alta
         }
         if accountId == nil { accountId = app.accounts.first?.id }

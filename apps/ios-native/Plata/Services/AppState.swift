@@ -279,6 +279,28 @@ final class AppState {
         return perDay * Double(daysInMonth)
     }
 
+    /// Liquidación de gastos COMPARTIDOS entre los 2 miembros del hogar.
+    /// Cada gasto compartido lo paga quien lo registró; el otro le debe la mitad.
+    /// Devuelve (nombre de quien debe, nombre de a quién, monto) o nil si están
+    /// a mano, si no hay 2 miembros, o si no hay gastos compartidos.
+    var settlement: (debtor: String, creditor: String, amount: Double)? {
+        let two = members
+        guard two.count == 2 else { return nil }
+        let a = two[0].id, b = two[1].id
+        // "aPagoDeMas" = cuánto puso A de más en gastos compartidos vs B.
+        var netA = 0.0   // a favor de A (B le debe) si positivo
+        for t in transactions where t.type == .expense && t.splitMode == .shared {
+            let half = t.amount / 2
+            if t.createdBy == a { netA += half }        // A pagó, B debe su mitad
+            else if t.createdBy == b { netA -= half }   // B pagó, A debe su mitad
+        }
+        let amount = abs(netA)
+        guard amount >= 1 else { return nil }
+        let name: (String) -> String = { id in self.members.first { $0.id == id }?.name ?? "Tu pareja" }
+        if netA > 0 { return (debtor: name(b), creditor: name(a), amount: amount) }
+        else { return (debtor: name(a), creditor: name(b), amount: amount) }
+    }
+
     /// Racha de días consecutivos (terminando hoy o ayer) con al menos un
     /// movimiento registrado. 0 si no hay racha activa.
     var registerStreak: Int {
