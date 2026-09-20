@@ -8,8 +8,8 @@ import UIKit
 struct WhatsAppConnectView: View {
     @Environment(AppState.self) private var app
 
-    // Número de WhatsApp de Plata (el conectado en Kapso). Cámbialo por el real.
-    private let botNumber = "573000000000"
+    // Número de WhatsApp de Plata (el conectado en Kapso), solo dígitos.
+    private let botNumber = "12017513637"
 
     @State private var code: String?
     @State private var loading = false
