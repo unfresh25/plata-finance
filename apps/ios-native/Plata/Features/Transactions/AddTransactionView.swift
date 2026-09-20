@@ -101,11 +101,8 @@ struct AddTransactionView: View {
                     scanReceiptButton
 
                     selectors
-
-                    // División del gasto en pareja (solo para gastos).
-                    if type == .expense {
-                        splitSelector
-                    }
+                    // Nota: la app trata el dinero como pozo común, así que no hay
+                    // selector Personal/Compartido; todo gasto es del hogar (shared).
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
