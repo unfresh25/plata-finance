@@ -21,10 +21,13 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.db import db
 from app.routers.parse import ParseRequest, CategoryRef, AccountRef, parse_text_to_fields
+from app.routers.chat import ChatMessage, chat_reply
 
 router = APIRouter()
 
 KAPSO_API = "https://api.kapso.ai/meta/whatsapp/v24.0"
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 
 
 def _verify_signature(raw: bytes, signature: str | None) -> bool:
@@ -133,7 +136,9 @@ async def whatsapp_webhook(request: Request):
             }, on_conflict="phone").execute()
             supa.table("whatsapp_link_codes").delete().eq("code", code).execute()
             await _send_whatsapp(phone_number_id, sender,
-                "¡Listo! Tu WhatsApp quedó conectado a Plata. Escríbeme un gasto como “almuerzo 25 mil” y lo registro.")
+                "¡Listo! Tu WhatsApp quedó conectado a Plata 🎉\n\n"
+                "• Registra: “almuerzo 25 mil” o mándame una nota de voz.\n"
+                "• Pregunta: “¿cuánto llevo gastado este mes?”, “¿en qué gasto más?”, “¿me alcanza para X?”")
             return {"ok": True}
         await _send_whatsapp(phone_number_id, sender,
             "Hola 👋 Para conectar tu WhatsApp con Plata, abre la app → Ajustes → Conectar WhatsApp y envíame el código que aparece.")
@@ -143,8 +148,20 @@ async def whatsapp_webhook(request: Request):
         await _send_whatsapp(phone_number_id, sender, "Mándame el gasto por texto o nota de voz, ej: “taxi 12 mil”.")
         return {"ok": True}
 
-    # Cargar categorías y cuentas del hogar para el parseo.
     hh = linked["household_id"]
+
+    # ¿Es una consulta/pregunta o un registro de gasto? Si es pregunta, responde
+    # con el asistente (mismo cerebro que el chat de la app).
+    if await _is_question(text):
+        summary = _finance_summary(supa, hh)
+        try:
+            reply = await chat_reply(summary, [ChatMessage(role="user", content=text)])
+        except Exception:
+            reply = "No pude consultar eso ahora. Inténtalo de nuevo en un momento."
+        await _send_whatsapp(phone_number_id, sender, reply)
+        return {"ok": True}
+
+    # Cargar categorías y cuentas del hogar para el parseo.
     cats = supa.table("categories").select("id,name,type").eq("household_id", hh).execute().data or []
     accs = supa.table("accounts").select("id,name").eq("household_id", hh).execute().data or []
     if not accs:
@@ -179,6 +196,81 @@ async def whatsapp_webhook(request: Request):
     await _send_whatsapp(phone_number_id, sender,
         f"✅ Registrado: {parsed.description or 'movimiento'} {signo}${int(parsed.amount):,}".replace(",", "."))
     return {"ok": True}
+
+
+async def _is_question(text: str) -> bool:
+    """Clasifica si el mensaje es una CONSULTA (pregunta sobre finanzas) o un
+    REGISTRO de gasto/ingreso. Llamada corta a Claude; ante duda, asume registro
+    (lo más frecuente) salvo señales claras de pregunta."""
+    low = text.lower().strip()
+    if "?" in text or low.startswith((
+        "cuanto", "cuánto", "que ", "qué ", "como ", "cómo", "cuando", "cuándo",
+        "en que", "en qué", "me alcanza", "puedo", "cuales", "cuáles", "muestra",
+        "dime", "resumen", "hay ", "tengo", "saldo", "balance",
+    )):
+        return True
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return False
+    payload = {
+        "model": ANTHROPIC_MODEL, "max_tokens": 5,
+        "messages": [{"role": "user", "content":
+            "Clasifica este mensaje de una app de finanzas. Responde SOLO una "
+            "palabra: PREGUNTA (si es una consulta sobre sus finanzas) o REGISTRO "
+            f"(si describe un gasto o ingreso para anotar).\nMensaje: {text}"}],
+    }
+    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+        if r.status_code == 200:
+            out = "".join(b.get("text", "") for b in r.json().get("content", [])).upper()
+            return "PREGUNTA" in out
+    except httpx.RequestError:
+        pass
+    return False
+
+
+def _finance_summary(supa, household_id: str) -> str:
+    """Arma un resumen financiero del hogar en texto para el asistente (equivalente
+    server-side de financeSummaryForChat de la app)."""
+    accs = supa.table("accounts").select("name,type,balance").eq("household_id", household_id).execute().data or []
+    from datetime import date
+    month = date.today().strftime("%Y-%m")
+    txs = (supa.table("transactions").select("amount,type,category_id,date,description")
+           .eq("household_id", household_id).gte("date", month + "-01").execute().data or [])
+    cats = supa.table("categories").select("id,name").eq("household_id", household_id).execute().data or []
+    cat_name = {c["id"]: c["name"] for c in cats}
+    budgets = supa.table("budgets").select("category_id,amount").eq("household_id", household_id).execute().data or []
+    goals = supa.table("savings_goals").select("name,target_amount,current_amount,status").eq("household_id", household_id).execute().data or []
+
+    total = sum(float(a.get("balance") or 0) for a in accs)
+    income = sum(float(t["amount"]) for t in txs if t.get("type") == "income")
+    expense = sum(float(t["amount"]) for t in txs if t.get("type") == "expense")
+    lines = [f"BALANCE TOTAL: {total:,.0f}",
+             f"Este mes — ingresos: {income:,.0f}, gastos: {expense:,.0f}", "", "CUENTAS:"]
+    for a in accs:
+        lines.append(f"- {a['name']} ({a.get('type','')}): {float(a.get('balance') or 0):,.0f}")
+    by_cat: dict[str, float] = {}
+    for t in txs:
+        if t.get("type") == "expense":
+            by_cat[cat_name.get(t.get("category_id"), "Sin categoría")] = by_cat.get(cat_name.get(t.get("category_id"), "Sin categoría"), 0) + float(t["amount"])
+    if by_cat:
+        lines.append("")
+        lines.append("GASTO DEL MES POR CATEGORÍA:")
+        for n, v in sorted(by_cat.items(), key=lambda x: -x[1])[:12]:
+            lines.append(f"- {n}: {v:,.0f}")
+    if budgets:
+        lines.append("")
+        lines.append("PRESUPUESTOS:")
+        for b in budgets:
+            lines.append(f"- {cat_name.get(b['category_id'],'General')}: límite {float(b['amount']):,.0f}")
+    if goals:
+        lines.append("")
+        lines.append("METAS DE AHORRO:")
+        for g in goals:
+            lines.append(f"- {g['name']}: {float(g.get('current_amount') or 0):,.0f} de {float(g.get('target_amount') or 0):,.0f} ({g.get('status','')})")
+    return "\n".join(lines)
 
 
 def _extract_code(text: str) -> str | None:

@@ -23,7 +23,7 @@ struct WhatsAppConnectView: View {
                 VStack(alignment: .leading, spacing: Space.l) {
                     step(1, "Genera tu código", "Toca “Generar código” abajo.")
                     step(2, "Envíalo por WhatsApp", "Abre el chat de Plata y manda el código una sola vez.")
-                    step(3, "Registra gastos", "Después escríbele “almuerzo 25 mil” o mándale una nota de voz y Plata lo registra.")
+                    step(3, "Registra y pregunta", "Escríbele “almuerzo 25 mil” (o una nota de voz) para registrar, o pregúntale “¿cuánto llevo este mes?”, “¿en qué gasto más?”.")
                 }
 
                 if let code {
@@ -74,7 +74,7 @@ struct WhatsAppConnectView: View {
                 .font(.system(size: 32, weight: .semibold)).foregroundStyle(Palette.accent)
             Text("Registra gastos por WhatsApp")
                 .font(.system(size: 24, weight: .bold)).foregroundStyle(Palette.ink)
-            Text("Manda un texto, una nota de voz o una foto de tu recibo y Plata lo registra por ti.")
+            Text("Registra gastos por texto, voz o foto — y pregúntale a Plata por tus finanzas, todo desde WhatsApp.")
                 .font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
