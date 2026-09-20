@@ -76,6 +76,14 @@ struct AddTransactionView: View {
         .glassSheetBackground()
         .onAppear(perform: seedDefaults)
         .onChange(of: type) { _, _ in reconcileCategoryForType() }
+        .onChange(of: note) { _, newNote in
+            // Auto-categorización: si aún no hay categoría, sugerir por reglas.
+            if type == .expense, categoryId == nil,
+               let suggested = CategoryRules.suggest(for: newNote),
+               app.categories.contains(where: { $0.id == suggested }) {
+                categoryId = suggested
+            }
+        }
     }
 
     // MARK: - Contenido principal
@@ -396,6 +404,10 @@ struct AddTransactionView: View {
                     try await Repository().updateTransaction(id: tx.id, original: tx, payload: payload)
                 } else {
                     try await Repository().addTransaction(payload, householdId: hh, userId: uid)
+                }
+                // Aprende la regla de auto-categorización (descripción → categoría).
+                if type == .expense, let cat = categoryId, !note.isEmpty {
+                    CategoryRules.learn(description: note, categoryId: cat)
                 }
                 await app.refreshAll()
                 isSaving = false
