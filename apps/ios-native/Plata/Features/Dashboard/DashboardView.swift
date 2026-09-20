@@ -27,6 +27,11 @@ struct DashboardView: View {
                     currency: app.currency
                 )
 
+                // Proyección de gasto a fin de mes según el ritmo actual.
+                if let projected = app.projectedMonthExpense, projected > 0 {
+                    DashboardProjection(projected: projected, currency: app.currency)
+                }
+
                 // ÚNICA excepción a "sin cards": el carrusel de tarjetas de cuenta
                 // estilo crédito (AccountCreditCard) — esas sí son tarjetas de verdad.
                 if !app.accounts.isEmpty {
@@ -867,5 +872,27 @@ private extension String {
     var capitalizedFirst: String {
         guard let first else { return self }
         return first.uppercased() + dropFirst()
+    }
+}
+
+// MARK: - Proyección de fin de mes
+
+private struct DashboardProjection: View {
+    let projected: Double
+    let currency: String
+
+    var body: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.accent)
+            Text("A este ritmo, terminarán el mes gastando ")
+                .foregroundStyle(Palette.inkSecondary)
+            + Text(CurrencyFormatter.string(projected, currency: currency))
+                .foregroundStyle(Palette.ink).bold()
+        }
+        .font(Typo.subhead)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, Space.s)
     }
 }
