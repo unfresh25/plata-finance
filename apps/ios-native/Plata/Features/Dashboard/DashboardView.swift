@@ -32,6 +32,9 @@ struct DashboardView: View {
                     DashboardProjection(projected: projected, currency: app.currency)
                 }
 
+                // Resumen semanal con IA (se oculta solo si no hay/ falla).
+                WeeklySummaryCard()
+
                 // ÚNICA excepción a "sin cards": el carrusel de tarjetas de cuenta
                 // estilo crédito (AccountCreditCard) — esas sí son tarjetas de verdad.
                 if !app.accounts.isEmpty {
