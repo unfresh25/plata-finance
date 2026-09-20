@@ -9,7 +9,7 @@ import UIKit
 struct ApplePayGuideView: View {
     // Pega aquí el enlace iCloud del atajo pre-armado cuando lo publiques.
     // Mientras esté vacío, solo se muestra el botón "Abrir Atajos".
-    private let shortcutURL: URL? = nil   // p. ej. URL(string: "https://www.icloud.com/shortcuts/XXXX")
+    private let shortcutURL: URL? = URL(string: "https://www.icloud.com/shortcuts/aa3ded1de96348208744ead55483ea0c")
 
     var body: some View {
         ScrollView {
