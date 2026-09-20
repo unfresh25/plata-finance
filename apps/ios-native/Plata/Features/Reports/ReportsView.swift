@@ -185,11 +185,11 @@ struct ReportsView: View {
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.top, Space.s)
-                .padding(.bottom, Space.xxxl)
                 .animation(Motion.value, value: period)
                 .animation(Motion.value, value: offset)
             }
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Estadísticas")
         .navigationBarTitleDisplayMode(.large)
