@@ -65,10 +65,11 @@ struct FloatingActionMenu: View {
     private var radialMenu: some View {
         ZStack {
             if phase == .radial {
-                // Abanico hacia arriba-izquierda (cabe sin salirse por la derecha).
-                radialItem(icon: "mic.fill", label: "Dictar", angle: 96, action: { close(); onVoice() })
-                radialItem(image: "GenerateIcon", label: "Plata IA", angle: 140, action: { close(); onChat() })
-                radialItem(icon: "square.grid.2x2.fill", label: "Crear", angle: 184, action: { phase = .create })
+                // Abanico arriba-izquierda: voz la más cercana al FAB (abajo),
+                // luego chat, luego crear (la más alejada, arriba-izquierda).
+                radialItem(icon: "mic.fill", label: "Dictar", angle: 90, action: { close(); onVoice() })
+                radialItem(image: "GenerateIcon", label: "Plata IA", angle: 128, action: { close(); onChat() })
+                radialItem(icon: "square.grid.2x2.fill", label: "Crear", angle: 166, action: { phase = .create })
             }
             // FAB principal (rota a × cuando hay algo abierto).
             PlusFloatingButton(isOpen: phase != .closed) {
