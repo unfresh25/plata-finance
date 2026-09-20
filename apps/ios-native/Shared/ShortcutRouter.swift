@@ -8,5 +8,9 @@ final class ShortcutRouter: ObservableObject {
     static let shared = ShortcutRouter()
     @Published var pending: Action?
 
-    enum Action { case dictar, chat }
+    enum Action: Equatable {
+        case dictar
+        case chat
+        case capturePayment(amount: Double, merchant: String)
+    }
 }

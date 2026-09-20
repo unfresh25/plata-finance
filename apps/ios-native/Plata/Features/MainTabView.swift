@@ -85,6 +85,12 @@ struct MainTabView: View {
             switch action {
             case .dictar: showingVoiceCapture = true
             case .chat: showingChat = true
+            case let .capturePayment(amount, merchant):
+                // Pago de Apple Pay → alta de gasto prellenada (mismo camino que voz).
+                voiceResult = VoiceResult(parsed: ParsedTransaction(
+                    amount: amount, type: "expense",
+                    description: merchant.isEmpty ? "Pago con tarjeta" : merchant,
+                    date: nil, categoryId: nil, accountId: nil))
             case .none: break
             }
             if action != nil { ShortcutRouter.shared.pending = nil }
