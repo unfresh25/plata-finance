@@ -75,6 +75,8 @@ struct MainTabView: View {
         .task {
             // En modo preview (-uiPreview) se conservan los datos mock inyectados.
             if !ProcessInfo.processInfo.arguments.contains("-uiPreview") {
+                // Muestra la última foto buena de inmediato (offline), luego refresca.
+                if app.transactions.isEmpty { app.loadCache() }
                 await app.refreshAll()
             }
         }
