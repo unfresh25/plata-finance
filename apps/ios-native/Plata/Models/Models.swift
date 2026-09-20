@@ -130,6 +130,25 @@ struct Transaction: Codable, Identifiable, Hashable {
     }
 }
 
+/// Liquidación registrada: from_user le pagó a to_user un monto.
+struct Settlement: Codable, Identifiable, Hashable {
+    let id: String
+    var householdId: String
+    var fromUser: String
+    var toUser: String
+    var amount: Double
+    var note: String?
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, amount, note
+        case householdId = "household_id"
+        case fromUser = "from_user"
+        case toUser = "to_user"
+        case createdAt = "created_at"
+    }
+}
+
 /// Cómo se reparte un gasto en la pareja.
 enum SplitMode: String, Codable, Hashable, CaseIterable {
     case shared     // compartido 50/50

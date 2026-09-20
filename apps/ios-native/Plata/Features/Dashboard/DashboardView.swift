@@ -49,17 +49,26 @@ struct DashboardView: View {
 
                 // Cuentas claras entre la pareja (liquidación de gastos compartidos).
                 if let s = app.settlement {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: "arrow.left.arrow.right")
-                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
-                        Text("\(s.debtor) le debe a \(s.creditor) ")
-                            .foregroundStyle(Palette.inkSecondary)
-                        + Text(CurrencyFormatter.string(s.amount, currency: app.currency))
-                            .foregroundStyle(Palette.ink).bold()
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        HStack(spacing: Space.s) {
+                            Image(systemName: "arrow.left.arrow.right")
+                                .font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.accent)
+                            Text("\(s.debtor) le debe a \(s.creditor) ")
+                                .foregroundStyle(Palette.inkSecondary)
+                            + Text(CurrencyFormatter.string(s.amount, currency: app.currency))
+                                .foregroundStyle(Palette.ink).bold()
+                        }
+                        .font(Typo.subhead)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                        Button("Saldar cuentas") { Task { await app.settleUp() } }
+                            .font(Typo.caption.weight(.semibold))
+                            .foregroundStyle(Palette.accent)
                     }
-                    .font(Typo.subhead)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.vertical, Space.xs)
+                    .padding(Space.l)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
                 }
 
                 // Resumen semanal con IA (se oculta solo si no hay/ falla).

@@ -90,6 +90,20 @@ struct Repository {
         ])
     }
 
+    func fetchSettlements(household: String) async throws -> [Settlement] {
+        try await client.from("settlements", query: [
+            "household_id": "eq.\(household)", "select": "*", "order": "created_at.desc",
+        ])
+    }
+
+    func addSettlement(householdId: String, from: String, to: String, amount: Double) async throws {
+        struct Insert: Encodable {
+            let household_id: String; let from_user: String; let to_user: String; let amount: Double
+        }
+        let _: [Settlement] = try await client.insert("settlements",
+            values: Insert(household_id: householdId, from_user: from, to_user: to, amount: amount))
+    }
+
     func fetchRecurring(household: String) async throws -> [RecurringEvent] {
         try await client.from("recurring_events", query: [
             "household_id": "eq.\(household)", "select": "*",

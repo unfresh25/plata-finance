@@ -31,6 +31,7 @@ final class AppState {
     var shoppingLists: [ShoppingList] = []
     var recurringEvents: [RecurringEvent] = []
     var members: [Profile] = []   // miembros del hogar (para resolver created_by)
+    var settlements: [Settlement] = []   // liquidaciones ya hechas entre la pareja
 
     var errorMessage: String?
 
@@ -216,6 +217,7 @@ final class AppState {
         async let lists = repo.fetchShoppingLists(household: hh)
         async let recurring = repo.fetchRecurring(household: hh)
         async let members = repo.fetchMembers(household: hh)
+        async let settlements = repo.fetchSettlements(household: hh)
         self.accounts = (try? await accounts) ?? []
         self.transactions = (try? await transactions) ?? []
         // NOTA: la integración de banca (Syncfy) quedó deshabilitada — ver
@@ -227,6 +229,7 @@ final class AppState {
         self.shoppingLists = (try? await lists) ?? []
         self.recurringEvents = (try? await recurring) ?? []
         self.members = (try? await members) ?? []
+        self.settlements = (try? await settlements) ?? []
         // Reprograma recordatorios de pagos y revisa alertas de presupuesto.
         await NotificationService.syncReminders(app: self)
         await NotificationService.checkBudgets(app: self)
@@ -294,11 +297,27 @@ final class AppState {
             if t.createdBy == a { netA += half }        // A pagó, B debe su mitad
             else if t.createdBy == b { netA -= half }   // B pagó, A debe su mitad
         }
+        // Restar liquidaciones ya hechas: si B le pagó a A, baja lo que B debe.
+        for s in settlements {
+            if s.fromUser == b && s.toUser == a { netA -= s.amount }
+            else if s.fromUser == a && s.toUser == b { netA += s.amount }
+        }
         let amount = abs(netA)
         guard amount >= 1 else { return nil }
         let name: (String) -> String = { id in self.members.first { $0.id == id }?.name ?? "Tu pareja" }
         if netA > 0 { return (debtor: name(b), creditor: name(a), amount: amount) }
         else { return (debtor: name(a), creditor: name(b), amount: amount) }
+    }
+
+    /// Salda el saldo pendiente actual entre la pareja: registra una liquidación
+    /// del deudor al acreedor por el monto pendiente y refresca.
+    func settleUp() async {
+        guard let hh = household?.id, let s = settlement, s.amount >= 1 else { return }
+        let from = members.first { $0.name == s.debtor }?.id
+        let to = members.first { $0.name == s.creditor }?.id
+        guard let from, let to else { return }
+        try? await repo.addSettlement(householdId: hh, from: from, to: to, amount: s.amount)
+        await refreshAll()
     }
 
     /// Racha de días consecutivos (terminando hoy o ayer) con al menos un
