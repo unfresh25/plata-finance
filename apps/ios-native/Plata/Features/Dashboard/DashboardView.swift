@@ -32,6 +32,21 @@ struct DashboardView: View {
                     DashboardProjection(projected: projected, currency: app.currency)
                 }
 
+                // Racha de registro (motivación).
+                if app.registerStreak >= 2 {
+                    HStack(spacing: Space.xs) {
+                        Text("🔥").font(.system(size: 15))
+                        Text("Racha de ")
+                            .foregroundStyle(Palette.inkSecondary)
+                        + Text("\(app.registerStreak) días")
+                            .foregroundStyle(Palette.ink).bold()
+                        + Text(" registrando")
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
+                    .font(Typo.subhead)
+                    .padding(.vertical, Space.xs)
+                }
+
                 // Resumen semanal con IA (se oculta solo si no hay/ falla).
                 WeeklySummaryCard()
 
