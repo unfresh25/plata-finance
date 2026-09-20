@@ -278,6 +278,32 @@ final class AppState {
         let perDay = monthExpense / Double(day)
         return perDay * Double(daysInMonth)
     }
+
+    /// Racha de días consecutivos (terminando hoy o ayer) con al menos un
+    /// movimiento registrado. 0 si no hay racha activa.
+    var registerStreak: Int {
+        let cal = Calendar.current
+        // Set de días (inicio de día) con movimientos.
+        var days = Set<Date>()
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current; f.dateFormat = "yyyy-MM-dd"
+        for t in transactions {
+            if let d = f.date(from: String(t.date.prefix(10))) {
+                days.insert(cal.startOfDay(for: d))
+            }
+        }
+        guard !days.isEmpty else { return 0 }
+        let today = cal.startOfDay(for: Date())
+        // La racha cuenta si hubo registro hoy o ayer (no se rompe por el día en curso).
+        var cursor = days.contains(today) ? today : cal.date(byAdding: .day, value: -1, to: today)!
+        guard days.contains(cursor) else { return 0 }
+        var streak = 0
+        while days.contains(cursor) {
+            streak += 1
+            cursor = cal.date(byAdding: .day, value: -1, to: cursor)!
+        }
+        return streak
+    }
 }
 
 // Flag de onboarding en UserDefaults (no es sensible).
