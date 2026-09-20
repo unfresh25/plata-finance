@@ -48,6 +48,7 @@ struct ApplePayGuideView: View {
             }
             .padding(Space.l)
         }
+        .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .navigationTitle("Capturar pagos")
         .navigationBarTitleDisplayMode(.inline)
