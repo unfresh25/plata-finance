@@ -17,6 +17,7 @@ struct GoalDetailView: View {
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var confettiTrigger = 0
+    @State private var contributions: [GoalContribution] = []
 
     // La meta puede haber cambiado (progreso) tras un aporte: relee de AppState.
     private var liveGoal: SavingsGoal {
@@ -44,6 +45,7 @@ struct GoalDetailView: View {
                 ringHeader
                 statsRow
                 actions
+                contributorsBreakdown
 
                 if let feedback {
                     Text(feedback)
@@ -59,6 +61,9 @@ struct GoalDetailView: View {
         .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
         .overlay(ConfettiView(trigger: confettiTrigger).ignoresSafeArea())
+        .task(id: liveGoal.currentAmount) {
+            contributions = (try? await Repository().fetchContributions(goalId: goal.id)) ?? []
+        }
         // Celebra al abrir una meta ya lograda y al completarse tras un aporte.
         .onAppear { if liveGoal.status == .completed { confettiTrigger += 1 } }
         .onChange(of: liveGoal.status) { old, new in
@@ -139,6 +144,39 @@ struct GoalDetailView: View {
                 RowDivider()
                 GoalStatRow(label: "Fecha límite", value: deadline, color: Palette.inkSecondary)
             }
+        }
+    }
+
+    // MARK: Aportes por persona (solo si aportó más de una persona)
+
+    /// Total aportado por cada miembro (agrupa savings_contributions por created_by).
+    private var byContributor: [(name: String, total: Double)] {
+        var totals: [String: Double] = [:]
+        for c in contributions { totals[c.createdBy, default: 0] += c.amount }
+        return totals
+            .map { (name: app.member(for: $0.key)?.name ?? "Alguien", total: $0.value) }
+            .sorted { $0.total > $1.total }
+    }
+
+    @ViewBuilder private var contributorsBreakdown: some View {
+        let people = byContributor
+        if people.count >= 2 {
+            VStack(alignment: .leading, spacing: Space.m) {
+                Text("APORTES POR PERSONA")
+                    .font(Typo.overline).tracking(0.8).foregroundStyle(Palette.inkTertiary)
+                ForEach(people, id: \.name) { p in
+                    HStack {
+                        Text(p.name).font(Typo.callout).foregroundStyle(Palette.ink)
+                        Spacer()
+                        Text(CurrencyFormatter.string(p.total, currency: app.currency))
+                            .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.ink)
+                    }
+                }
+            }
+            .padding(Space.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
         }
     }
 
