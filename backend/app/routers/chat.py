@@ -52,6 +52,13 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+async def chat_reply(context: str, messages: list["ChatMessage"]) -> str:
+    """Núcleo reutilizable del chat (usado por /chat/ask y el webhook de WhatsApp).
+    Devuelve el texto de la respuesta; lanza HTTPException en error."""
+    body = ChatRequest(context=context, messages=messages)
+    return (await chat_ask(body)).reply
+
+
 @router.post("/ask", response_model=ChatResponse)
 async def chat_ask(
     body: ChatRequest,
