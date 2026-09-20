@@ -11,6 +11,7 @@ struct TransactionsView: View {
     @Environment(AppState.self) private var app
 
     @State private var query = ""
+    @State private var typeFilter: TypeFilter = .all
     @State private var showingAdd = false
     @State private var anomalyModel = AnomalyModel()
     // Movimiento pendiente de mostrar en detalle desde el long-press "Ver detalle".
@@ -23,6 +24,23 @@ struct TransactionsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     TransactionsHeader(query: $query) { showingAdd = true }
+
+                    // Filtro por tipo.
+                    HStack(spacing: Space.s) {
+                        ForEach(TypeFilter.allCases, id: \.self) { f in
+                            let on = typeFilter == f
+                            Button { typeFilter = f } label: {
+                                Text(f.label)
+                                    .font(Typo.caption.weight(.medium))
+                                    .foregroundStyle(on ? Palette.onAccent : Palette.inkSecondary)
+                                    .padding(.vertical, Space.xs).padding(.horizontal, Space.m)
+                                    .background(on ? Palette.accent : Palette.surface, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(on ? .clear : Palette.stroke, lineWidth: 1))
+                            }
+                            .pressable()
+                        }
+                        Spacer()
+                    }
 
                     AnomalyBanner(
                         anomalies: anomalyModel.anomalies,
@@ -170,14 +188,25 @@ struct TransactionsView: View {
     }
 
     private var filtered: [Transaction] {
+        var base = app.transactions
+        // Filtro por tipo.
+        switch typeFilter {
+        case .all: break
+        case .income: base = base.filter { $0.type == .income }
+        case .expense: base = base.filter { $0.type == .expense }
+        }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return app.transactions }
-        return app.transactions.filter { tx in
+        guard !q.isEmpty else { return base }
+        return base.filter { tx in
             if let d = tx.description?.lowercased(), d.contains(q) { return true }
             if let cat = app.category(for: tx.categoryId)?.name.lowercased(), cat.contains(q) { return true }
             if let acc = account(for: tx)?.name.lowercased(), acc.contains(q) { return true }
             return false
         }
+    }
+
+    enum TypeFilter: CaseIterable { case all, income, expense
+        var label: String { switch self { case .all: "Todos"; case .income: "Ingresos"; case .expense: "Gastos" } }
     }
 
     private func account(for tx: Transaction) -> Account? {
