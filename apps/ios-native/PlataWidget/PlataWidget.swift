@@ -65,22 +65,24 @@ struct PlataWidgetView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // Personaje 3D asomándose desde abajo (arte por acción).
-            Image(entry.action.art)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-
+        VStack {
             Text(entry.action.label)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(red: 0.20, green: 0.16, blue: 0.34))
-                .padding(.top, 14)
+                .padding(.top, 12)
+            Spacer(minLength: 0)
         }
-        .widgetURL(nil)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // La imagen del personaje va como fondo del contenedor del widget,
+        // anclada abajo para que "se asome". Fallback lila si no cargara.
         .containerBackground(for: .widget) {
-            LinearGradient(colors: [Color(red: 0.93, green: 0.91, blue: 1.0), .white],
-                           startPoint: .top, endPoint: .bottom)
+            ZStack {
+                Color(red: 0.93, green: 0.91, blue: 1.0)
+                Image(entry.action.art)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
         }
     }
 }
