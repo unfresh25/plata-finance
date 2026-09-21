@@ -91,13 +91,10 @@ struct PlataWidgetView: View {
         }
     }
 
-    /// Carga el PNG del personaje desde los recursos del bundle del widget.
+    /// Carga el personaje. Embebido en el binario (WidgetArt) para no depender de
+    /// recursos del bundle, que no cargan en device con provisioning gratis.
     static func loadArt(_ name: String) -> UIImage? {
-        if let path = Bundle.main.path(forResource: name, ofType: "png"),
-           let img = UIImage(contentsOfFile: path) {
-            return img
-        }
-        return UIImage(named: name)   // fallback al asset catalog si existiera
+        WidgetArt.image(name)
     }
 }
 
