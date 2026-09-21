@@ -328,11 +328,14 @@ final class AppState {
         return perDay * Double(daysInMonth)
     }
 
-    /// Liquidación de gastos COMPARTIDOS entre los 2 miembros del hogar.
-    /// Cada gasto compartido lo paga quien lo registró; el otro le debe la mitad.
-    /// Devuelve (nombre de quien debe, nombre de a quién, monto) o nil si están
-    /// a mano, si no hay 2 miembros, o si no hay gastos compartidos.
+    /// Liquidación entre miembros. DESACTIVADA: la app trata el dinero como pozo
+    /// común (no finanzas separadas), así que no se calcula "quién le debe a quién".
+    /// El código se conserva abajo (inalcanzable) por si se reactiva ese modelo.
     var settlement: (debtor: String, creditor: String, amount: Double)? {
+        return nil
+    }
+
+    private var settlementLegacy: (debtor: String, creditor: String, amount: Double)? {
         let two = members
         guard two.count == 2 else { return nil }
         let a = two[0].id, b = two[1].id
