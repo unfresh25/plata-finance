@@ -55,6 +55,8 @@ async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
     if not phone_number_id:
         print("[whatsapp] phone_number_id vacío; no se puede responder")
         return
+    # WhatsApp usa *negrita* (un asterisco) y _cursiva_, no el markdown de la app.
+    text = _to_whatsapp_markdown(text)
     url = f"{KAPSO_API}/{phone_number_id}/messages"
     body = {"messaging_product": "whatsapp", "type": "text", "text": {"body": text}}
     # Identidad business-scoped (CO./US.) va en 'recipient'; un teléfono en 'to'.
@@ -75,6 +77,16 @@ async def _send_whatsapp(phone_number_id: str, to: str, text: str) -> None:
 
 def _digits(phone: str) -> str:
     return re.sub(r"\D", "", phone or "")
+
+
+def _to_whatsapp_markdown(text: str) -> str:
+    """Convierte el markdown estándar al formato de WhatsApp: **negrita** → *negrita*,
+    quita encabezados '#'. WhatsApp usa un solo asterisco para negrita."""
+    if not text:
+        return text
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)   # **x** → *x*
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)  # quita '# ' de headers
+    return text
 
 
 @router.post("/webhook")
@@ -279,6 +291,11 @@ async def _is_question(text: str) -> bool:
     return False
 
 
+def _co(v) -> str:
+    """Formatea un monto en pesos colombianos: $1.234.567 (punto de miles)."""
+    return "$" + f"{float(v or 0):,.0f}".replace(",", ".")
+
+
 def _finance_summary(supa, household_id: str) -> str:
     """Arma un resumen financiero del hogar en texto para el asistente (equivalente
     server-side de financeSummaryForChat de la app)."""
@@ -295,10 +312,10 @@ def _finance_summary(supa, household_id: str) -> str:
     total = sum(float(a.get("balance") or 0) for a in accs)
     income = sum(float(t["amount"]) for t in txs if t.get("type") == "income")
     expense = sum(float(t["amount"]) for t in txs if t.get("type") == "expense")
-    lines = [f"BALANCE TOTAL: {total:,.0f}",
-             f"Este mes — ingresos: {income:,.0f}, gastos: {expense:,.0f}", "", "CUENTAS:"]
+    lines = [f"BALANCE TOTAL: {_co(total)}",
+             f"Este mes — ingresos: {_co(income)}, gastos: {_co(expense)}", "", "CUENTAS:"]
     for a in accs:
-        lines.append(f"- {a['name']} ({a.get('type','')}): {float(a.get('balance') or 0):,.0f}")
+        lines.append(f"- {a['name']} ({a.get('type','')}): {_co(a.get('balance'))}")
     by_cat: dict[str, float] = {}
     for t in txs:
         if t.get("type") == "expense":
@@ -307,17 +324,17 @@ def _finance_summary(supa, household_id: str) -> str:
         lines.append("")
         lines.append("GASTO DEL MES POR CATEGORÍA:")
         for n, v in sorted(by_cat.items(), key=lambda x: -x[1])[:12]:
-            lines.append(f"- {n}: {v:,.0f}")
+            lines.append(f"- {n}: {_co(v)}")
     if budgets:
         lines.append("")
         lines.append("PRESUPUESTOS:")
         for b in budgets:
-            lines.append(f"- {cat_name.get(b['category_id'],'General')}: límite {float(b['amount']):,.0f}")
+            lines.append(f"- {cat_name.get(b['category_id'],'General')}: límite {_co(b['amount'])}")
     if goals:
         lines.append("")
         lines.append("METAS DE AHORRO:")
         for g in goals:
-            lines.append(f"- {g['name']}: {float(g.get('current_amount') or 0):,.0f} de {float(g.get('target_amount') or 0):,.0f} ({g.get('status','')})")
+            lines.append(f"- {g['name']}: {_co(g.get('current_amount'))} de {_co(g.get('target_amount'))} ({g.get('status','')})")
     return "\n".join(lines)
 
 
