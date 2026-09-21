@@ -78,6 +78,9 @@ targets:
         CFBundleDisplayName: Plata
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.plata.finance.widget
