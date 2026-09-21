@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import AppIntents
+import UIKit
 
 // Widget de accesos rápidos, CONFIGURABLE por el usuario (long-press → Editar,
 // elige la acción). Sin App Group ni datos en vivo: el personaje "se asoma" y al
@@ -73,17 +74,30 @@ struct PlataWidgetView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // La imagen del personaje va como fondo del contenedor del widget,
-        // anclada abajo para que "se asome". Fallback lila si no cargara.
+        // La imagen del personaje va como fondo del contenedor del widget, anclada
+        // abajo para que "se asome". Se carga por PATH del bundle (no por asset
+        // catalog) porque en device con provisioning gratis el catalog del appex
+        // no siempre resuelve. Fallback lila si no cargara.
         .containerBackground(for: .widget) {
             ZStack {
                 Color(red: 0.93, green: 0.91, blue: 1.0)
-                Image(entry.action.art)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                if let ui = Self.loadArt(entry.action.art) {
+                    Image(uiImage: ui)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
             }
         }
+    }
+
+    /// Carga el PNG del personaje desde los recursos del bundle del widget.
+    static func loadArt(_ name: String) -> UIImage? {
+        if let path = Bundle.main.path(forResource: name, ofType: "png"),
+           let img = UIImage(contentsOfFile: path) {
+            return img
+        }
+        return UIImage(named: name)   // fallback al asset catalog si existiera
     }
 }
 
