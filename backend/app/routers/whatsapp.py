@@ -120,27 +120,32 @@ async def whatsapp_webhook(request: Request):
         text = (msg.get("image") or {}).get("caption", "")
     text = (text or "").strip()
 
-    # ¿Es un código de vinculación? (formato PLATA-XXXX o solo el código).
     code = _extract_code(text)
     link = supa.table("whatsapp_links").select("*").eq("phone", sender).limit(1).execute()
     linked = (link.data or [None])[0]
 
-    if not linked:
-        if code:
-            row = supa.table("whatsapp_link_codes").select("*").eq("code", code).limit(1).execute()
-            c = (row.data or [None])[0]
-            if not c:
+    # Si el mensaje ES un código de vinculación, procesarlo SIEMPRE (esté o no
+    # vinculado ya), así nunca se interpreta un PLATA-XXXX como gasto.
+    if code:
+        row = supa.table("whatsapp_link_codes").select("*").eq("code", code).limit(1).execute()
+        c = (row.data or [None])[0]
+        if not c:
+            if linked:
+                await _send_whatsapp(phone_number_id, sender, "Tu WhatsApp ya está conectado a Plata ✅ Escríbeme un gasto o una pregunta.")
+            else:
                 await _send_whatsapp(phone_number_id, sender, "Ese código no es válido o expiró. Genera uno nuevo en Plata.")
-                return {"ok": True}
-            supa.table("whatsapp_links").upsert({
-                "phone": sender, "user_id": c["user_id"], "household_id": c["household_id"],
-            }, on_conflict="phone").execute()
-            supa.table("whatsapp_link_codes").delete().eq("code", code).execute()
-            await _send_whatsapp(phone_number_id, sender,
-                "¡Listo! Tu WhatsApp quedó conectado a Plata 🎉\n\n"
-                "• Registra: “almuerzo 25 mil” o mándame una nota de voz.\n"
-                "• Pregunta: “¿cuánto llevo gastado este mes?”, “¿en qué gasto más?”, “¿me alcanza para X?”")
             return {"ok": True}
+        supa.table("whatsapp_links").upsert({
+            "phone": sender, "user_id": c["user_id"], "household_id": c["household_id"],
+        }, on_conflict="phone").execute()
+        supa.table("whatsapp_link_codes").delete().eq("code", code).execute()
+        await _send_whatsapp(phone_number_id, sender,
+            "¡Listo! Tu WhatsApp quedó conectado a Plata 🎉\n\n"
+            "• Registra: “almuerzo 25 mil” o mándame una nota de voz.\n"
+            "• Pregunta: “¿cuánto llevo gastado este mes?”, “¿en qué gasto más?”, “¿me alcanza para X?”")
+        return {"ok": True}
+
+    if not linked:
         await _send_whatsapp(phone_number_id, sender,
             "Hola 👋 Para conectar tu WhatsApp con Plata, abre la app → Ajustes → Conectar WhatsApp y envíame el código que aparece.")
         return {"ok": True}
