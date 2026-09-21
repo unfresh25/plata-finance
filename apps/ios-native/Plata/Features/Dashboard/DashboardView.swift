@@ -90,6 +90,7 @@ struct DashboardView: View {
                     transactions: Array(app.transactions.prefix(recentCount)),
                     hasAnyData: !app.transactions.isEmpty,
                     resolveCategory: { app.category(for: $0) },
+                    resolveMember: { app.members.count >= 2 ? app.member(for: $0) : nil },
                     currency: app.currency,
                     onEdit: { editTarget = $0 }
                 )
@@ -309,6 +310,7 @@ private struct DashboardRecentSection: View {
     let transactions: [Transaction]
     let hasAnyData: Bool
     let resolveCategory: (String?) -> Category?
+    var resolveMember: (String) -> Profile? = { _ in nil }
     let currency: String
     var onEdit: (Transaction) -> Void = { _ in }
 
@@ -350,6 +352,7 @@ private struct DashboardRecentSection: View {
                         DashboardTransactionRow(
                             transaction: tx,
                             category: resolveCategory(tx.categoryId),
+                            creator: resolveMember(tx.createdBy),
                             currency: currency
                         )
                     }
@@ -379,6 +382,7 @@ private struct DashboardRecentSection: View {
 private struct DashboardTransactionRow: View {
     let transaction: Transaction
     let category: Category?
+    var creator: Profile? = nil
     let currency: String
 
     var body: some View {
@@ -395,14 +399,21 @@ private struct DashboardTransactionRow: View {
             title: title,
             subtitle: subtitle,
             trailing: {
-                AmountText(
-                    amount: signedAmount,
-                    currency: currency,
-                    font: Typo.amount,
-                    signed: true,
-                    tintBySign: true
-                )
-                .lineLimit(1)
+                HStack(spacing: Space.s) {
+                    // Quién registró el movimiento (solo en hogar de 2+; transparencia,
+                    // no deuda). Se omite en uso individual.
+                    if let creator {
+                        AvatarView(name: creator.name, urlString: creator.avatarUrl, size: 22)
+                    }
+                    AmountText(
+                        amount: signedAmount,
+                        currency: currency,
+                        font: Typo.amount,
+                        signed: true,
+                        tintBySign: true
+                    )
+                    .lineLimit(1)
+                }
             }
         )
     }
