@@ -75,10 +75,12 @@ struct RecurringView: View {
                 .presentationBackground(Palette.bg)
         }
         .sheet(item: $selected) { event in
-            RecurringDetailView(event: event)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Palette.bg)
+            NavigationStack {
+                RecurringDetailView(event: event, asSheet: true)
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Palette.bg)
         }
     }
 }
