@@ -50,7 +50,10 @@ struct RecurringDetailView: View {
                     Spacer()
                     confirmButton
                         .padding(.horizontal, Space.l)
-                        .padding(.bottom, Space.s)
+                        // En push (Dashboard/Movim) el tab bar flotante tapa el
+                        // botón; se sube lo suficiente para librarlo. En sheet
+                        // sobra algo de aire, aceptable.
+                        .padding(.bottom, asSheet ? Space.s : 84)
                         .padding(.top, Space.l)
                         // Velo neutro que desvanece el contenido al hacer scroll
                         // detrás del botón flotante (sin ocultar el glass del botón).
