@@ -98,7 +98,9 @@ struct FinancesView: View {
         .sheet(isPresented: $showingAddBudget) { AddBudgetView() }
         .sheet(isPresented: $showingAddRecurring) { AddRecurringView() }
         .sheet(isPresented: $showingAddShopping) { AddShoppingListView() }
-        .sheet(item: $selectedRecurring) { RecurringDetailView(event: $0) }
+        .sheet(item: $selectedRecurring) { ev in
+            NavigationStack { RecurringDetailView(event: ev, asSheet: true) }
+        }
     }
 }
 

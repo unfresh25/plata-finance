@@ -11,6 +11,9 @@ struct RecurringDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let event: RecurringEvent
+    /// true si se presenta como sheet (muestra "Cerrar"); en push el contenedor
+    /// ya da el botón "atrás".
+    var asSheet: Bool = false
 
     @State private var selectedAccountId: String?
     @State private var isConfirming = false
@@ -24,7 +27,11 @@ struct RecurringDetailView: View {
     private var logo: Image? { RecurrentesVisual.logo(for: event) }
 
     var body: some View {
-        NavigationStack {
+        content
+    }
+
+    @ViewBuilder private var content: some View {
+        Group {
             ZStack {
                 Palette.bg.ignoresSafeArea()
                 ScrollView {
@@ -61,9 +68,11 @@ struct RecurringDetailView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cerrar") { dismiss() }
-                        .foregroundStyle(Palette.inkSecondary)
+                if asSheet {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cerrar") { dismiss() }
+                            .foregroundStyle(Palette.inkSecondary)
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -121,26 +130,18 @@ struct RecurringDetailView: View {
 
     private var header: some View {
         HStack(spacing: Space.l) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(logo == nil ? tint.opacity(0.16) : Palette.surface)
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(
-                                logo == nil ? tint.opacity(0.22) : Palette.stroke.opacity(0.7),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(color: .black.opacity(0.10), radius: 8, y: 3)
-                    .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
-                if let logo {
-                    logo.resizable().scaledToFit().frame(width: 44, height: 44)
-                } else {
-                    Image(systemName: RecurrentesVisual.symbol(for: event, category: category))
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(tint)
-                }
+            if let logo {
+                // Logo de la app/servicio: limpio, sin contenedor ni sombra.
+                logo.resizable().scaledToFit()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                // Sin logo: ícono de categoría sobre un cuadro tenue de color (plano).
+                Image(systemName: RecurrentesVisual.symbol(for: event, category: category))
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 60, height: 60)
+                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
             VStack(alignment: .leading, spacing: Space.xs) {
