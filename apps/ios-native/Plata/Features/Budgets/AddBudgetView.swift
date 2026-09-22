@@ -26,6 +26,7 @@ struct AddBudgetView: View {
 
     @State private var isSaving = false
     @State private var saveError: String?
+    @FocusState private var amountFocused: Bool
 
     private var expenseCategories: [Category] {
         app.categories.filter { $0.type == .expense }
@@ -89,8 +90,7 @@ struct AddBudgetView: View {
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
             }
-
-            keypad
+            .scrollDismissesKeyboard(.interactively)
 
             PrimaryButton(
                 title: isSaving ? "Guardando…" : (editing == nil ? "Guardar presupuesto" : "Guardar cambios"),
@@ -116,17 +116,34 @@ struct AddBudgetView: View {
                 .tracking(1.2)
                 .foregroundStyle(Palette.amber)
 
-            Text(CurrencyFormatter.string(amountValue, currency: app.currency))
-                .font(Typo.amountHero(amountFontSize))
-                .monospacedDigit()
-                .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .contentTransition(.numericText(value: amountValue))
-                .animation(Motion.value, value: amountValue)
-                .frame(maxWidth: .infinity)
+            ZStack {
+                Text(CurrencyFormatter.string(amountValue, currency: app.currency))
+                    .font(Typo.amountHero(amountFontSize))
+                    .monospacedDigit()
+                    .tracking(-0.5) // tracking negativo sutil en cifra display grande
+                    .foregroundStyle(amountValue > 0 ? Palette.ink : Palette.inkTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .contentTransition(.numericText(value: amountValue))
+                    .animation(Motion.value, value: amountValue)
+                    .frame(maxWidth: .infinity)
+
+                TextField("", text: $amountDigits)
+                    .keyboardType(.numberPad)
+                    .focused($amountFocused)
+                    .foregroundStyle(.clear)
+                    .tint(.clear)
+                    .accentColor(.clear)
+                    .multilineTextAlignment(.center)
+                    .onChange(of: amountDigits) { _, v in
+                        let clean = String(v.filter(\.isNumber).prefix(12))
+                        if clean != v { amountDigits = clean }
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
         }
+        .onAppear { amountFocused = true }
     }
 
     private var amountFontSize: CGFloat {

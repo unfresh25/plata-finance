@@ -36,6 +36,7 @@ struct AddRecurringView: View {
     @State private var showCategoryPicker = false
     @State private var isSaving = false
     @State private var saveError: String?
+    @FocusState private var amountFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -171,26 +172,41 @@ struct AddRecurringView: View {
                 .tracking(1.2)
                 .foregroundStyle(Palette.inkTertiary)
 
-            HStack(spacing: Space.s) {
-                Image(systemName: type == .income ? "plus" : "minus")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
-                    .opacity(amountValue > 0 ? 1 : 0)
+            ZStack {
+                HStack(spacing: Space.s) {
+                    Image(systemName: type == .income ? "plus" : "minus")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
+                        .opacity(amountValue > 0 ? 1 : 0)
 
-                Text(formattedAmount)
-                    .font(Typo.amountHero(amountFontSize))
-                    .monospacedDigit()
-                    .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                    .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
-                    .contentTransition(.numericText(value: amountValue))
-                    .animation(Motion.value, value: amountValue)
+                    Text(formattedAmount)
+                        .font(Typo.amountHero(amountFontSize))
+                        .monospacedDigit()
+                        .tracking(-0.5) // tracking negativo sutil en cifra display grande
+                        .foregroundStyle(amountValue > 0 ? amountTint : Palette.inkTertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                        .contentTransition(.numericText(value: amountValue))
+                        .animation(Motion.value, value: amountValue)
+                }
+                .frame(maxWidth: .infinity)
+
+                TextField("", text: $amountDigits)
+                    .keyboardType(.numberPad)
+                    .focused($amountFocused)
+                    .foregroundStyle(.clear)
+                    .tint(.clear)
+                    .accentColor(.clear)
+                    .multilineTextAlignment(.center)
+                    .onChange(of: amountDigits) { _, v in
+                        let clean = String(v.filter(\.isNumber).prefix(12))
+                        if clean != v { amountDigits = clean }
+                    }
             }
-
-            RecurrentesKeypad { key in tap(key) }
-                .padding(.top, Space.s)
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
         }
+        .onAppear { amountFocused = true }
     }
 
     // MARK: - Selectores

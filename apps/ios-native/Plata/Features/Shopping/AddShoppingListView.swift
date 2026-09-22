@@ -17,6 +17,7 @@ struct AddShoppingListView: View {
 
     @State private var isSaving = false
     @State private var saveError: String?
+    @FocusState private var budgetFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -36,8 +37,6 @@ struct AddShoppingListView: View {
                         .padding(.bottom, Space.l)
                     }
                     .scrollDismissesKeyboard(.interactively)
-
-                    keypad
 
                     PrimaryButton(
                         title: isSaving ? "Creando…" : "Crear lista",
@@ -81,17 +80,34 @@ struct AddShoppingListView: View {
                 .tracking(1.2)
                 .foregroundStyle(Palette.sky)
 
-            Text(formattedBudget)
-                .font(Typo.amountHero(budgetFontSize))
-                .monospacedDigit()
-                .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .contentTransition(.numericText(value: budgetValue))
-                .animation(Motion.value, value: budgetValue)
-                .frame(maxWidth: .infinity)
+            ZStack {
+                Text(formattedBudget)
+                    .font(Typo.amountHero(budgetFontSize))
+                    .monospacedDigit()
+                    .tracking(-0.5) // tracking negativo sutil en cifra display grande
+                    .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .contentTransition(.numericText(value: budgetValue))
+                    .animation(Motion.value, value: budgetValue)
+                    .frame(maxWidth: .infinity)
+
+                TextField("", text: $budgetDigits)
+                    .keyboardType(.numberPad)
+                    .focused($budgetFocused)
+                    .foregroundStyle(.clear)
+                    .tint(.clear)
+                    .accentColor(.clear)
+                    .multilineTextAlignment(.center)
+                    .onChange(of: budgetDigits) { _, v in
+                        let clean = String(v.filter(\.isNumber).prefix(12))
+                        if clean != v { budgetDigits = clean }
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { budgetFocused = true }
         }
+        .onAppear { budgetFocused = true }
     }
 
     // MARK: - Formulario

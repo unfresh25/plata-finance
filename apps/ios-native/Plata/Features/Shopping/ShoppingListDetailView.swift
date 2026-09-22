@@ -204,7 +204,7 @@ struct ShoppingListDetailView: View {
                 Task { await deleteItem(item) }
             }
         } message: { item in
-            Text("¿Eliminar “\(item.name)” de la lista?")
+            Text("¿Eliminar \"\(item.name)\" de la lista?")
         }
         .alert("Eliminar lista", isPresented: $showDeleteListAlert) {
             Button("Cancelar", role: .cancel) {}
@@ -212,7 +212,7 @@ struct ShoppingListDetailView: View {
                 Task { await deleteList() }
             }
         } message: {
-            Text("Se eliminará “\(list.name)” y todos sus ítems. Esta acción no se puede deshacer.")
+            Text("Se eliminará \"\(list.name)\" y todos sus ítems. Esta acción no se puede deshacer.")
         }
     }
 
@@ -730,6 +730,7 @@ private struct ShoppingPriceSheet: View {
 
     @State private var digits = ""
     @State private var isSaving = false
+    @FocusState private var priceFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -741,24 +742,40 @@ private struct ShoppingPriceSheet: View {
                             .font(Typo.overline)
                             .tracking(1.2)
                             .foregroundStyle(tint)
-                        Text(formatted)
-                            .font(Typo.amountHero(48))
-                            .monospacedDigit()
-                            .foregroundStyle(value > 0 ? Palette.ink : Palette.inkTertiary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.4)
-                            .contentTransition(.numericText(value: value))
-                            .animation(Motion.value, value: value)
-                        Text("¿Cuánto costó “\(item.name)”?")
+                        ZStack {
+                            Text(formatted)
+                                .font(Typo.amountHero(48))
+                                .monospacedDigit()
+                                .foregroundStyle(value > 0 ? Palette.ink : Palette.inkTertiary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.4)
+                                .contentTransition(.numericText(value: value))
+                                .animation(Motion.value, value: value)
+                                .frame(maxWidth: .infinity)
+
+                            TextField("", text: $digits)
+                                .keyboardType(.numberPad)
+                                .focused($priceFocused)
+                                .foregroundStyle(.clear)
+                                .tint(.clear)
+                                .accentColor(.clear)
+                                .multilineTextAlignment(.center)
+                                .onChange(of: digits) { _, v in
+                                    let clean = String(v.filter(\.isNumber).prefix(12))
+                                    if clean != v { digits = clean }
+                                }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { priceFocused = true }
+                        Text("¿Cuánto costó \"\(item.name)\"?")
                             .font(Typo.subhead)
                             .foregroundStyle(Palette.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, Space.m)
+                    .onAppear { priceFocused = true }
 
                     Spacer(minLength: 0)
-
-                    keypad
 
                     PrimaryButton(
                         title: isSaving ? "Guardando…" : "Confirmar compra",
@@ -857,6 +874,7 @@ private struct ShoppingItemEditSheet: View {
     @State private var priceDigits = ""
     @State private var categoryId: String?
     @State private var isSaving = false
+    @FocusState private var priceFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -918,16 +936,32 @@ private struct ShoppingItemEditSheet: View {
                                 Text("PRECIO ESTIMADO (POR UNIDAD)")
                                     .font(Typo.overline)
                                     .foregroundStyle(Palette.inkTertiary)
-                                HStack {
-                                    Text(estimatedFormatted)
-                                        .font(Typo.amountMedium)
-                                        .monospacedDigit()
-                                        .foregroundStyle(estimatedValue > 0 ? Palette.ink : Palette.inkTertiary)
-                                    Spacer()
+                                ZStack {
+                                    HStack {
+                                        Text(estimatedFormatted)
+                                            .font(Typo.amountMedium)
+                                            .monospacedDigit()
+                                            .foregroundStyle(estimatedValue > 0 ? Palette.ink : Palette.inkTertiary)
+                                        Spacer()
+                                    }
+
+                                    TextField("", text: $priceDigits)
+                                        .keyboardType(.numberPad)
+                                        .focused($priceFocused)
+                                        .foregroundStyle(.clear)
+                                        .tint(.clear)
+                                        .accentColor(.clear)
+                                        .multilineTextAlignment(.center)
+                                        .onChange(of: priceDigits) { _, v in
+                                            let clean = String(v.filter(\.isNumber).prefix(12))
+                                            if clean != v { priceDigits = clean }
+                                        }
                                 }
                                 .contentShape(Rectangle())
+                                .onTapGesture { priceFocused = true }
                             }
                         }
+                        .onAppear { priceFocused = true }
 
                         // Categoría del ítem
                         if !categories.isEmpty {
@@ -953,8 +987,6 @@ private struct ShoppingItemEditSheet: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-
-                        keypad
                     }
                     .padding(Space.l)
                 }
@@ -1078,6 +1110,7 @@ private struct ShoppingListEditSheet: View {
     @State private var nameText: String
     @State private var budgetDigits: String
     @State private var isSaving = false
+    @FocusState private var budgetFocused: Bool
 
     init(name: String, budget: Double?, currency: String, tint: Color, onSave: @escaping (_ name: String, _ budget: Double?) async -> Void) {
         self.name = name
@@ -1100,17 +1133,34 @@ private struct ShoppingListEditSheet: View {
                                 .font(Typo.overline)
                                 .tracking(1.2)
                                 .foregroundStyle(tint)
-                            Text(formattedBudget)
-                                .font(Typo.amountHero(48))
-                                .monospacedDigit()
-                                .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.4)
-                                .contentTransition(.numericText(value: budgetValue))
-                                .animation(Motion.value, value: budgetValue)
-                                .frame(maxWidth: .infinity)
+                            ZStack {
+                                Text(formattedBudget)
+                                    .font(Typo.amountHero(48))
+                                    .monospacedDigit()
+                                    .foregroundStyle(budgetValue > 0 ? Palette.ink : Palette.inkTertiary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.4)
+                                    .contentTransition(.numericText(value: budgetValue))
+                                    .animation(Motion.value, value: budgetValue)
+                                    .frame(maxWidth: .infinity)
+
+                                TextField("", text: $budgetDigits)
+                                    .keyboardType(.numberPad)
+                                    .focused($budgetFocused)
+                                    .foregroundStyle(.clear)
+                                    .tint(.clear)
+                                    .accentColor(.clear)
+                                    .multilineTextAlignment(.center)
+                                    .onChange(of: budgetDigits) { _, v in
+                                        let clean = String(v.filter(\.isNumber).prefix(12))
+                                        if clean != v { budgetDigits = clean }
+                                    }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { budgetFocused = true }
                         }
                         .padding(.top, Space.m)
+                        .onAppear { budgetFocused = true }
 
                         Card(padding: Space.m) {
                             VStack(alignment: .leading, spacing: Space.xs) {
@@ -1127,8 +1177,6 @@ private struct ShoppingListEditSheet: View {
                                 .submitLabel(.done)
                             }
                         }
-
-                        keypad
                     }
                     .padding(.horizontal, Space.l)
                     .padding(.bottom, Space.l)
