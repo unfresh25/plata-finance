@@ -844,9 +844,13 @@ private enum FinHubDate {
 /// Deriva el slug de logo de suscripción a partir del nombre del evento.
 private enum FinHubLogo {
     static func slug(for name: String) -> String? {
+        // Se normaliza quitando tildes, espacios y guiones para que "Apple Music"
+        // matchee el slug "apple-music" (antes el espacio rompía el contains).
         let n = name
             .folding(options: .diacriticInsensitive, locale: .current)
             .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "-", with: "")
             .trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return nil }
         for slug in SubscriptionLogo.all {

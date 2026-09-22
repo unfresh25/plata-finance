@@ -29,6 +29,7 @@ struct AddGoalView: View {
     @State private var showAccountPicker = false
     @State private var isSaving = false
     @State private var saveError: String?
+    @FocusState private var amountFocused: Bool
 
     // Plan de ahorro automático (crea un recurrente ligado a la meta).
     @State private var hasPlan = false
@@ -152,8 +153,7 @@ struct AddGoalView: View {
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
             }
-
-            keypad
+            .scrollDismissesKeyboard(.interactively)
 
             HStack(spacing: Space.m) {
                 // Píldora de ícono (abre el selector visual)
@@ -200,17 +200,34 @@ struct AddGoalView: View {
                 .tracking(1.2)
                 .foregroundStyle(tint)
 
-            Text(CurrencyFormatter.string(amountValue, currency: app.currency))
-                .font(Typo.amountHero(amountFontSize))
-                .monospacedDigit()
-                .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .contentTransition(.numericText(value: amountValue))
-                .animation(Motion.value, value: amountValue)
-                .frame(maxWidth: .infinity)
+            ZStack {
+                Text(CurrencyFormatter.string(amountValue, currency: app.currency))
+                    .font(Typo.amountHero(amountFontSize))
+                    .monospacedDigit()
+                    .tracking(-0.5) // tracking negativo sutil en cifra display grande
+                    .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .contentTransition(.numericText(value: amountValue))
+                    .animation(Motion.value, value: amountValue)
+                    .frame(maxWidth: .infinity)
+
+                TextField("", text: $amountDigits)
+                    .keyboardType(.numberPad)
+                    .focused($amountFocused)
+                    .foregroundStyle(.clear)
+                    .tint(.clear)
+                    .accentColor(.clear)
+                    .multilineTextAlignment(.center)
+                    .onChange(of: amountDigits) { _, v in
+                        let clean = String(v.filter(\.isNumber).prefix(12))
+                        if clean != v { amountDigits = clean }
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
         }
+        .onAppear { amountFocused = true }
     }
 
     private var amountFontSize: CGFloat {
@@ -524,9 +541,26 @@ private struct AddGoalLeadingIcon: View {
 
 private struct AddGoalIconSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var app
     @Binding var selection: AddGoalPreset
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: Space.m)]
+
+    /// Presets a partir de las categorías del hogar (icono + nombre + color de la
+    /// categoría). Así el picker de metas reutiliza lo que gestionas en Categorías.
+    /// Si aún no hay categorías, cae en los presets fijos.
+    private var presets: [AddGoalPreset] {
+        let cats = app.categories
+        guard !cats.isEmpty else { return AddGoalPreset.all }
+        return cats.map { c in
+            let color = CategorasVisual.color(for: c)
+            return AddGoalPreset(id: "cat_\(c.id)",
+                                 symbol: IconMapping.sfSymbol(for: c.icon),
+                                 name: c.name,
+                                 color: color,
+                                 hex: c.color)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -534,7 +568,7 @@ private struct AddGoalIconSheet: View {
                 Palette.bg.opacity(0.6).ignoresSafeArea()
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Space.m) {
-                        ForEach(AddGoalPreset.all) { p in
+                        ForEach(presets) { p in
                             Button {
                                 selection = p
                                 dismiss()
