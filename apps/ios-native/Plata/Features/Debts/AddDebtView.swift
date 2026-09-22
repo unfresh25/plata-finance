@@ -23,9 +23,9 @@ struct AddDebtView: View {
     // Formulario
     @State private var direction: DebtDirection = .owedToUs
     @State private var amountDigits = ""
-    // Cuando un campo de texto (concepto/cuotas) toma el foco, se oculta el keypad
-    // numérico custom para que no compita con el teclado del sistema.
     @FocusState private var textFieldFocused: Bool
+    // Foco del campo de monto (teclado numérico real del sistema).
+    @FocusState private var amountFocused: Bool
     @State private var person = ""
     @State private var note = ""
     @State private var categoryId: String?
@@ -111,12 +111,6 @@ struct AddDebtView: View {
                 .padding(.bottom, Space.l)
             }
             .scrollDismissesKeyboard(.interactively)
-
-            // Keypad numérico solo cuando NO se está escribiendo texto (evita dos
-            // teclados a la vez y que el contenido quede tapado).
-            if !textFieldFocused {
-                keypad
-            }
 
             PrimaryButton(
                 title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
@@ -207,17 +201,37 @@ struct AddDebtView: View {
                 .tracking(1.2)
                 .foregroundStyle(tint)
 
-            Text(CurrencyFormatter.string(amountValue, currency: app.currency))
-                .font(Typo.amountHero(amountFontSize))
-                .monospacedDigit()
-                .tracking(-0.5) // tracking negativo sutil en cifra display grande
-                .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .contentTransition(.numericText(value: amountValue))
-                .animation(Motion.value, value: amountValue)
-                .frame(maxWidth: .infinity)
+            // Monto grande visual + TextField invisible con el teclado numérico
+            // REAL del sistema. Tocar el monto enfoca el campo y abre el teclado.
+            ZStack {
+                Text(CurrencyFormatter.string(amountValue, currency: app.currency))
+                    .font(Typo.amountHero(amountFontSize))
+                    .monospacedDigit()
+                    .tracking(-0.5)
+                    .foregroundStyle(amountValue > 0 ? tint : Palette.inkTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .contentTransition(.numericText(value: amountValue))
+                    .animation(Motion.value, value: amountValue)
+                    .frame(maxWidth: .infinity)
+
+                TextField("", text: $amountDigits)
+                    .keyboardType(.numberPad)
+                    .focused($amountFocused)
+                    .foregroundStyle(.clear)
+                    .tint(.clear)
+                    .accentColor(.clear)
+                    .multilineTextAlignment(.center)
+                    .onChange(of: amountDigits) { _, v in
+                        // Solo dígitos, tope de 12.
+                        let clean = String(v.filter(\.isNumber).prefix(12))
+                        if clean != v { amountDigits = clean }
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
         }
+        .onAppear { amountFocused = true }   // abre el teclado al entrar
     }
 
     private var amountFontSize: CGFloat {
