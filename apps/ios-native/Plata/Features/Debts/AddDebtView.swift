@@ -23,6 +23,9 @@ struct AddDebtView: View {
     // Formulario
     @State private var direction: DebtDirection = .owedToUs
     @State private var amountDigits = ""
+    // Cuando un campo de texto (concepto/cuotas) toma el foco, se oculta el keypad
+    // numérico custom para que no compita con el teclado del sistema.
+    @FocusState private var textFieldFocused: Bool
     @State private var person = ""
     @State private var note = ""
     @State private var categoryId: String?
@@ -107,8 +110,13 @@ struct AddDebtView: View {
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
             }
+            .scrollDismissesKeyboard(.interactively)
 
-            keypad
+            // Keypad numérico solo cuando NO se está escribiendo texto (evita dos
+            // teclados a la vez y que el contenido quede tapado).
+            if !textFieldFocused {
+                keypad
+            }
 
             PrimaryButton(
                 title: isSaving ? "Guardando…" : (editing == nil ? "Guardar" : "Guardar cambios"),
@@ -153,6 +161,7 @@ struct AddDebtView: View {
                         .font(Typo.amount).monospacedDigit()
                         .foregroundStyle(Palette.ink)
                         .frame(maxWidth: 140)
+                        .focused($textFieldFocused)
                 }
                 RowDivider()
                 // Frecuencia
@@ -236,6 +245,7 @@ struct AddDebtView: View {
                     .font(Typo.callout)
                     .foregroundStyle(Palette.ink)
                     .submitLabel(.done)
+                    .focused($textFieldFocused)
                 }
             }
 
@@ -251,6 +261,7 @@ struct AddDebtView: View {
                     .font(Typo.callout)
                     .foregroundStyle(Palette.ink)
                     .submitLabel(.done)
+                    .focused($textFieldFocused)
                 }
             }
 
