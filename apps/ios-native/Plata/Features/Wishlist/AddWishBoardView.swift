@@ -66,14 +66,10 @@ struct AddWishBoardView: View {
                                     .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                                     .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke))
                             case .upload:
+                                let hasCover = uploadedCover != nil
+                                let isUploading = uploading
                                 PhotosPicker(selection: $photoItem, matching: .images) {
-                                    HStack {
-                                        Image(systemName: uploadedCover == nil ? "photo.badge.plus" : "checkmark.circle.fill")
-                                        Text(uploading ? "Subiendo…" : (uploadedCover == nil ? "Elegir foto" : "Foto lista"))
-                                    }
-                                    .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.accent)
-                                    .frame(maxWidth: .infinity).padding(Space.m)
-                                    .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                                    WishPhotoPickerLabel(hasImage: hasCover, uploading: isUploading)
                                 }
                             }
                         }
@@ -104,9 +100,11 @@ struct AddWishBoardView: View {
         }
     }
 
+    @MainActor
     private func upload(_ item: PhotosPickerItem?) async {
         guard let item, let uid = app.profile?.id else { return }
-        uploading = true; defer { uploading = false }
+        uploading = true
+        defer { uploading = false }
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data),
@@ -117,9 +115,11 @@ struct AddWishBoardView: View {
         } catch { self.error = error.localizedDescription }
     }
 
+    @MainActor
     private func save() async {
         guard let hh = app.household?.id, let uid = app.profile?.id else { return }
-        saving = true; defer { saving = false }
+        saving = true
+        defer { saving = false }
         let cover: String? = {
             switch coverMode {
             case .none: return nil
