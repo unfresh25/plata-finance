@@ -100,11 +100,11 @@ private struct BoardCard: View {
                     LinearGradient(colors: [Palette.accent.opacity(0.5), Palette.accent.opacity(0.25)],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                         .frame(height: 130)
-                        .overlay(Text(board.emoji ?? "✨").font(.system(size: 40)))
+                        .overlay(WishBoardGlyph(glyph: board.emoji, size: 44, tint: .white))
                 }
             }
             HStack(spacing: Space.xs) {
-                if board.coverUrl != nil, let e = board.emoji { Text(e) }
+                if board.coverUrl != nil { WishBoardGlyph(glyph: board.emoji, size: 20, tint: Palette.accent) }
                 Text(board.name).font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.ink)
                     .lineLimit(1)
             }
@@ -113,5 +113,39 @@ private struct BoardCard: View {
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+    }
+}
+
+// MARK: - Glifo del tablero
+//
+// El campo `emoji` del tablero guarda o bien un emoji suelto, o bien el slug del
+// ícono de una categoría del hogar (Hugeicon). Este helper decide cómo pintarlo:
+// si el slug tiene un Hugeicon real, se usa ese teñido; si no, se muestra como
+// texto (emoji). Así los tableros usan las categorías creadas por el usuario.
+struct WishBoardGlyph: View {
+    let glyph: String?
+    var size: CGFloat = 28
+    var tint: Color = Palette.accent
+
+    var body: some View {
+        let g = glyph ?? "✨"
+        if let hugeicon = CategoryIconAsset.image(forSlug: g) {
+            hugeicon.resizable().scaledToFit()
+                .foregroundStyle(tint)
+                .frame(width: size, height: size)
+        } else if isLikelySlug(g) {
+            // Slug sin asset Hugeicon → SF Symbol mapeado, teñido.
+            Image(systemName: IconMapping.sfSymbol(for: g))
+                .font(.system(size: size * 0.9, weight: .semibold))
+                .foregroundStyle(tint)
+        } else {
+            Text(g).font(.system(size: size))
+        }
+    }
+
+    // Heurística: un slug de categoría es ASCII con letras/dígitos/guiones; un
+    // emoji contiene escalares fuera de ese rango.
+    private func isLikelySlug(_ s: String) -> Bool {
+        !s.isEmpty && s.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
     }
 }

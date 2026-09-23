@@ -145,6 +145,9 @@ struct MainTabView: View {
         case .debt: AddDebtView()
         case .account: AddAccountView()
         case .recurring: AddRecurringView()
+        // Un deseo necesita un tablero destino: abrimos la lista de Deseos
+        // (con su propio "+" para crear tablero y añadir deseos dentro).
+        case .wish: NavigationStack { WishlistView() }
         }
     }
 }

@@ -1,14 +1,17 @@
 import SwiftUI
 import PhotosUI
 
-// Crear un tablero de deseos: nombre + emoji + portada opcional (URL o subir foto).
+// Crear un tablero de deseos: nombre + categoría (usa las categorías creadas del
+// hogar, su ícono y color) + portada opcional (URL o subir foto).
 
 struct AddWishBoardView: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
-    @State private var emoji = "✨"
+    // Guardamos en `emoji` el slug del ícono de la categoría elegida (Hugeicon)
+    // o, sin categorías, un emoji suelto de respaldo.
+    @State private var emoji = "sparkles"
     @State private var coverMode: CoverMode = .none
     @State private var coverUrlText = ""
     @State private var photoItem: PhotosPickerItem?
@@ -21,7 +24,8 @@ struct AddWishBoardView: View {
         var label: String { switch self { case .none: "Sin portada"; case .url: "URL"; case .upload: "Subir" } }
     }
 
-    private let emojis = ["✨","🏠","💻","🛋️","🧊","🚗","✈️","🎁","👕","📱","🎮","💍","🪑","🍳","🛁","🌴"]
+    // Respaldo cuando el hogar aún no tiene categorías creadas.
+    private let fallbackEmojis = ["✨","🏠","💻","🛋️","🧊","🚗","✈️","🎁","👕","📱","🎮","💍","🪑","🍳","🛁","🌴"]
 
     var body: some View {
         NavigationStack {
@@ -35,21 +39,7 @@ struct AddWishBoardView: View {
                             .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke))
                     }
 
-                    field("Emoji") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: Space.s) {
-                                ForEach(emojis, id: \.self) { e in
-                                    Text(e).font(.system(size: 26))
-                                        .frame(width: 46, height: 46)
-                                        .background(emoji == e ? Palette.accent.opacity(0.18) : Palette.surface,
-                                                    in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
-                                        .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
-                                            .strokeBorder(emoji == e ? Palette.accent : Palette.stroke, lineWidth: emoji == e ? 2 : 1))
-                                        .onTapGesture { emoji = e }
-                                }
-                            }
-                        }
-                    }
+                    field("Categoría") { categoryPicker }
 
                     field("Portada (opcional)") {
                         VStack(alignment: .leading, spacing: Space.m) {
@@ -90,6 +80,49 @@ struct AddWishBoardView: View {
                 }
             }
             .onChange(of: photoItem) { _, item in Task { await upload(item) } }
+        }
+    }
+
+    // Selector de categoría a partir de las categorías del hogar (ícono Hugeicon
+    // + color). Guarda el slug del ícono en `emoji`. Sin categorías → emojis.
+    @ViewBuilder private var categoryPicker: some View {
+        let cats = app.categories
+        if cats.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Space.s) {
+                    ForEach(fallbackEmojis, id: \.self) { e in
+                        Text(e).font(.system(size: 26))
+                            .frame(width: 46, height: 46)
+                            .background(emoji == e ? Palette.accent.opacity(0.18) : Palette.surface,
+                                        in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                                .strokeBorder(emoji == e ? Palette.accent : Palette.stroke, lineWidth: emoji == e ? 2 : 1))
+                            .onTapGesture { emoji = e }
+                    }
+                }
+            }
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Space.m) {
+                    ForEach(cats) { c in
+                        let selected = emoji == c.icon
+                        let color = Color(hexString: c.color) ?? Palette.accent
+                        VStack(spacing: 6) {
+                            CategoryIcon(systemName: IconMapping.sfSymbol(for: c.icon),
+                                         color: color, size: 50, slug: c.icon)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 50 * 0.32, style: .continuous)
+                                        .strokeBorder(color, lineWidth: selected ? 2.5 : 0)
+                                )
+                            Text(c.name).font(Typo.caption).foregroundStyle(selected ? Palette.ink : Palette.inkTertiary)
+                                .lineLimit(1).frame(maxWidth: 64)
+                        }
+                        .opacity(selected ? 1 : 0.7)
+                        .onTapGesture { emoji = c.icon }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 

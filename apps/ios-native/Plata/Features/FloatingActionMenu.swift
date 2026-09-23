@@ -21,7 +21,7 @@ struct FloatingActionMenu: View {
     private enum Phase { case closed, radial, create }
 
     private let actions: [AddDestination] = [
-        .transaction, .budget, .shoppingList, .goal, .debt, .account, .recurring,
+        .transaction, .budget, .shoppingList, .goal, .wish, .debt, .account, .recurring,
     ]
 
     var body: some View {
