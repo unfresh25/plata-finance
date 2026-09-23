@@ -48,14 +48,10 @@ struct AddWishItemView: View {
                                     .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
                                     .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke))
                             } else {
+                                let hasImage = uploadedImage != nil
+                                let isUploading = uploading
                                 PhotosPicker(selection: $photoItem, matching: .images) {
-                                    HStack {
-                                        Image(systemName: uploadedImage == nil ? "photo.badge.plus" : "checkmark.circle.fill")
-                                        Text(uploading ? "Subiendo…" : (uploadedImage == nil ? "Elegir foto" : "Foto lista"))
-                                    }
-                                    .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.accent)
-                                    .frame(maxWidth: .infinity).padding(Space.m)
-                                    .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                                    WishPhotoPickerLabel(hasImage: hasImage, uploading: isUploading)
                                 }
                             }
 
@@ -122,9 +118,11 @@ struct AddWishItemView: View {
         }
     }
 
+    @MainActor
     private func upload(_ item: PhotosPickerItem?) async {
         guard let item, let uid = app.profile?.id else { return }
-        uploading = true; defer { uploading = false }
+        uploading = true
+        defer { uploading = false }
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data),
@@ -135,9 +133,11 @@ struct AddWishItemView: View {
         } catch { self.error = error.localizedDescription }
     }
 
+    @MainActor
     private func save() async {
         guard let hh = app.household?.id, let uid = app.profile?.id else { return }
-        saving = true; defer { saving = false }
+        saving = true
+        defer { saving = false }
         let price = Double(priceText.replacingOccurrences(of: ",", with: "."))
         let linkTrim = link.trimmingCharacters(in: .whitespaces)
         do {
@@ -148,5 +148,23 @@ struct AddWishItemView: View {
                 link: linkTrim.isEmpty ? nil : linkTrim, priority: priority)
             dismiss()
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+// Label del PhotosPicker aislado en su propia View: el closure-label de
+// PhotosPicker es @Sendable, así que recibe solo valores Sendable (Bool) y
+// evita los warnings de aislamiento del actor.
+struct WishPhotoPickerLabel: View {
+    let hasImage: Bool
+    let uploading: Bool
+
+    var body: some View {
+        HStack {
+            Image(systemName: hasImage ? "checkmark.circle.fill" : "photo.badge.plus")
+            Text(uploading ? "Subiendo…" : (hasImage ? "Foto lista" : "Elegir foto"))
+        }
+        .font(Typo.callout.weight(.semibold)).foregroundStyle(Palette.accent)
+        .frame(maxWidth: .infinity).padding(Space.m)
+        .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
     }
 }
