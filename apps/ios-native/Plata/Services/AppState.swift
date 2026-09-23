@@ -283,11 +283,16 @@ final class AppState {
 
     // MARK: Derivados para la UI
 
-    /// Patrimonio neto: dinero de las cuentas normales MENOS la deuda usada de las
-    /// tarjetas de crédito (en una TC el `balance` es lo que debes, un pasivo).
+    /// Balance total disponible: el dinero de las cuentas normales MÁS el CUPO
+    /// DISPONIBLE de las tarjetas de crédito (cupo − deuda usada). No suma la deuda
+    /// de la TC; suma lo que aún puedes usar. Si una TC no tiene cupo definido, no
+    /// aporta nada (su disponible es desconocido).
     var totalBalance: Double {
         accounts.reduce(0) { sum, acc in
-            acc.isCredit ? sum - acc.balance : sum + acc.balance
+            if acc.isCredit {
+                return sum + (acc.availableCredit ?? 0)
+            }
+            return sum + acc.balance
         }
     }
 
