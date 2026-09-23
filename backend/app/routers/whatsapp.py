@@ -162,7 +162,13 @@ async def whatsapp_webhook(request: Request):
             "Hola 👋 Para conectar tu WhatsApp con Plata, abre la app → Ajustes → Conectar WhatsApp y envíame el código que aparece.")
         return {"ok": True}
 
-    hh = linked["household_id"]
+    # El hogar ACTUAL del usuario (por si se cambió a otro hogar en la app); el
+    # vínculo guarda el hogar del momento de vincular, que puede estar desfasado.
+    prof = supa.table("profiles").select("household_id").eq("id", linked["user_id"]).limit(1).execute()
+    hh = (prof.data or [{}])[0].get("household_id") or linked["household_id"]
+    # Mantén el vínculo al día si cambió de hogar.
+    if hh != linked.get("household_id"):
+        supa.table("whatsapp_links").update({"household_id": hh}).eq("phone", sender).execute()
 
     # Foto de recibo: descarga la imagen de Kapso y la pasa por OCR.
     if mtype == "image":

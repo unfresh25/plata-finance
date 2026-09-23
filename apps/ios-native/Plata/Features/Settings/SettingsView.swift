@@ -33,6 +33,7 @@ struct SettingsView: View {
 
     // QR del código de invitación.
     @State private var showQR = false
+    @State private var showJoinOther = false
 
     // Todas las monedas ISO 4217 con nombre localizado (es), ordenadas.
     private let currencies: [(code: String, label: String)] = CurrencyCatalog.all
@@ -66,7 +67,8 @@ struct SettingsView: View {
                     },
                     onShowQR: { showQR = true },
                     onCopy: copyInviteCode,
-                    onRegenerate: { showRegenConfirm = true }
+                    onRegenerate: { showRegenConfirm = true },
+                    onJoinOther: { showJoinOther = true }
                 )
 
                 SettingsPreferencesSection(
@@ -144,6 +146,12 @@ struct SettingsView: View {
             )
             .presentationDetents([.medium])
             .presentationBackground(Palette.bg)
+        }
+        // Unirse a otro hogar con un código.
+        .sheet(isPresented: $showJoinOther) {
+            JoinHouseholdSheet()
+                .presentationDetents([.height(320)])
+                .presentationBackground(Palette.bg)
         }
     }
 
@@ -283,6 +291,7 @@ private struct SettingsHouseholdSection: View {
     var onShowQR: () -> Void = {}
     let onCopy: () -> Void
     var onRegenerate: () -> Void = {}
+    var onJoinOther: () -> Void = {}
 
     var body: some View {
         PlainSection(title: "Hogar") {
@@ -362,6 +371,20 @@ private struct SettingsHouseholdSection: View {
                 }
             }
             .padding(.top, Space.s)
+
+            RowDivider(leadingInset: 40 + Space.m)
+
+            // Unirse a OTRO hogar con un código (cambia de familia).
+            Button(action: onJoinOther) {
+                SettingsRow(icon: "person.2.badge.plus.fill", tint: Palette.accent,
+                            title: "Unirme a otro hogar") {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .pressable()
         }
     }
 
@@ -675,5 +698,66 @@ private struct InviteQRSheet: View {
         }
         .padding(.horizontal, Space.l)
         .padding(.bottom, Space.l)
+    }
+}
+
+// MARK: - Unirse a otro hogar (por código)
+
+private struct JoinHouseholdSheet: View {
+    @Environment(AppState.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var code = ""
+    @State private var isJoining = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: Space.l) {
+                Text("Ingresa el código de invitación del hogar al que quieres unirte. Dejarás tu hogar actual.")
+                    .font(Typo.subhead).foregroundStyle(Palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField("Código (ej. 883471)", text: $code)
+                    .font(Typo.title.monospaced())
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .padding(Space.l)
+                    .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.m, style: .continuous).strokeBorder(Palette.stroke, lineWidth: 1))
+
+                if let error {
+                    Text(error).font(Typo.caption).foregroundStyle(Palette.negative)
+                }
+
+                PrimaryButton(title: isJoining ? "Uniéndome…" : "Unirme al hogar") { join() }
+                    .disabled(code.trimmingCharacters(in: .whitespaces).isEmpty || isJoining)
+                    .opacity(code.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+
+                Spacer(minLength: 0)
+            }
+            .padding(Space.l)
+            .navigationTitle("Unirme a otro hogar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }.foregroundStyle(Palette.inkSecondary)
+                }
+            }
+        }
+        .tint(Palette.accent)
+    }
+
+    private func join() {
+        isJoining = true; error = nil
+        Task {
+            await app.joinHousehold(code: code.trimmingCharacters(in: .whitespaces))
+            isJoining = false
+            if let msg = app.errorMessage, !msg.isEmpty {
+                error = msg
+            } else {
+                await app.refreshAll()
+                dismiss()
+            }
+        }
     }
 }
