@@ -46,7 +46,9 @@ struct AccountCreditCard: View {
 
             Spacer(minLength: Space.l)
 
-            // Zona inferior: nombre + balance grande tabular.
+            // Zona inferior: nombre + monto grande tabular.
+            // Tarjeta de crédito → muestra el CUPO DISPONIBLE (con usado/total debajo);
+            // cuenta normal → muestra el balance.
             VStack(alignment: .leading, spacing: 2) {
                 Text(account.name)
                     .font(Typo.callout)
@@ -54,13 +56,25 @@ struct AccountCreditCard: View {
                     .foregroundStyle(.white.opacity(0.82))
                     .lineLimit(1)
 
-                Text(CurrencyFormatter.string(account.balance, currency: currency))
-                    .font(fillsWidth ? Typo.amountLarge : Typo.amountMedium)
-                    .tracking(-0.5)
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                if account.isCredit, let available = account.availableCredit {
+                    Text(CurrencyFormatter.string(available, currency: currency))
+                        .font(fillsWidth ? Typo.amountLarge : Typo.amountMedium)
+                        .tracking(-0.5).monospacedDigit().foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    if let limit = account.creditLimit {
+                        Text("Disponible · usado \(CurrencyFormatter.string(account.balance, currency: currency)) de \(CurrencyFormatter.string(limit, currency: currency))")
+                            .font(Typo.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                } else {
+                    Text(CurrencyFormatter.string(account.balance, currency: currency))
+                        .font(fillsWidth ? Typo.amountLarge : Typo.amountMedium)
+                        .tracking(-0.5).monospacedDigit().foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    if account.isCredit {
+                        // Crédito sin cupo definido: rotula el monto como deuda.
+                        Text("Deuda actual").font(Typo.caption).foregroundStyle(.white.opacity(0.75))
+                    }
+                }
             }
         }
         .padding(fillsWidth ? Space.l : Space.l)

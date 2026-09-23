@@ -17,13 +17,22 @@ struct AddAccountView: View {
     @State private var name = ""
     @State private var type: AccountType = .debit
     @State private var balanceText = ""
+    @State private var creditLimitText = ""
     @State private var colorHex = AddAccountPalette.swatches[2].hex // índigo por defecto
 
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    private var isCredit: Bool { type == .credit }
+
     private var balance: Double {
         Double(balanceText.replacingOccurrences(of: ",", with: ".")) ?? 0
+    }
+
+    private var creditLimit: Double? {
+        guard isCredit else { return nil }
+        let v = Double(creditLimitText.replacingOccurrences(of: ",", with: ".")) ?? 0
+        return v > 0 ? v : nil
     }
 
     private var canSave: Bool {
@@ -54,7 +63,8 @@ struct AddAccountView: View {
                         typePicker
                     }
 
-                    fieldGroup(label: "Balance inicial") {
+                    // En una tarjeta de crédito el "balance" es la deuda usada.
+                    fieldGroup(label: isCredit ? "Deuda actual" : "Balance inicial") {
                         HStack(spacing: Space.s) {
                             Text(app.currency)
                                 .font(Typo.callout)
@@ -71,6 +81,27 @@ struct AddAccountView: View {
                             RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
                                 .strokeBorder(Palette.stroke, lineWidth: 1)
                         )
+                    }
+
+                    if isCredit {
+                        fieldGroup(label: "Cupo total") {
+                            HStack(spacing: Space.s) {
+                                Text(app.currency)
+                                    .font(Typo.callout)
+                                    .foregroundStyle(Palette.inkTertiary)
+                                TextField("0", text: $creditLimitText)
+                                    .font(Typo.amountMedium)
+                                    .monospacedDigit()
+                                    .foregroundStyle(Palette.ink)
+                                    .keyboardType(.decimalPad)
+                            }
+                            .padding(Space.l)
+                            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.m, style: .continuous)
+                                    .strokeBorder(Palette.stroke, lineWidth: 1)
+                            )
+                        }
                     }
 
                     fieldGroup(label: "Color") {
@@ -121,6 +152,7 @@ struct AddAccountView: View {
         name = e.name
         type = e.type
         balanceText = Self.balanceString(e.balance)
+        if let limit = e.creditLimit { creditLimitText = Self.balanceString(limit) }
         colorHex = e.color
     }
 
@@ -249,7 +281,8 @@ struct AddAccountView: View {
                 type: type.rawValue,
                 balance: balance,
                 color: colorHex,
-                icon: type.sfSymbol
+                icon: type.sfSymbol,
+                credit_limit: creditLimit
             )
 
             do {
@@ -281,7 +314,8 @@ struct AddAccountView: View {
             balance: balance,
             currency: app.currency,
             color: colorHex,
-            icon: type.sfSymbol
+            icon: type.sfSymbol,
+            credit_limit: creditLimit
         )
 
         do {
@@ -307,6 +341,7 @@ private struct NewAccountInsert: Encodable {
     let currency: String
     let color: String
     let icon: String
+    let credit_limit: Double?
 }
 
 /// PATCH de edición: solo columnas editables desde el formulario. El balance va
@@ -318,6 +353,7 @@ private struct AccountPatch: Encodable {
     let balance: Double
     let color: String
     let icon: String
+    let credit_limit: Double?
 }
 
 // MARK: - Paleta del selector

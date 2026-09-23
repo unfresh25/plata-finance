@@ -218,15 +218,19 @@ struct TransactionDetailView: View {
         isDeleting = true
         deleteError = nil
 
-        // Revertir el efecto en el saldo: un income eliminado resta; un expense suma.
-        let revertDelta = isIncome ? -transaction.amount : transaction.amount
+        // Revertir el efecto en el saldo. Usa el mismo cálculo de signo que al crear
+        // (respeta tarjetas de crédito y transfers) y lo invierte para deshacerlo.
+        let isCredit = app.accounts.first { $0.id == transaction.accountId }?.isCredit ?? false
+        let revertDelta = -Repository.balanceDelta(type: transaction.type, amount: transaction.amount, isCredit: isCredit)
 
         Task {
             do {
-                let _: EmptyResponse? = try? await SupabaseClient.shared.rpc(
-                    "apply_account_delta",
-                    params: ["p_account_id": transaction.accountId, "p_delta": revertDelta]
-                )
+                if revertDelta != 0 {
+                    let _: EmptyResponse? = try? await SupabaseClient.shared.rpc(
+                        "apply_account_delta",
+                        params: ["p_account_id": transaction.accountId, "p_delta": revertDelta]
+                    )
+                }
                 try await SupabaseClient.shared.deleteRow("transactions", match: ["id": transaction.id])
                 await app.refreshAll()
                 isDeleting = false
