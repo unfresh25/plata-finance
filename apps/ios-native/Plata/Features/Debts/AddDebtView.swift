@@ -36,11 +36,14 @@ struct AddDebtView: View {
     @State private var isSaving = false
     @State private var saveError: String?
 
-    // Plan de pagos automático (crea un recurrente ligado a la deuda).
+    // Plan de pagos automático (crea/edita un recurrente ligado a la deuda).
     @State private var hasPlan = false
     @State private var installmentDigits = ""
     @State private var planFrequency: Frequency = .monthly
     @State private var planDay = 1
+    // Id del recurrente ligado ya existente (solo en edición): permite actualizarlo
+    // o eliminarlo en vez de duplicar.
+    @State private var existingPlanId: String?
 
     private var isOwed: Bool { direction == .owedToUs }
     private var tint: Color { isOwed ? Palette.green : Palette.pink }
@@ -80,6 +83,7 @@ struct AddDebtView: View {
         .presentationDragIndicator(.visible)
         .glassSheetBackground()
         .onAppear(perform: seedEdit)
+        .task { await loadExistingPlan() }
         .onChange(of: direction) { _, _ in
             // La categoría debe coincidir con el nuevo tipo de movimiento.
             if let c = selectedCategory, c.type == (isOwed ? .income : .expense) { return }
@@ -104,8 +108,8 @@ struct AddDebtView: View {
 
                     selectors
 
-                    // Plan de pagos (solo al crear): crea un recurrente ligado.
-                    if editing == nil { planSection }
+                    // Plan de pagos: crea (al dar de alta) o edita el recurrente ligado.
+                    planSection
                 }
                 .padding(.horizontal, Space.l)
                 .padding(.bottom, Space.l)
@@ -415,6 +419,7 @@ struct AddDebtView: View {
             Task {
                 do {
                     try await SupabaseClient.shared.update("debts", values: patch, match: ["id": debt.id])
+                    try await syncPlan(debtId: debt.id)
                     await app.refreshAll()
                     isSaving = false
                     dismiss()
@@ -473,6 +478,48 @@ struct AddDebtView: View {
     }
 
     private var installmentValue: Double { Double(installmentDigits) ?? 0 }
+
+    /// Sincroniza el plan de pagos (recurrente ligado) al editar la deuda:
+    /// - hasPlan on + no existía → crea uno nuevo.
+    /// - hasPlan on + existía   → actualiza cuota/frecuencia/día.
+    /// - hasPlan off + existía   → elimina el recurrente.
+    @MainActor
+    private func syncPlan(debtId: String) async throws {
+        let type: TransactionType = isOwed ? .income : .expense
+        if hasPlan, installmentValue > 0 {
+            if let planId = existingPlanId {
+                try await Repository().updateRecurringPlan(
+                    id: planId, amount: installmentValue, type: type,
+                    frequency: planFrequency, categoryId: categoryId, dayOfMonth: planDay)
+            } else {
+                guard let hh = app.household?.id else { return }
+                try await Repository().createRecurringPlan(
+                    householdId: hh, name: person.isEmpty ? "Deuda" : person,
+                    amount: installmentValue, type: type, frequency: planFrequency,
+                    categoryId: categoryId, dayOfMonth: planDay, debtId: debtId)
+            }
+        } else if let planId = existingPlanId {
+            // Se quitó el plan: elimina el recurrente ligado.
+            try await Repository().deleteRecurring(id: planId)
+            existingPlanId = nil
+        }
+    }
+
+    /// En edición, carga el recurrente ligado a esta deuda (si existe) y precarga
+    /// el bloque de plan de pagos, para poder editarlo o quitarlo.
+    @MainActor
+    private func loadExistingPlan() async {
+        guard let debt = editing else { return }
+        guard let plan = try? await Repository().fetchRecurringForDebt(debtId: debt.id) else { return }
+        existingPlanId = plan.id
+        hasPlan = true
+        installmentDigits = String(Int(plan.amount.rounded()))
+        planFrequency = plan.frequency
+        // El día se deriva de next_date (yyyy-MM-dd).
+        if let day = Int(plan.nextDate.split(separator: "-").last.map(String.init) ?? "") {
+            planDay = min(max(day, 1), 28)
+        }
+    }
 
     /// Precarga el formulario desde `editing` una sola vez. El modelo `Debt` no
     /// decodifica category_id, así que la categoría queda sin preseleccionar

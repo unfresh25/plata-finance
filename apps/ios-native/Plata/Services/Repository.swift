@@ -506,6 +506,37 @@ struct Repository {
         let _: [RecurringEvent] = try await client.insert("recurring_events", values: insert)
     }
 
+    /// Recurrente ligado a una deuda (su plan de cuotas), si existe.
+    func fetchRecurringForDebt(debtId: String) async throws -> RecurringEvent? {
+        let rows: [RecurringEvent] = try await client.from("recurring_events", query: [
+            "debt_id": "eq.\(debtId)", "select": "*", "limit": "1",
+        ])
+        return rows.first
+    }
+
+    /// Actualiza el plan (cuota, frecuencia, día) de un recurrente existente.
+    func updateRecurringPlan(id: String, amount: Double, type: TransactionType,
+                             frequency: Frequency, categoryId: String?, dayOfMonth: Int) async throws {
+        struct Patch: Encodable {
+            let amount: Double
+            let type: String
+            let frequency: String
+            let category_id: String?
+            let day_of_month: Int
+            let next_date: String
+            let is_active: Bool
+        }
+        try await client.update("recurring_events", values: Patch(
+            amount: amount, type: type.rawValue, frequency: frequency.rawValue,
+            category_id: categoryId, day_of_month: dayOfMonth,
+            next_date: Self.nextDate(forDayOfMonth: dayOfMonth), is_active: true),
+            match: ["id": id])
+    }
+
+    func deleteRecurring(id: String) async throws {
+        try await client.delete("recurring_events", match: ["id": id])
+    }
+
     /// Próxima fecha "yyyy-MM-dd" para ese día del mes: este mes si aún no pasó,
     /// si no el mes siguiente (equivale a calcNextDate del legacy).
     static func nextDate(forDayOfMonth day: Int) -> String {
