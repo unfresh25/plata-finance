@@ -283,7 +283,13 @@ final class AppState {
 
     // MARK: Derivados para la UI
 
-    var totalBalance: Double { accounts.reduce(0) { $0 + $1.balance } }
+    /// Patrimonio neto: dinero de las cuentas normales MENOS la deuda usada de las
+    /// tarjetas de crédito (en una TC el `balance` es lo que debes, un pasivo).
+    var totalBalance: Double {
+        accounts.reduce(0) { sum, acc in
+            acc.isCredit ? sum - acc.balance : sum + acc.balance
+        }
+    }
 
     var currency: String { profile?.currency ?? "COP" }
 

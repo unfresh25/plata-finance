@@ -303,7 +303,8 @@ struct RecurringDetailView: View {
             type: event.type,
             categoryId: event.categoryId,
             description: event.name,
-            date: RecurrentesDate.iso(Date())
+            date: RecurrentesDate.iso(Date()),
+            isCredit: app.accounts.first { $0.id == accountId }?.isCredit ?? false
         )
 
         struct NextDateUpdate: Encodable { let next_date: String }

@@ -408,13 +408,16 @@ struct AddTransactionView: View {
             categoryId: type == .transfer ? nil : categoryId,
             description: note.isEmpty ? nil : note,
             date: Self.isoDate(date),
-            splitMode: type == .expense ? splitMode : .shared
+            splitMode: type == .expense ? splitMode : .shared,
+            isCredit: app.accounts.first { $0.id == accountId }?.isCredit ?? false
         )
 
         Task {
             do {
                 if let tx = editing {
-                    try await Repository().updateTransaction(id: tx.id, original: tx, payload: payload)
+                    let originalIsCredit = app.accounts.first { $0.id == tx.accountId }?.isCredit ?? false
+                    try await Repository().updateTransaction(id: tx.id, original: tx, payload: payload,
+                                                             originalIsCredit: originalIsCredit)
                 } else {
                     try await Repository().addTransaction(payload, householdId: hh, userId: uid)
                 }

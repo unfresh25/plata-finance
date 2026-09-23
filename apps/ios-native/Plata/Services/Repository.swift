@@ -195,13 +195,47 @@ struct Repository {
         )
         let _: [Transaction] = try await client.insert("transactions", values: insert)
 
-        // Ajuste de saldo atómico (RPC apply_account_delta).
-        let delta = payload.type == .income ? payload.amount : -payload.amount
-        if payload.type != .transfer {
+        // Ajuste de saldo atómico (RPC apply_account_delta). El signo depende del
+        // tipo de movimiento y de si la cuenta es una tarjeta de crédito.
+        let delta = Self.balanceDelta(type: payload.type, amount: payload.amount, isCredit: payload.isCredit)
+        if delta != 0 {
             let _: EmptyResponse = try await client.rpc("apply_account_delta", params: [
                 "p_account_id": payload.accountId,
                 "p_delta": delta,
             ])
+        }
+    }
+
+    /// Efecto de un movimiento sobre el `balance` de su cuenta.
+    /// - Cuenta normal (débito/efectivo/ahorros): `balance` = dinero disponible →
+    ///   ingreso suma, gasto resta.
+    /// - Tarjeta de crédito: `balance` = deuda usada → un gasto AUMENTA la deuda
+    ///   (usa cupo) y un ingreso/abono la DISMINUYE (libera cupo). Signo invertido.
+    /// - `transfer` nunca toca el saldo aquí (0).
+    /// Pago de una tarjeta de crédito: mueve `amount` (+ `fees` de intereses/
+    /// adicionales) desde `sourceAccountId` a la tarjeta `cardId`. Baja la deuda de
+    /// la tarjeta por `amount` (los fees NO reducen deuda), descuenta el total de la
+    /// cuenta origen y registra el gasto. Atómico en el servidor (RPC).
+    func payCreditCard(cardId: String, sourceAccountId: String, amount: Double,
+                       fees: Double = 0, date: String, categoryId: String? = nil,
+                       description: String? = nil) async throws {
+        var params: [String: Any] = [
+            "p_card_id": cardId,
+            "p_source_account_id": sourceAccountId,
+            "p_amount": amount,
+            "p_fees": fees,
+            "p_date": date,
+        ]
+        if let categoryId { params["p_category_id"] = categoryId }
+        if let description { params["p_description"] = description }
+        let _: EmptyResponse = try await client.rpc("pay_credit_card", params: params)
+    }
+
+    static func balanceDelta(type: TransactionType, amount: Double, isCredit: Bool) -> Double {
+        switch type {
+        case .transfer: return 0
+        case .income:   return isCredit ? -amount : amount
+        case .expense:  return isCredit ?  amount : -amount
         }
     }
 
@@ -327,15 +361,14 @@ struct Repository {
     /// revierte el efecto del movimiento ORIGINAL en su cuenta original y aplica
     /// el efecto del movimiento NUEVO en su cuenta nueva (soporta cambio de
     /// cuenta, monto y tipo). Los transfers no tocan saldo. Luego hace PATCH.
-    func updateTransaction(id: String, original: Transaction, payload: NewTransaction) async throws {
-        // Efecto que el original tenía sobre su cuenta (income suma, expense resta).
-        let oldDelta: Double = original.type == .transfer
-            ? 0
-            : (original.type == .income ? original.amount : -original.amount)
+    /// `originalIsCredit`/`payload.isCredit` indican si la cuenta vieja/nueva es una
+    /// tarjeta de crédito (para invertir el signo del ajuste de saldo).
+    func updateTransaction(id: String, original: Transaction, payload: NewTransaction,
+                           originalIsCredit: Bool = false) async throws {
+        // Efecto que el original tenía sobre su cuenta.
+        let oldDelta = Self.balanceDelta(type: original.type, amount: original.amount, isCredit: originalIsCredit)
         // Efecto que tendrá el nuevo.
-        let newDelta: Double = payload.type == .transfer
-            ? 0
-            : (payload.type == .income ? payload.amount : -payload.amount)
+        let newDelta = Self.balanceDelta(type: payload.type, amount: payload.amount, isCredit: payload.isCredit)
 
         // Revertir el original en su cuenta original.
         if oldDelta != 0 {
@@ -566,6 +599,9 @@ struct NewTransaction {
     var description: String?
     var date: String
     var splitMode: SplitMode = .shared
+    /// True si la cuenta destino es una tarjeta de crédito (invierte el signo del
+    /// ajuste de saldo: gasto sube la deuda, ingreso la baja).
+    var isCredit: Bool = false
 }
 
 struct EmptyDecodable: Decodable {}

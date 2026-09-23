@@ -84,11 +84,24 @@ struct Account: Codable, Identifiable, Hashable {
     var currency: String
     var color: String
     var icon: String
+    /// Cupo de crédito (solo tarjetas). Para type == .credit, `balance` es la deuda
+    /// usada y el disponible = creditLimit - balance.
+    var creditLimit: Double?
 
     enum CodingKeys: String, CodingKey {
         case id, name, type, balance, currency, color, icon
         case householdId = "household_id"
         case ownerId = "owner_id"
+        case creditLimit = "credit_limit"
+    }
+
+    /// True si es una tarjeta de crédito (cupo rotativo).
+    var isCredit: Bool { type == .credit }
+
+    /// Cupo disponible (cupo − deuda usada). nil si no es tarjeta o no tiene cupo.
+    var availableCredit: Double? {
+        guard isCredit, let limit = creditLimit else { return nil }
+        return limit - balance
     }
 }
 

@@ -69,7 +69,8 @@ struct MainTabView: View {
             FloatingActionMenu(
                 onSelect: { destination in activeDestination = destination },
                 onVoice: { showingVoiceCapture = true },
-                onChat: { showingChat = true }
+                onChat: { showingChat = true },
+                includePayCard: app.accounts.contains { $0.isCredit }
             )
         }
         .task {
@@ -148,6 +149,8 @@ struct MainTabView: View {
         // Un deseo necesita un tablero destino: abrimos la lista de Deseos
         // (con su propio "+" para crear tablero y añadir deseos dentro).
         case .wish: NavigationStack { WishlistView() }
+        // Pago de tarjeta de crédito (elige la tarjeta dentro si hay varias).
+        case .payCard: PayCreditCardView()
         }
     }
 }

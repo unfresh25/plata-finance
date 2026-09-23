@@ -16,6 +16,7 @@ struct AccountDetailView: View {
     @State private var selectedTransaction: Transaction?
     @State private var showEditAccount = false
     @State private var showDeleteConfirm = false
+    @State private var showPayCard = false
     @Environment(\.dismiss) private var dismiss
     // Long-press en un movimiento → editar (reutiliza la pantalla de alta).
     @State private var editTarget: Transaction?
@@ -37,6 +38,13 @@ struct AccountDetailView: View {
                 // Excepción única a "sin cards": la tarjeta estilo crédito.
                 AccountCreditCard(account: liveAccount, currency: app.currency)
                     .padding(.top, Space.s)
+
+                // Tarjeta de crédito: botón para pagarla (libera cupo).
+                if liveAccount.isCredit {
+                    PrimaryButton(title: "Pagar tarjeta", icon: "creditcard.and.123") {
+                        showPayCard = true
+                    }
+                }
 
                 movements
             }
@@ -84,6 +92,9 @@ struct AccountDetailView: View {
         }
         .sheet(isPresented: $showEditAccount) {
             AddAccountView(editing: liveAccount)
+        }
+        .sheet(isPresented: $showPayCard) {
+            PayCreditCardView(card: liveAccount)
         }
     }
 

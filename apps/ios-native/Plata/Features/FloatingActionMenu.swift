@@ -13,6 +13,8 @@ struct FloatingActionMenu: View {
     var onSelect: (AddDestination) -> Void
     var onVoice: () -> Void
     var onChat: () -> Void = {}
+    /// Muestra la acción "Pagar tarjeta" (solo si el hogar tiene alguna tarjeta de crédito).
+    var includePayCard: Bool = false
 
     // En reposo solo se ve el "+". Al tocarlo → radial (voz/chat/crear).
     // "Crear" → speed-dial de las 7 acciones de creación (como antes).
@@ -20,9 +22,11 @@ struct FloatingActionMenu: View {
 
     private enum Phase { case closed, radial, create }
 
-    private let actions: [AddDestination] = [
-        .transaction, .budget, .shoppingList, .goal, .wish, .debt, .account, .recurring,
-    ]
+    private var actions: [AddDestination] {
+        var list: [AddDestination] = [.transaction, .budget, .shoppingList, .goal, .wish, .debt, .account, .recurring]
+        if includePayCard { list.insert(.payCard, at: 1) }
+        return list
+    }
 
     var body: some View {
         ZStack {
