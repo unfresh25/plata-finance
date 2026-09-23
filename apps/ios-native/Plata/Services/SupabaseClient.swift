@@ -146,6 +146,12 @@ final class SupabaseClient {
         let _: EmptyResponse = try await requestRaw(url: comps.url!, method: "PATCH", body: try encoder.encode(values), single: true)
     }
 
+    func delete(_ table: String, match: [String: String]) async throws {
+        var comps = URLComponents(url: SupabaseConfig.url.appendingPathComponent("/rest/v1/\(table)"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = match.map { URLQueryItem(name: $0.key, value: "eq.\($0.value)") }
+        let _: EmptyResponse = try await requestRaw(url: comps.url!, method: "DELETE", body: nil, single: true)
+    }
+
     // MARK: Storage
 
     /// Sube bytes al bucket de Storage y devuelve la URL pública (con cache-buster).

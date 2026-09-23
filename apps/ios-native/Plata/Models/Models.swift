@@ -130,6 +130,56 @@ struct Transaction: Codable, Identifiable, Hashable {
     }
 }
 
+/// Tablero de deseos (categoría con portada), estilo Dreamboard.
+struct WishBoard: Codable, Identifiable, Hashable {
+    let id: String
+    var householdId: String
+    var createdBy: String
+    var name: String
+    var emoji: String?
+    var coverUrl: String?
+    var sortIndex: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, emoji
+        case householdId = "household_id"
+        case createdBy = "created_by"
+        case coverUrl = "cover_url"
+        case sortIndex = "sort_index"
+    }
+}
+
+/// Deseo dentro de un tablero: foto, precio, link, prioridad.
+struct WishItem: Codable, Identifiable, Hashable {
+    let id: String
+    var boardId: String
+    var householdId: String
+    var createdBy: String
+    var name: String
+    var imageUrl: String?
+    var price: Double?
+    var currency: String
+    var link: String?
+    var priority: WishPriority
+    var acquired: Bool
+    var note: String?
+    var sortIndex: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, price, currency, link, priority, acquired, note
+        case boardId = "board_id"
+        case householdId = "household_id"
+        case createdBy = "created_by"
+        case imageUrl = "image_url"
+        case sortIndex = "sort_index"
+    }
+}
+
+enum WishPriority: String, Codable, Hashable, CaseIterable {
+    case low, medium, high
+    var label: String { switch self { case .low: "Baja"; case .medium: "Media"; case .high: "Alta" } }
+}
+
 /// Aporte a una meta de ahorro (quién puso cuánto).
 struct GoalContribution: Codable, Identifiable, Hashable {
     let id: String

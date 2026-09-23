@@ -78,6 +78,62 @@ struct Repository {
         ])
     }
 
+    // MARK: - Lista de deseos (wishlist)
+
+    func fetchWishBoards(household: String) async throws -> [WishBoard] {
+        try await client.from("wish_boards", query: [
+            "household_id": "eq.\(household)", "select": "*", "order": "sort_index",
+        ])
+    }
+
+    func fetchWishItems(boardId: String) async throws -> [WishItem] {
+        try await client.from("wish_items", query: [
+            "board_id": "eq.\(boardId)", "select": "*", "order": "sort_index",
+        ])
+    }
+
+    func addWishBoard(householdId: String, userId: String, name: String, emoji: String?, coverUrl: String? = nil) async throws {
+        struct Insert: Encodable {
+            let household_id: String; let created_by: String; let name: String
+            let emoji: String?; let cover_url: String?
+        }
+        let _: [WishBoard] = try await client.insert("wish_boards",
+            values: Insert(household_id: householdId, created_by: userId, name: name, emoji: emoji, cover_url: coverUrl))
+    }
+
+    func deleteWishBoard(id: String) async throws {
+        try await client.delete("wish_boards", match: ["id": id])
+    }
+
+    func addWishItem(boardId: String, householdId: String, userId: String, name: String,
+                     imageUrl: String?, price: Double?, currency: String, link: String?,
+                     priority: WishPriority) async throws {
+        struct Insert: Encodable {
+            let board_id: String; let household_id: String; let created_by: String
+            let name: String; let image_url: String?; let price: Double?; let currency: String
+            let link: String?; let priority: String
+        }
+        let _: [WishItem] = try await client.insert("wish_items", values: Insert(
+            board_id: boardId, household_id: householdId, created_by: userId, name: name,
+            image_url: imageUrl, price: price, currency: currency, link: link, priority: priority.rawValue))
+    }
+
+    func setWishAcquired(id: String, acquired: Bool) async throws {
+        struct Patch: Encodable { let acquired: Bool }
+        try await client.update("wish_items", values: Patch(acquired: acquired), match: ["id": id])
+    }
+
+    func deleteWishItem(id: String) async throws {
+        try await client.delete("wish_items", match: ["id": id])
+    }
+
+    /// Sube una foto de deseo (o portada de tablero) al bucket público `wishes`.
+    func uploadWishImage(userId: String, jpeg: Data) async throws -> String {
+        let path = "\(userId)-\(Int(Date().timeIntervalSince1970)).jpg"
+        return try await client.uploadToStorage(
+            bucket: "wishes", path: path, data: jpeg, contentType: "image/jpeg")
+    }
+
     func fetchShoppingItems(list: String) async throws -> [ShoppingItem] {
         try await client.from("shopping_items", query: [
             "list_id": "eq.\(list)", "select": "*",

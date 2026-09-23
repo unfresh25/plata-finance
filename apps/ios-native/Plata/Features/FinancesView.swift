@@ -72,6 +72,8 @@ struct FinancesView: View {
                     lists: app.shoppingLists.filter { $0.status != .completed },
                     onAdd: { showingAddShopping = true }
                 )
+
+                FinHubWishesSection()
             }
             .padding(.horizontal, Space.l)
             .padding(.top, Space.l)
@@ -90,6 +92,7 @@ struct FinancesView: View {
             case .shopping: ShoppingView()
             case .budgets: BudgetsView()
             case .recurring: RecurringView()
+            case .wishes: WishlistView()
             }
         }
         .sheet(isPresented: $showingAddAccount) { AddAccountView() }
@@ -107,7 +110,7 @@ struct FinancesView: View {
 // MARK: - Rutas de sección (vistas de lista completas)
 
 private enum FinHubRoute: Hashable {
-    case accounts, debts, goals, shopping, budgets, recurring
+    case accounts, debts, goals, shopping, budgets, recurring, wishes
 }
 
 // MARK: - Encabezado de sección plano (label + "ver todas" + "+")
@@ -716,6 +719,40 @@ private struct FinHubShoppingRow: View {
     private var subtitle: String {
         ShoppingStatusStyle.label(for: list.status)
             + ((list.store?.isEmpty == false) ? " • \(list.store!)" : "")
+    }
+}
+
+// MARK: - Lista de deseos (Dreamboard)
+
+private struct FinHubWishesSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            FinHubHeader(title: "Lista de deseos", route: .wishes)
+
+            NavigationLink(value: FinHubRoute.wishes) {
+                HStack(spacing: Space.m) {
+                    RowLeadingIcon(systemName: "sparkles", color: Palette.accent, size: 40)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Tableros de deseos")
+                            .font(Typo.headline)
+                            .foregroundStyle(Palette.ink)
+                            .lineLimit(1)
+                        Text("Neveras, muebles, viajes… con foto, precio y link")
+                            .font(Typo.subhead)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: Space.s)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Palette.inkTertiary)
+                }
+                .padding(.vertical, Space.m)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pressable()
+        }
     }
 }
 
