@@ -12,6 +12,7 @@ enum AddDestination: String, Identifiable, CaseIterable {
     case debt
     case account
     case recurring
+    case wish
 
     var id: String { rawValue }
 
@@ -24,6 +25,7 @@ enum AddDestination: String, Identifiable, CaseIterable {
         case .debt: "Deuda"
         case .account: "Cuenta"
         case .recurring: "Evento recurrente"
+        case .wish: "Deseo"
         }
     }
 
@@ -36,6 +38,7 @@ enum AddDestination: String, Identifiable, CaseIterable {
         case .debt: "Registra lo que deben o debes"
         case .account: "Añade una cuenta o billetera"
         case .recurring: "Suscripción o pago periódico"
+        case .wish: "Guarda algo que sueñas comprar"
         }
     }
 
@@ -48,6 +51,7 @@ enum AddDestination: String, Identifiable, CaseIterable {
         case .debt: "arrow.left.arrow.right"
         case .account: "wallet.pass.fill"
         case .recurring: "calendar"
+        case .wish: "sparkles"
         }
     }
 
@@ -60,6 +64,7 @@ enum AddDestination: String, Identifiable, CaseIterable {
         case .debt: Palette.pink
         case .account: Palette.indigo
         case .recurring: Palette.purple
+        case .wish: Palette.accent
         }
     }
 }

@@ -37,7 +37,7 @@ struct WishBoardDetailView: View {
         }
         .floatingTabBarInset()
         .background(Palette.bg.ignoresSafeArea())
-        .navigationTitle("\(board.emoji ?? "") \(board.name)")
+        .navigationTitle(board.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .toolbar {
